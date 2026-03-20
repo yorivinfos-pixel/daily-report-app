@@ -1,7 +1,7 @@
 {
-    "name": "Eastcastle Daily Report",
-    "short_name": "Eastcastle",
-    "description": "Application de rapports journaliers pour superviseurs de site - Eastcastle",
+    "name": "Daily Report PSS",
+    "short_name": "Daily Report",
+    "description": "Application de rapports journaliers pour superviseurs de site",
     "start_url": "/",
     "display": "standalone",
     "background_color": "#ffffff",
