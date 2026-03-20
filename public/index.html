@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#2563eb">
+    <meta name="description" content="Application de rapports journaliers pour superviseurs de site">
+    <title>Eastcastle - Daily Report</title>
+    <link rel="manifest" href="/manifest.json">
+    <link rel="icon" type="image/png" href="/icons/icon-192.png">
+    <link rel="apple-touch-icon" href="/icons/icon-192.png">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+    <div id="app">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <div class="logo">
+                    <span class="logo-icon">🏗️</span>
+                    <span class="logo-text">Eastcastle</span>
+                    <span class="logo-subtitle">Daily Report</span>
+                </div>
+                <div class="user-info">
+                    <span id="connection-status" class="status-dot offline"></span>
+                    <span id="user-name">Superviseur</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Formulaire de rapport -->
+            <section class="report-form-section">
+                <h2 class="section-title">
+                    <span class="title-icon">📝</span>
+                    Nouveau Rapport Journalier
+                </h2>
+                
+                <form id="report-form" class="report-form">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="supervisor-name">
+                                <span class="label-icon">👷</span>
+                                Nom du Superviseur
+                            </label>
+                            <input type="text" id="supervisor-name" name="supervisor_name" 
+                                   placeholder="Entrez votre nom" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="region">
+                                <span class="label-icon">🌍</span>
+                                Province
+                            </label>
+                            <select id="region" name="region" required>
+                                <option value="">Sélectionnez une province</option>
+                                <option value="Kinshasa" data-prefix="CDKN">Kinshasa</option>
+                                <option value="Kongo-Central" data-prefix="CDKC">Kongo-Central</option>
+                                <option value="Kwango" data-prefix="CDKW">Kwango</option>
+                                <option value="Kwilu" data-prefix="CDKL">Kwilu</option>
+                                <option value="Mai-Ndombe" data-prefix="CDMN">Mai-Ndombe</option>
+                                <option value="Bandundu" data-prefix="CDBD">Bandundu</option>
+                                <option value="Equateur" data-prefix="CDEQ">Équateur</option>
+                                <option value="Sud-Ubangi" data-prefix="CDSU">Sud-Ubangi</option>
+                                <option value="Nord-Ubangi" data-prefix="CDNU">Nord-Ubangi</option>
+                                <option value="Mongala" data-prefix="CDMG">Mongala</option>
+                                <option value="Tshuapa" data-prefix="CDTS">Tshuapa</option>
+                                <option value="Tshopo" data-prefix="CDTP">Tshopo</option>
+                                <option value="Province-Orientale" data-prefix="CDPO">Province Orientale</option>
+                                <option value="Bas-Uele" data-prefix="CDBU">Bas-Uélé</option>
+                                <option value="Haut-Uele" data-prefix="CDHU">Haut-Uélé</option>
+                                <option value="Ituri" data-prefix="CDIT">Ituri</option>
+                                <option value="Nord-Kivu" data-prefix="CDNK">Nord-Kivu</option>
+                                <option value="Sud-Kivu" data-prefix="CDSK">Sud-Kivu</option>
+                                <option value="Maniema" data-prefix="CDMA">Maniema</option>
+                                <option value="Haut-Katanga" data-prefix="CDKT">Haut-Katanga</option>
+                                <option value="Lualaba" data-prefix="CDKT">Lualaba</option>
+                                <option value="Haut-Lomami" data-prefix="CDHL">Haut-Lomami</option>
+                                <option value="Tanganyika" data-prefix="CDTA">Tanganyika</option>
+                                <option value="Kasai-Oriental" data-prefix="CDKOR">Kasaï-Oriental</option>
+                                <option value="Lomami" data-prefix="CDLO">Lomami</option>
+                                <option value="Kasai-Central" data-prefix="CDKOC">Kasaï-Central</option>
+                                <option value="Kasai" data-prefix="CDKA">Kasaï</option>
+                                <option value="Sankuru" data-prefix="CDSA">Sankuru</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="report-date">
+                            <span class="label-icon">📅</span>
+                            Date du Rapport
+                        </label>
+                        <input type="date" id="report-date" name="report_date" required>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="site-id">
+                                <span class="label-icon">🔢</span>
+                                Site ID
+                            </label>
+                            <input type="text" id="site-id" name="site_id" 
+                                   placeholder="Ex: CDKN-001" required>
+                            <small class="form-hint">Format: [Préfixe Province]-[Numéro]</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="site-name">
+                                <span class="label-icon">🏗️</span>
+                                Nom du Site
+                            </label>
+                            <input type="text" id="site-name" name="site_name" 
+                                   placeholder="Ex: Chantier Centre-Ville" required>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="activities">
+                            <span class="label-icon">⚙️</span>
+                            Activités sur le Site
+                        </label>
+                        <textarea id="activities" name="activities" rows="4"
+                                  placeholder="Décrivez les activités réalisées aujourd'hui..." required></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="comments">
+                            <span class="label-icon">💬</span>
+                            Commentaires
+                        </label>
+                        <textarea id="comments" name="comments" rows="3"
+                                  placeholder="Ajoutez des commentaires supplémentaires..."></textarea>
+                    </div>
+
+                    <!-- Upload d'images -->
+                    <div class="form-group">
+                        <label>
+                            <span class="label-icon">📷</span>
+                            Photos du Site
+                        </label>
+                        <div class="image-upload-area" id="image-upload-area">
+                            <input type="file" id="image-input" name="images" 
+                                   accept="image/*" multiple capture="environment" hidden>
+                            <div class="upload-content">
+                                <div class="upload-icon">📸</div>
+                                <p class="upload-text">Cliquez pour ajouter des photos</p>
+                                <p class="upload-hint">ou prenez une photo avec votre appareil</p>
+                            </div>
+                        </div>
+                        <div id="image-preview" class="image-preview"></div>
+                    </div>
+
+                    <button type="submit" class="submit-btn" id="submit-btn">
+                        <span class="btn-icon">📤</span>
+                        <span class="btn-text">Envoyer le Rapport</span>
+                    </button>
+                </form>
+            </section>
+
+            <!-- Historique des rapports -->
+            <section class="reports-history-section">
+                <h2 class="section-title">
+                    <span class="title-icon">📚</span>
+                    Mes Rapports Récents
+                </h2>
+                <div id="my-reports" class="reports-list">
+                    <div class="loading-spinner">Chargement...</div>
+                </div>
+            </section>
+
+            <!-- Notifications de feedback -->
+            <section class="feedback-section" id="feedback-section" style="display: none;">
+                <h2 class="section-title">
+                    <span class="title-icon">🔔</span>
+                    Nouveaux Avis du PM
+                </h2>
+                <div id="feedback-list" class="feedback-list"></div>
+            </section>
+        </main>
+
+        <!-- Toast Notifications -->
+        <div id="toast-container" class="toast-container"></div>
+
+        <!-- Modal pour voir un rapport -->
+        <div id="report-modal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3 id="modal-title">Détails du Rapport</h3>
+                    <button class="modal-close" id="modal-close">&times;</button>
+                </div>
+                <div id="modal-body" class="modal-body"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer Concepteur -->
+    <footer class="app-footer">
+        <div class="footer-content">
+            <p>Conçu et développé par <strong>Jean-Baptiste MBUYI</strong></p>
+            <p>📞 Contact: <a href="tel:0850145419">0850145419</a></p>
+        </div>
+    </footer>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/js/supervisor.js"></script>
+    <script>
+        // Register Service Worker for PWA
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/sw.js')
+                .then(reg => console.log('Service Worker registered'))
+                .catch(err => console.log('Service Worker registration failed:', err));
+        }
+    </script>
+</body>
+</html>

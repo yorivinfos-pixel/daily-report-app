@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#059669">
+    <meta name="description" content="Dashboard PM - Gestion des rapports de site">
+    <title>Eastcastle - Dashboard PM</title>
+    <link rel="manifest" href="/manifest.json">
+    <link rel="icon" type="image/png" href="/icons/icon-192.png">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/styles.css">
+    <link rel="stylesheet" href="/css/pm-dashboard.css">
+</head>
+<body class="pm-body">
+    <div id="app">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">
+                    <span class="logo-icon">🏗️</span>
+                    <span class="logo-text">Eastcastle</span>
+                </div>
+                <div class="logo-subtitle">PM Dashboard</div>
+            </div>
+            
+            <nav class="sidebar-nav">
+                <a href="#" class="nav-item active" data-view="all">
+                    <span class="nav-icon">📋</span>
+                    <span class="nav-text">Tous les Rapports</span>
+                    <span id="total-count" class="nav-badge">0</span>
+                </a>
+                <a href="#" class="nav-item" data-view="pending">
+                    <span class="nav-icon">⏳</span>
+                    <span class="nav-text">En Attente</span>
+                    <span id="pending-count" class="nav-badge warning">0</span>
+                </a>
+                <a href="#" class="nav-item" data-view="reviewed">
+                    <span class="nav-icon">✅</span>
+                    <span class="nav-text">Examinés</span>
+                    <span id="reviewed-count" class="nav-badge success">0</span>
+                </a>
+            </nav>
+
+            <div class="sidebar-footer">
+                <div class="pm-info">
+                    <input type="text" id="pm-name-input" class="pm-name-input" 
+                           placeholder="Votre nom (PM)" value="Project Manager">
+                </div>
+                <div class="connection-info">
+                    <span id="connection-status" class="status-dot offline"></span>
+                    <span id="connection-text">Déconnecté</span>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content pm-main">
+            <!-- Header -->
+            <header class="pm-header">
+                <div class="header-left">
+                    <h1 id="view-title">Tous les Rapports</h1>
+                    <p class="header-subtitle">Rapports journaliers des superviseurs</p>
+                </div>
+                <div class="header-right">
+                    <div class="region-filter">
+                        <label>🌍 Province:</label>
+                        <select id="region-filter">
+                            <option value="">Toutes les provinces</option>
+                            <option value="Kinshasa">Kinshasa</option>
+                            <option value="Kongo-Central">Kongo-Central</option>
+                            <option value="Kwango">Kwango</option>
+                            <option value="Kwilu">Kwilu</option>
+                            <option value="Mai-Ndombe">Mai-Ndombe</option>
+                            <option value="Bandundu">Bandundu</option>
+                            <option value="Equateur">Équateur</option>
+                            <option value="Sud-Ubangi">Sud-Ubangi</option>
+                            <option value="Nord-Ubangi">Nord-Ubangi</option>
+                            <option value="Mongala">Mongala</option>
+                            <option value="Tshuapa">Tshuapa</option>
+                            <option value="Tshopo">Tshopo</option>
+                            <option value="Province-Orientale">Province Orientale</option>
+                            <option value="Bas-Uele">Bas-Uélé</option>
+                            <option value="Haut-Uele">Haut-Uélé</option>
+                            <option value="Ituri">Ituri</option>
+                            <option value="Nord-Kivu">Nord-Kivu</option>
+                            <option value="Sud-Kivu">Sud-Kivu</option>
+                            <option value="Maniema">Maniema</option>
+                            <option value="Haut-Katanga">Haut-Katanga</option>
+                            <option value="Lualaba">Lualaba</option>
+                            <option value="Haut-Lomami">Haut-Lomami</option>
+                            <option value="Tanganyika">Tanganyika</option>
+                            <option value="Kasai-Oriental">Kasaï-Oriental</option>
+                            <option value="Lomami">Lomami</option>
+                            <option value="Kasai-Central">Kasaï-Central</option>
+                            <option value="Kasai">Kasaï</option>
+                            <option value="Sankuru">Sankuru</option>
+                        </select>
+                    </div>
+                    <div class="search-box">
+                        <span class="search-icon">🔍</span>
+                        <input type="text" id="search-input" placeholder="Rechercher par site, superviseur...">
+                    </div>
+                    <div class="date-filter">
+                        <label>Date:</label>
+                        <input type="date" id="date-filter">
+                    </div>
+                    <div class="export-buttons">
+                        <button class="export-btn pdf" id="export-pdf" title="Exporter en PDF">
+                            <span>📄</span> PDF
+                        </button>
+                        <button class="export-btn excel" id="export-excel" title="Exporter en Excel">
+                            <span>📊</span> Excel
+                        </button>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Stats Cards -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-icon blue">📝</div>
+                    <div class="stat-info">
+                        <span class="stat-value" id="stat-total">0</span>
+                        <span class="stat-label">Total Rapports</span>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon orange">⏳</div>
+                    <div class="stat-info">
+                        <span class="stat-value" id="stat-pending">0</span>
+                        <span class="stat-label">En Attente</span>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon green">✅</div>
+                    <div class="stat-info">
+                        <span class="stat-value" id="stat-reviewed">0</span>
+                        <span class="stat-label">Examinés</span>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon purple">📷</div>
+                    <div class="stat-info">
+                        <span class="stat-value" id="stat-images">0</span>
+                        <span class="stat-label">Photos</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Reports Grid -->
+            <div class="reports-section">
+                <div id="reports-grid" class="reports-grid">
+                    <div class="loading-spinner">Chargement des rapports...</div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Report Detail Panel -->
+        <aside class="detail-panel" id="detail-panel">
+            <div class="detail-header">
+                <h2>Détails du Rapport</h2>
+                <button class="close-panel" id="close-panel">&times;</button>
+            </div>
+            <div id="detail-content" class="detail-content">
+                <p class="empty-state">Sélectionnez un rapport pour voir les détails</p>
+            </div>
+        </aside>
+
+        <!-- Toast Notifications -->
+        <div id="toast-container" class="toast-container"></div>
+
+        <!-- Image Viewer Modal -->
+        <div id="image-modal" class="image-modal">
+            <div class="image-modal-content">
+                <button class="image-modal-close" id="image-modal-close">&times;</button>
+                <img id="modal-image" src="" alt="Image du rapport">
+                <div class="image-modal-nav">
+                    <button id="prev-image" class="nav-btn">&#10094;</button>
+                    <span id="image-counter">1 / 1</span>
+                    <button id="next-image" class="nav-btn">&#10095;</button>
+                </div>
+                <a id="download-image" class="download-btn" download>
+                    <span>📥</span> Télécharger
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer Concepteur -->
+    <footer class="app-footer pm-footer">
+        <div class="footer-content">
+            <p>Conçu et développé par <strong>Jean-Baptiste MBUYI</strong></p>
+            <p>📞 Contact: <a href="tel:0850145419">0850145419</a></p>
+        </div>
+    </footer>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/js/pm-dashboard.js"></script>
+</body>
+</html>

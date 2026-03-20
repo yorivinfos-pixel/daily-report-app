@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Générateur d'icônes PWA</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 40px;
+            background: #f0f0f0;
+        }
+        h1 { color: #2563eb; }
+        .canvas-container {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            margin: 20px 0;
+        }
+        canvas { display: block; }
+        .buttons {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        button {
+            background: #2563eb;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        button:hover { background: #1d4ed8; }
+        .instructions {
+            max-width: 600px;
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎨 Générateur d'icônes PWA</h1>
+    
+    <div class="canvas-container">
+        <canvas id="canvas" width="512" height="512"></canvas>
+    </div>
+    
+    <div class="buttons">
+        <button onclick="downloadIcon(512)">📥 512x512</button>
+        <button onclick="downloadIcon(384)">📥 384x384</button>
+        <button onclick="downloadIcon(192)">📥 192x192</button>
+        <button onclick="downloadIcon(152)">📥 152x152</button>
+        <button onclick="downloadIcon(144)">📥 144x144</button>
+        <button onclick="downloadIcon(128)">📥 128x128</button>
+        <button onclick="downloadIcon(96)">📥 96x96</button>
+        <button onclick="downloadIcon(72)">📥 72x72</button>
+    </div>
+    
+    <div class="instructions">
+        <h3>📋 Instructions</h3>
+        <ol>
+            <li>Cliquez sur chaque bouton pour télécharger l'icône à cette taille</li>
+            <li>Renommez les fichiers comme suit: <code>icon-[taille].png</code></li>
+            <li>Placez tous les fichiers dans le dossier <code>public/icons/</code></li>
+        </ol>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        function drawIcon(size) {
+            canvas.width = size;
+            canvas.height = size;
+            
+            const scale = size / 512;
+            
+            // Background gradient
+            const gradient = ctx.createLinearGradient(0, 0, size, size);
+            gradient.addColorStop(0, '#2563eb');
+            gradient.addColorStop(1, '#1d4ed8');
+            
+            // Rounded rectangle background
+            const radius = 80 * scale;
+            ctx.beginPath();
+            ctx.moveTo(radius, 0);
+            ctx.lineTo(size - radius, 0);
+            ctx.quadraticCurveTo(size, 0, size, radius);
+            ctx.lineTo(size, size - radius);
+            ctx.quadraticCurveTo(size, size, size - radius, size);
+            ctx.lineTo(radius, size);
+            ctx.quadraticCurveTo(0, size, 0, size - radius);
+            ctx.lineTo(0, radius);
+            ctx.quadraticCurveTo(0, 0, radius, 0);
+            ctx.fillStyle = gradient;
+            ctx.fill();
+            
+            // Clipboard body
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+            roundRect(ctx, 100 * scale, 60 * scale, 312 * scale, 390 * scale, 20 * scale);
+            ctx.fill();
+            
+            // Clipboard top
+            ctx.fillStyle = 'white';
+            roundRect(ctx, 175 * scale, 35 * scale, 162 * scale, 50 * scale, 10 * scale);
+            ctx.fill();
+            
+            // Clipboard hole
+            ctx.beginPath();
+            ctx.arc(256 * scale, 60 * scale, 18 * scale, 0, Math.PI * 2);
+            ctx.fillStyle = '#2563eb';
+            ctx.fill();
+            
+            // Text lines
+            ctx.fillStyle = '#e2e8f0';
+            roundRect(ctx, 135 * scale, 130 * scale, 200 * scale, 25 * scale, 8 * scale);
+            ctx.fill();
+            roundRect(ctx, 135 * scale, 175 * scale, 160 * scale, 25 * scale, 8 * scale);
+            ctx.fill();
+            roundRect(ctx, 135 * scale, 220 * scale, 180 * scale, 25 * scale, 8 * scale);
+            ctx.fill();
+            
+            // Checkmark circle
+            ctx.beginPath();
+            ctx.arc(256 * scale, 350 * scale, 60 * scale, 0, Math.PI * 2);
+            ctx.fillStyle = '#059669';
+            ctx.fill();
+            
+            // Checkmark
+            ctx.beginPath();
+            ctx.moveTo(220 * scale, 350 * scale);
+            ctx.lineTo(246 * scale, 376 * scale);
+            ctx.lineTo(292 * scale, 324 * scale);
+            ctx.strokeStyle = 'white';
+            ctx.lineWidth = 12 * scale;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            ctx.stroke();
+        }
+        
+        function roundRect(ctx, x, y, width, height, radius) {
+            ctx.beginPath();
+            ctx.moveTo(x + radius, y);
+            ctx.lineTo(x + width - radius, y);
+            ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+            ctx.lineTo(x + width, y + height - radius);
+            ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+            ctx.lineTo(x + radius, y + height);
+            ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+            ctx.lineTo(x, y + radius);
+            ctx.quadraticCurveTo(x, y, x + radius, y);
+            ctx.closePath();
+        }
+        
+        function downloadIcon(size) {
+            drawIcon(size);
+            const link = document.createElement('a');
+            link.download = `icon-${size}.png`;
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+            drawIcon(512); // Reset to preview size
+        }
+        
+        // Initial draw
+        drawIcon(512);
+    </script>
+</body>
+</html>

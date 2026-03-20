@@ -1,0 +1,730 @@
+// ============================================
+// Daily Report Site Supervisor - PM Dashboard JS
+// ============================================
+
+class PMDashboard {
+    constructor() {
+        this.socket = null;
+        this.reports = [];
+        this.currentFilter = 'all';
+        this.selectedReport = null;
+        this.currentImages = [];
+        this.currentImageIndex = 0;
+        
+        this.init();
+    }
+    
+    init() {
+        this.setupSocket();
+        this.setupNavigation();
+        this.setupSearch();
+        this.setupDetailPanel();
+        this.setupImageModal();
+        this.loadReports();
+        this.loadPMName();
+    }
+    
+    // ================== Socket.IO Setup ==================
+    
+    setupSocket() {
+        this.socket = io();
+        
+        this.socket.on('connect', () => {
+            console.log('PM Dashboard connecté');
+            document.getElementById('connection-status').classList.add('online');
+            document.getElementById('connection-status').classList.remove('offline');
+            document.getElementById('connection-text').textContent = 'Connecté';
+            this.socket.emit('join-role', 'pm');
+        });
+        
+        this.socket.on('disconnect', () => {
+            console.log('PM Dashboard déconnecté');
+            document.getElementById('connection-status').classList.remove('online');
+            document.getElementById('connection-status').classList.add('offline');
+            document.getElementById('connection-text').textContent = 'Déconnecté';
+        });
+        
+        // Nouveau rapport reçu
+        this.socket.on('new-report', (report) => {
+            console.log('Nouveau rapport reçu:', report);
+            this.handleNewReport(report);
+        });
+        
+        // Nouvelles images reçues
+        this.socket.on('new-images', (data) => {
+            console.log('Nouvelles images:', data);
+            this.handleNewImages(data);
+        });
+    }
+    
+    // ================== Navigation ==================
+    
+    setupNavigation() {
+        const navItems = document.querySelectorAll('.nav-item');
+        
+        navItems.forEach(item => {
+            item.addEventListener('click', (e) => {
+                e.preventDefault();
+                
+                // Mettre à jour l'état actif
+                navItems.forEach(nav => nav.classList.remove('active'));
+                item.classList.add('active');
+                
+                // Filtrer les rapports
+                this.currentFilter = item.dataset.view;
+                this.updateViewTitle();
+                this.renderReports();
+            });
+        });
+    }
+    
+    updateViewTitle() {
+        const titleMap = {
+            'all': 'Tous les Rapports',
+            'pending': 'Rapports En Attente',
+            'reviewed': 'Rapports Examinés'
+        };
+        document.getElementById('view-title').textContent = titleMap[this.currentFilter];
+    }
+    
+    // ================== Search & Filter ==================
+    
+    setupSearch() {
+        const searchInput = document.getElementById('search-input');
+        const dateFilter = document.getElementById('date-filter');
+        const regionFilter = document.getElementById('region-filter');
+        
+        searchInput.addEventListener('input', () => {
+            this.renderReports();
+        });
+        
+        dateFilter.addEventListener('change', () => {
+            this.renderReports();
+        });
+        
+        regionFilter.addEventListener('change', () => {
+            this.renderReports();
+        });
+        
+        // Boutons d'export
+        document.getElementById('export-pdf').addEventListener('click', () => {
+            this.exportPDF();
+        });
+        
+        document.getElementById('export-excel').addEventListener('click', () => {
+            this.exportExcel();
+        });
+    }
+    
+    // ================== Export Functions ==================
+    
+    exportExcel() {
+        const region = document.getElementById('region-filter').value;
+        const date = document.getElementById('date-filter').value;
+        
+        let url = '/api/export/excel?';
+        if (region) url += `region=${encodeURIComponent(region)}&`;
+        if (date) url += `date=${encodeURIComponent(date)}`;
+        
+        window.location.href = url;
+        this.showToast('Export Excel en cours...', 'info');
+    }
+    
+    exportPDF() {
+        const filtered = this.getFilteredReports();
+        
+        if (filtered.length === 0) {
+            this.showToast('Aucun rapport à exporter', 'warning');
+            return;
+        }
+        
+        // Générer le PDF côté client
+        const region = document.getElementById('region-filter').value || 'Toutes les provinces';
+        const date = document.getElementById('date-filter').value || new Date().toISOString().split('T')[0];
+        
+        const printWindow = window.open('', '_blank');
+        printWindow.document.write(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Eastcastle - Rapport Journalier</title>
+                <style>
+                    body { font-family: Arial, sans-serif; padding: 20px; }
+                    .header { text-align: center; border-bottom: 2px solid #2563eb; padding-bottom: 20px; margin-bottom: 20px; }
+                    .header h1 { color: #2563eb; margin: 0; }
+                    .header p { color: #666; margin: 5px 0; }
+                    .report { border: 1px solid #ddd; padding: 15px; margin-bottom: 15px; page-break-inside: avoid; }
+                    .report-header { display: flex; justify-content: space-between; border-bottom: 1px solid #eee; padding-bottom: 10px; margin-bottom: 10px; }
+                    .site-info h3 { margin: 0; color: #333; }
+                    .site-info p { margin: 2px 0; color: #666; font-size: 12px; }
+                    .status { padding: 4px 12px; border-radius: 12px; font-size: 12px; }
+                    .status.pending { background: #fef3c7; color: #d97706; }
+                    .status.reviewed { background: #d1fae5; color: #059669; }
+                    .section { margin: 10px 0; }
+                    .section-title { font-weight: bold; color: #333; font-size: 12px; text-transform: uppercase; }
+                    .section-content { color: #555; margin-top: 5px; }
+                    .footer { text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; color: #888; font-size: 12px; }
+                    @media print { .report { page-break-inside: avoid; } }
+                </style>
+            </head>
+            <body>
+                <div class="header">
+                    <h1>🏗️ EASTCASTLE</h1>
+                    <p>Rapport Journalier des Sites</p>
+                    <p><strong>Région:</strong> ${region} | <strong>Date:</strong> ${date}</p>
+                    <p><strong>Total:</strong> ${filtered.length} rapport(s)</p>
+                </div>
+                ${filtered.map(r => `
+                    <div class="report">
+                        <div class="report-header">
+                            <div class="site-info">
+                                <h3>${r.site_name}</h3>
+                                <p><strong>ID:</strong> ${r.site_id} | <strong>Région:</strong> ${r.region || 'N/A'}</p>
+                                <p><strong>Superviseur:</strong> ${r.supervisor_name || 'N/A'}</p>
+                                <p><strong>Date:</strong> ${new Date(r.created_at).toLocaleString('fr-FR')}</p>
+                            </div>
+                            <span class="status ${r.status}">${r.status === 'reviewed' ? '✅ Examiné' : '⏳ En attente'}</span>
+                        </div>
+                        <div class="section">
+                            <div class="section-title">Activités</div>
+                            <div class="section-content">${r.activities}</div>
+                        </div>
+                        ${r.comments ? `
+                            <div class="section">
+                                <div class="section-title">Commentaires</div>
+                                <div class="section-content">${r.comments}</div>
+                            </div>
+                        ` : ''}
+                        <div class="section">
+                            <div class="section-title">Photos</div>
+                            <div class="section-content">${r.images?.length || 0} photo(s) jointe(s)</div>
+                        </div>
+                    </div>
+                `).join('')}
+                <div class="footer">
+                    <p>Eastcastle - Document généré le ${new Date().toLocaleString('fr-FR')}</p>
+                </div>
+            </body>
+            </html>
+        `);
+        printWindow.document.close();
+        printWindow.print();
+        
+        this.showToast('PDF généré - Utilisez Ctrl+P pour imprimer', 'success');
+    }
+    
+    getFilteredReports() {
+        let filtered = [...this.reports];
+        
+        // Filtre par status
+        if (this.currentFilter !== 'all') {
+            filtered = filtered.filter(r => r.status === this.currentFilter);
+        }
+        
+        // Filtre par région
+        const regionFilter = document.getElementById('region-filter').value;
+        if (regionFilter) {
+            filtered = filtered.filter(r => r.region === regionFilter);
+        }
+        
+        // Filtre par recherche
+        const searchTerm = document.getElementById('search-input').value.toLowerCase();
+        if (searchTerm) {
+            filtered = filtered.filter(r => 
+                r.site_id.toLowerCase().includes(searchTerm) ||
+                r.site_name.toLowerCase().includes(searchTerm) ||
+                (r.supervisor_name && r.supervisor_name.toLowerCase().includes(searchTerm)) ||
+                (r.region && r.region.toLowerCase().includes(searchTerm)) ||
+                r.activities.toLowerCase().includes(searchTerm)
+            );
+        }
+        
+        // Filtre par date
+        const dateFilter = document.getElementById('date-filter').value;
+        if (dateFilter) {
+            const filterDate = new Date(dateFilter).toDateString();
+            filtered = filtered.filter(r => 
+                new Date(r.created_at).toDateString() === filterDate
+            );
+        }
+        
+        return filtered;
+    }
+    
+    // ================== Load & Render Reports ==================
+    
+    async loadReports() {
+        const grid = document.getElementById('reports-grid');
+        
+        try {
+            const response = await fetch('/api/reports');
+            const result = await response.json();
+            
+            if (!result.success) {
+                throw new Error(result.error);
+            }
+            
+            this.reports = result.reports;
+            this.updateStats();
+            this.renderReports();
+            
+        } catch (error) {
+            console.error('Erreur chargement rapports:', error);
+            grid.innerHTML = '<div class="empty-state"><p>Erreur lors du chargement des rapports</p></div>';
+        }
+    }
+    
+    updateStats() {
+        const total = this.reports.length;
+        const pending = this.reports.filter(r => r.status === 'pending').length;
+        const reviewed = this.reports.filter(r => r.status === 'reviewed').length;
+        const totalImages = this.reports.reduce((sum, r) => sum + (r.images?.length || 0), 0);
+        
+        document.getElementById('stat-total').textContent = total;
+        document.getElementById('stat-pending').textContent = pending;
+        document.getElementById('stat-reviewed').textContent = reviewed;
+        document.getElementById('stat-images').textContent = totalImages;
+        
+        document.getElementById('total-count').textContent = total;
+        document.getElementById('pending-count').textContent = pending;
+        document.getElementById('reviewed-count').textContent = reviewed;
+    }
+    
+    renderReports() {
+        const grid = document.getElementById('reports-grid');
+        const filtered = this.getFilteredReports();
+        
+        if (filtered.length === 0) {
+            grid.innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-state-icon">📭</div>
+                    <p>Aucun rapport trouvé</p>
+                </div>
+            `;
+            return;
+        }
+        
+        grid.innerHTML = filtered.map(report => this.createReportCard(report)).join('');
+        
+        // Ajouter les event listeners
+        grid.querySelectorAll('.pm-report-card').forEach(card => {
+            card.addEventListener('click', () => {
+                this.selectReport(card.dataset.id);
+            });
+        });
+        
+        // Event listeners pour les miniatures d'images
+        grid.querySelectorAll('.pm-image-thumb').forEach(img => {
+            img.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const reportId = img.closest('.pm-report-card').dataset.id;
+                const report = this.reports.find(r => r.id === reportId);
+                if (report && report.images) {
+                    const index = parseInt(img.dataset.index);
+                    this.openImageModal(report.images, index);
+                }
+            });
+        });
+    }
+    
+    createReportCard(report) {
+        const isNew = this.isNewReport(report);
+        const imagesHtml = this.createImagesPreview(report.images);
+        
+        return `
+            <div class="pm-report-card ${isNew ? 'new' : ''} ${this.selectedReport?.id === report.id ? 'selected' : ''}" 
+                 data-id="${report.id}">
+                <div class="pm-card-header">
+                    <div class="pm-site-info">
+                        <span class="pm-site-id">${report.site_id}</span>
+                        <h3>${report.site_name}</h3>
+                        <span class="pm-supervisor">👷 ${report.supervisor_name || 'Non spécifié'}</span>
+                        <span class="pm-region">🌍 ${report.region || 'N/A'}</span>
+                        <span class="pm-report-date">📆 Rapport du: ${report.report_date || 'N/A'}</span>
+                    </div>
+                    <span class="pm-status-badge ${report.status}">
+                        ${report.status === 'pending' ? '⏳ En attente' : '✅ Examiné'}
+                    </span>
+                </div>
+                <div class="pm-card-content">${report.activities}</div>
+                ${imagesHtml}
+                <div class="pm-card-footer">
+                    <span>📅 Soumis: ${this.formatDate(report.created_at)}</span>
+                    <span>📷 ${report.images?.length || 0} photos</span>
+                </div>
+            </div>
+        `;
+    }
+    
+    createImagesPreview(images) {
+        if (!images || images.length === 0) return '';
+        
+        const displayImages = images.slice(0, 3);
+        const remaining = images.length - 3;
+        
+        let html = '<div class="pm-card-images">';
+        
+        displayImages.forEach((img, index) => {
+            html += `<img src="${img.url}" class="pm-image-thumb" alt="Photo" data-index="${index}">`;
+        });
+        
+        if (remaining > 0) {
+            html += `<div class="pm-image-more">+${remaining}</div>`;
+        }
+        
+        html += '</div>';
+        return html;
+    }
+    
+    isNewReport(report) {
+        const reportDate = new Date(report.created_at);
+        const now = new Date();
+        const diffMinutes = (now - reportDate) / (1000 * 60);
+        return diffMinutes < 5 && report.status === 'pending';
+    }
+    
+    // ================== Detail Panel ==================
+    
+    setupDetailPanel() {
+        const closeBtn = document.getElementById('close-panel');
+        closeBtn.addEventListener('click', () => this.closeDetailPanel());
+        
+        // PM Name
+        const pmInput = document.getElementById('pm-name-input');
+        pmInput.addEventListener('change', () => {
+            localStorage.setItem('pmName', pmInput.value);
+        });
+    }
+    
+    loadPMName() {
+        const savedName = localStorage.getItem('pmName');
+        if (savedName) {
+            document.getElementById('pm-name-input').value = savedName;
+        }
+    }
+    
+    async selectReport(reportId) {
+        const panel = document.getElementById('detail-panel');
+        const content = document.getElementById('detail-content');
+        
+        // Marquer comme sélectionné
+        document.querySelectorAll('.pm-report-card').forEach(card => {
+            card.classList.remove('selected');
+            if (card.dataset.id === reportId) {
+                card.classList.add('selected');
+            }
+        });
+        
+        try {
+            const response = await fetch(`/api/reports/${reportId}`);
+            const result = await response.json();
+            
+            if (!result.success) {
+                throw new Error(result.error);
+            }
+            
+            this.selectedReport = result.report;
+            this.renderDetailPanel();
+            panel.classList.add('open');
+            
+        } catch (error) {
+            console.error('Erreur:', error);
+            this.showToast('Erreur lors du chargement du rapport', 'error');
+        }
+    }
+    
+    renderDetailPanel() {
+        const content = document.getElementById('detail-content');
+        const report = this.selectedReport;
+        
+        content.innerHTML = `
+            <div class="detail-section">
+                <div class="detail-section-title">Site</div>
+                <div class="detail-section-content">
+                    <strong>${report.site_id}</strong><br>
+                    ${report.site_name}
+                </div>
+            </div>
+            
+            <div class="detail-section">
+                <div class="detail-section-title">Région</div>
+                <div class="detail-section-content">
+                    🌍 ${report.region || 'Non spécifiée'}
+                </div>
+            </div>
+            
+            <div class="detail-section">
+                <div class="detail-section-title">Superviseur</div>
+                <div class="detail-section-content">
+                    👷 ${report.supervisor_name || 'Non spécifié'}
+                </div>
+            </div>
+            
+            <div class="detail-section">
+                <div class="detail-section-title">Date & Heure</div>
+                <div class="detail-section-content">
+                    📅 ${this.formatDate(report.created_at)}
+                </div>
+            </div>
+            
+            <div class="detail-section">
+                <div class="detail-section-title">Activités sur le site</div>
+                <div class="detail-section-content">${report.activities}</div>
+            </div>
+            
+            ${report.comments ? `
+                <div class="detail-section">
+                    <div class="detail-section-title">Commentaires</div>
+                    <div class="detail-section-content">${report.comments}</div>
+                </div>
+            ` : ''}
+            
+            ${report.images?.length > 0 ? `
+                <div class="detail-section">
+                    <div class="detail-section-title">Photos (${report.images.length})</div>
+                    <div class="detail-images-grid">
+                        ${report.images.map((img, index) => `
+                            <img src="${img.url}" class="detail-image" data-index="${index}" alt="Photo du site">
+                        `).join('')}
+                    </div>
+                </div>
+            ` : ''}
+            
+            ${report.feedbacks?.length > 0 ? `
+                <div class="previous-feedbacks">
+                    <div class="detail-section-title">Avis précédents</div>
+                    ${report.feedbacks.map(fb => `
+                        <div class="feedback-item">
+                            <div class="feedback-meta">
+                                <span>👤 ${fb.pm_name || 'PM'}</span>
+                                <span>${this.formatDate(fb.created_at)}</span>
+                            </div>
+                            <div class="feedback-content">${fb.feedback}</div>
+                        </div>
+                    `).join('')}
+                </div>
+            ` : ''}
+            
+            <div class="feedback-form">
+                <h4>💬 Envoyer un avis au superviseur</h4>
+                <textarea id="feedback-text" class="feedback-textarea" 
+                          placeholder="Écrivez votre retour ou instruction ici..."></textarea>
+                <button id="send-feedback-btn" class="send-feedback-btn">
+                    📤 Envoyer l'avis
+                </button>
+            </div>
+        `;
+        
+        // Event listeners pour les images
+        content.querySelectorAll('.detail-image').forEach(img => {
+            img.addEventListener('click', () => {
+                const index = parseInt(img.dataset.index);
+                this.openImageModal(report.images, index);
+            });
+        });
+        
+        // Event listener pour envoyer le feedback
+        document.getElementById('send-feedback-btn').addEventListener('click', () => {
+            this.sendFeedback();
+        });
+    }
+    
+    async sendFeedback() {
+        const feedbackText = document.getElementById('feedback-text').value.trim();
+        const pmName = document.getElementById('pm-name-input').value.trim();
+        
+        if (!feedbackText) {
+            this.showToast('Veuillez écrire un avis', 'warning');
+            return;
+        }
+        
+        try {
+            const response = await fetch(`/api/reports/${this.selectedReport.id}/feedback`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    feedback: feedbackText,
+                    pm_name: pmName || 'PM'
+                })
+            });
+            
+            const result = await response.json();
+            
+            if (!result.success) {
+                throw new Error(result.error);
+            }
+            
+            this.showToast('Avis envoyé avec succès!', 'success');
+            
+            // Rafraîchir les données
+            await this.loadReports();
+            await this.selectReport(this.selectedReport.id);
+            
+        } catch (error) {
+            console.error('Erreur:', error);
+            this.showToast('Erreur lors de l\'envoi de l\'avis', 'error');
+        }
+    }
+    
+    closeDetailPanel() {
+        document.getElementById('detail-panel').classList.remove('open');
+        document.querySelectorAll('.pm-report-card').forEach(card => {
+            card.classList.remove('selected');
+        });
+        this.selectedReport = null;
+    }
+    
+    // ================== Image Modal ==================
+    
+    setupImageModal() {
+        const modal = document.getElementById('image-modal');
+        const closeBtn = document.getElementById('image-modal-close');
+        const prevBtn = document.getElementById('prev-image');
+        const nextBtn = document.getElementById('next-image');
+        
+        closeBtn.addEventListener('click', () => this.closeImageModal());
+        
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                this.closeImageModal();
+            }
+        });
+        
+        prevBtn.addEventListener('click', () => this.showPreviousImage());
+        nextBtn.addEventListener('click', () => this.showNextImage());
+        
+        // Navigation clavier
+        document.addEventListener('keydown', (e) => {
+            if (!modal.classList.contains('active')) return;
+            
+            if (e.key === 'Escape') this.closeImageModal();
+            if (e.key === 'ArrowLeft') this.showPreviousImage();
+            if (e.key === 'ArrowRight') this.showNextImage();
+        });
+    }
+    
+    openImageModal(images, startIndex = 0) {
+        this.currentImages = images;
+        this.currentImageIndex = startIndex;
+        
+        const modal = document.getElementById('image-modal');
+        modal.classList.add('active');
+        
+        this.updateModalImage();
+    }
+    
+    updateModalImage() {
+        const img = this.currentImages[this.currentImageIndex];
+        const modalImg = document.getElementById('modal-image');
+        const counter = document.getElementById('image-counter');
+        const downloadBtn = document.getElementById('download-image');
+        
+        modalImg.src = img.url;
+        counter.textContent = `${this.currentImageIndex + 1} / ${this.currentImages.length}`;
+        downloadBtn.href = img.url;
+        downloadBtn.download = img.original_name || `photo-${this.currentImageIndex + 1}.jpg`;
+    }
+    
+    showPreviousImage() {
+        this.currentImageIndex = (this.currentImageIndex - 1 + this.currentImages.length) % this.currentImages.length;
+        this.updateModalImage();
+    }
+    
+    showNextImage() {
+        this.currentImageIndex = (this.currentImageIndex + 1) % this.currentImages.length;
+        this.updateModalImage();
+    }
+    
+    closeImageModal() {
+        document.getElementById('image-modal').classList.remove('active');
+    }
+    
+    // ================== Handle Real-time Updates ==================
+    
+    handleNewReport(report) {
+        // Ajouter au début de la liste
+        this.reports.unshift(report);
+        this.updateStats();
+        this.renderReports();
+        
+        // Notification
+        this.showToast(`📋 Nouveau rapport de ${report.supervisor_name || 'un superviseur'}`, 'info');
+        
+        // Notification système si supporté
+        if (Notification.permission === 'granted') {
+            new Notification('Nouveau Rapport', {
+                body: `Site: ${report.site_name}\nSuperviseur: ${report.supervisor_name || 'N/A'}`,
+                icon: '/icons/icon-192.png'
+            });
+        }
+    }
+    
+    handleNewImages(data) {
+        // Mettre à jour le rapport avec les nouvelles images
+        const reportIndex = this.reports.findIndex(r => r.id === data.reportId);
+        if (reportIndex !== -1) {
+            if (!this.reports[reportIndex].images) {
+                this.reports[reportIndex].images = [];
+            }
+            this.reports[reportIndex].images.push(...data.images);
+            this.updateStats();
+            this.renderReports();
+            
+            // Si c'est le rapport sélectionné, rafraîchir le panel
+            if (this.selectedReport?.id === data.reportId) {
+                this.selectReport(data.reportId);
+            }
+        }
+    }
+    
+    // ================== Utilities ==================
+    
+    showToast(message, type = 'info') {
+        const container = document.getElementById('toast-container');
+        
+        const toast = document.createElement('div');
+        toast.className = `toast ${type}`;
+        toast.innerHTML = `
+            <span class="toast-icon">${this.getToastIcon(type)}</span>
+            <span class="toast-message">${message}</span>
+        `;
+        
+        container.appendChild(toast);
+        
+        setTimeout(() => {
+            toast.style.animation = 'slideIn 0.3s ease reverse';
+            setTimeout(() => toast.remove(), 300);
+        }, 4000);
+    }
+    
+    getToastIcon(type) {
+        const icons = {
+            success: '✅',
+            error: '❌',
+            warning: '⚠️',
+            info: '📢'
+        };
+        return icons[type] || icons.info;
+    }
+    
+    formatDate(dateString) {
+        const date = new Date(dateString);
+        return date.toLocaleDateString('fr-FR', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    }
+}
+
+// Initialiser l'application
+document.addEventListener('DOMContentLoaded', () => {
+    window.pmDashboard = new PMDashboard();
+    
+    // Demander permission pour les notifications
+    if ('Notification' in window && Notification.permission === 'default') {
+        Notification.requestPermission();
+    }
+});
