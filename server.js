@@ -1,9 +1,57 @@
+require('dotenv').config();
+
+// ======= MongoDB Atlas (Mongoose) =======
+const mongoose = require('mongoose');
+const mongoUri = process.env.MONGODB_URI || 'mongodb://mon_admin:6q4Qz.n-nFe.Xz4@cluster0-shard-00-00.e0ovj8t.mongodb.net:27017,cluster0-shard-00-01.e0ovj8t.mongodb.net:27017,cluster0-shard-00-02.e0ovj8t.mongodb.net:27017/?ssl=true&replicaSet=atlas-xxxxxx-shard-0&authSource=admin&retryWrites=true&w=majority';
+
+// Connexion à MongoDB avec la variable mongoUri
+mongoose.connect(mongoUri)
+    .then(() => console.log("✅ Connecté à MongoDB avec succès !"))
+    .catch(err => console.error("❌ Erreur connexion MongoDB:", err.message));
+
+const reportSchema = new mongoose.Schema({
+    site_id: String,
+    site_name: String,
+    activities: String,
+    comments: String,
+    supervisor_name: String,
+    region: String,
+    report_date: String,
+    created_at: { type: Date, default: Date.now },
+    status: { type: String, default: 'pending' },
+    images: [
+        {
+            url: String,
+            filename: String
+        }
+    ],
+    feedbacks: [
+        {
+            pm_name: String,
+            feedback: String,
+            created_at: { type: Date, default: Date.now }
+        }
+    ]
+}, { toJSON: { virtuals: true }, toObject: { virtuals: true } });
+
+const Report = mongoose.model('Report', reportSchema);
+
+const siteSchema = new mongoose.Schema({
+    id: String,
+    name: String,
+    location: String,
+    created_at: { type: Date, default: Date.now }
+});
+const Site = mongoose.model('Site', siteSchema);
+
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const multer = require('multer');
+const cloudinary = require('cloudinary').v2;
+const { CloudinaryStorage } = require('multer-storage-cloudinary');
 const path = require('path');
-const fs = require('fs');
+const cors = require('cors');
 const { v4: uuidv4 } = require('uuid');
 
 const app = express();
@@ -15,75 +63,32 @@ const io = new Server(server, {
     }
 });
 
-// Créer les dossiers nécessaires
-const uploadsDir = path.join(__dirname, 'uploads');
-const dataDir = path.join(__dirname, 'data');
-if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
-if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
-
-// ================== JSON Database ==================
-
-const DB_FILE = path.join(dataDir, 'database.json');
-
-// Structure de la base de données
-const defaultDB = {
-    reports: [],
-    feedbacks: [],
-    sites: []
-};
-
-// Charger la base de données
-function loadDB() {
-    try {
-        if (fs.existsSync(DB_FILE)) {
-            const data = fs.readFileSync(DB_FILE, 'utf8');
-            return JSON.parse(data);
-        }
-    } catch (error) {
-        console.error('Erreur lecture DB:', error);
-    }
-    return { ...defaultDB };
-}
-
-// Sauvegarder la base de données
-function saveDB(data) {
-    try {
-        fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2), 'utf8');
-    } catch (error) {
-        console.error('Erreur sauvegarde DB:', error);
-    }
-}
-
-// Initialiser la DB
-let db = loadDB();
-
-// Middleware
+app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
 app.use('/uploads', express.static('uploads'));
 
-// Route pour le dashboard PM
-app.get('/pm', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'pm.html'));
+cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME || 'VOTRE_CLOUD_NAME',
+    api_key: process.env.CLOUDINARY_API_KEY || 'VOTRE_API_KEY',
+    api_secret: process.env.CLOUDINARY_API_SECRET || 'VOTRE_API_SECRET',
 });
 
-// Configuration Multer pour upload d'images
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        const reportId = req.params.reportId || req.body.report_id || 'temp';
-        const reportDir = path.join(uploadsDir, reportId);
-        if (!fs.existsSync(reportDir)) fs.mkdirSync(reportDir, { recursive: true });
-        cb(null, reportDir);
+const storage = new CloudinaryStorage({
+    cloudinary: cloudinary,
+    params: async (req, file) => {
+        return {
+            folder: 'daily-report-site-supervisor',
+            format: file.mimetype.split('/')[1],
+            public_id: `${Date.now()}-${uuidv4()}`,
+            resource_type: 'image',
+        };
     },
-    filename: (req, file, cb) => {
-        const uniqueName = `${Date.now()}-${uuidv4()}${path.extname(file.originalname)}`;
-        cb(null, uniqueName);
-    }
 });
 
 const upload = multer({
     storage,
-    limits: { fileSize: 10 * 1024 * 1024 }, // 10MB max
+    limits: { fileSize: 10 * 1024 * 1024 },
     fileFilter: (req, file, cb) => {
         const allowedTypes = /jpeg|jpg|png|gif|webp/;
         const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
@@ -92,72 +97,73 @@ const upload = multer({
             return cb(null, true);
         }
         cb(new Error('Seules les images sont autorisées!'));
+    },
+});
+
+app.get('/pm', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'pm.html'));
+});
+
+// ================== API ROUTES (MongoDB Only) ==================
+
+// GET tous les rapports
+app.get('/api/reports', async (req, res) => {
+    try {
+        const reports = await Report.find().sort({ created_at: -1 });
+        res.json({ success: true, reports });
+    } catch (err) {
+        console.error('Erreur chargement rapports:', err);
+        res.status(500).json({ success: false, error: 'Erreur chargement rapports' });
     }
 });
 
-// ================== API ROUTES ==================
-
-// Créer un nouveau rapport
-app.post('/api/reports', (req, res) => {
+// GET un rapport par ID
+app.get('/api/reports/:id', async (req, res) => {
     try {
-        const { site_id, site_name, activities, comments, supervisor_name, region, report_date } = req.body;
-        
-        const report = {
-            id: uuidv4(),
-            site_id,
-            site_name,
-            activities,
-            comments,
-            supervisor_name,
-            region: region || 'Non spécifiée',
-            report_date: report_date || new Date().toISOString().split('T')[0],
-            created_at: new Date().toISOString(),
-            status: 'pending',
-            images: []
-        };
-        
-        db.reports.unshift(report);
-        saveDB(db);
-        
-        // Notifier tous les PM connectés
-        io.emit('new-report', report);
-        
+        const report = await Report.findById(req.params.id);
+        if (!report) return res.status(404).json({ success: false, error: 'Rapport introuvable' });
         res.json({ success: true, report });
-    } catch (error) {
-        console.error('Erreur création rapport:', error);
-        res.status(500).json({ success: false, error: error.message });
+    } catch (err) {
+        console.error('Erreur chargement rapport:', err);
+        res.status(500).json({ success: false, error: 'Erreur chargement rapport' });
+    }
+});
+
+// POST créer un rapport
+app.post('/api/reports', async (req, res) => {
+    try {
+        const reportData = { ...req.body };
+        if (!reportData.report_date) reportData.report_date = new Date().toISOString().split('T')[0];
+        if (!reportData.region) reportData.region = 'Non spécifiée';
+
+        const report = new Report(reportData);
+        await report.save();
+        io.emit('new-report', report);
+        res.json({ success: true, report });
+    } catch (err) {
+        console.error('Erreur création rapport:', err);
+        res.status(500).json({ success: false, error: 'Erreur création rapport' });
     }
 });
 
 // Uploader des images pour un rapport
-app.post('/api/reports/:reportId/images', upload.array('images', 10), (req, res) => {
+app.post('/api/reports/:reportId/images', upload.array('images', 10), async (req, res) => {
     try {
         const { reportId } = req.params;
-        const images = [];
-        
-        const reportIndex = db.reports.findIndex(r => r.id === reportId);
-        if (reportIndex === -1) {
-            return res.status(404).json({ success: false, error: 'Rapport non trouvé' });
-        }
-        
-        for (const file of req.files) {
-            const image = {
-                id: uuidv4(),
-                report_id: reportId,
-                filename: file.filename,
-                original_name: file.originalname,
-                url: `/uploads/${reportId}/${file.filename}`,
-                created_at: new Date().toISOString()
-            };
-            images.push(image);
-            db.reports[reportIndex].images.push(image);
-        }
-        
-        saveDB(db);
-        
-        // Notifier les PM des nouvelles images
+        const images = req.files.map(file => ({
+            filename: file.filename,
+            original_name: file.originalname,
+            url: file.path || file.secure_url,
+            cloudinary_id: file.filename,
+            created_at: new Date()
+        }));
+        const report = await Report.findByIdAndUpdate(
+            reportId,
+            { $push: { images: { $each: images, $position: 0 } } },
+            { new: true }
+        );
+        if (!report) return res.status(404).json({ success: false, error: 'Rapport non trouvé' });
         io.emit('new-images', { reportId, images });
-        
         res.json({ success: true, images });
     } catch (error) {
         console.error('Erreur upload images:', error);
@@ -165,140 +171,107 @@ app.post('/api/reports/:reportId/images', upload.array('images', 10), (req, res)
     }
 });
 
-// Récupérer tous les rapports (pour PM dashboard)
-app.get('/api/reports', (req, res) => {
+// DELETE un rapport
+app.delete('/api/reports/:id', async (req, res) => {
     try {
-        res.json({ success: true, reports: db.reports });
-    } catch (error) {
-        console.error('Erreur récupération rapports:', error);
-        res.status(500).json({ success: false, error: error.message });
-    }
-});
-
-// Récupérer un rapport spécifique
-app.get('/api/reports/:id', (req, res) => {
-    try {
-        const report = db.reports.find(r => r.id === req.params.id);
-        if (!report) {
-            return res.status(404).json({ success: false, error: 'Rapport non trouvé' });
-        }
-        
-        const feedbacks = db.feedbacks.filter(f => f.report_id === req.params.id);
-        
-        res.json({ 
-            success: true, 
-            report: {
-                ...report,
-                feedbacks
-            }
-        });
-    } catch (error) {
-        console.error('Erreur récupération rapport:', error);
-        res.status(500).json({ success: false, error: error.message });
+        const result = await Report.findByIdAndDelete(req.params.id);
+        if (!result) return res.status(404).json({ success: false, error: 'Rapport introuvable' });
+        res.json({ success: true });
+    } catch (err) {
+        console.error('Erreur suppression rapport:', err);
+        res.status(500).json({ success: false, error: 'Erreur suppression rapport' });
     }
 });
 
 // PM envoie un feedback
-app.post('/api/reports/:reportId/feedback', (req, res) => {
+app.post('/api/reports/:reportId/feedback', async (req, res) => {
     try {
-        const { reportId } = req.params;
         const { feedback, pm_name } = req.body;
-        
-        const reportIndex = db.reports.findIndex(r => r.id === reportId);
-        if (reportIndex === -1) {
-            return res.status(404).json({ success: false, error: 'Rapport non trouvé' });
-        }
-        
+        const reportId = req.params.reportId;
         const feedbackData = {
-            id: uuidv4(),
-            report_id: reportId,
-            feedback,
             pm_name,
-            created_at: new Date().toISOString()
+            feedback,
+            created_at: new Date()
         };
-        
-        db.feedbacks.unshift(feedbackData);
-        db.reports[reportIndex].status = 'reviewed';
-        saveDB(db);
-        
-        // Notifier le superviseur du feedback
+        const report = await Report.findByIdAndUpdate(
+            reportId,
+            { $push: { feedbacks: { $each: [feedbackData], $position: 0 } } },
+            { new: true }
+        );
+        if (!report) return res.status(404).json({ success: false, error: 'Rapport introuvable' });
         io.emit('new-feedback', { reportId, feedback: feedbackData });
-        
         res.json({ success: true, feedback: feedbackData });
     } catch (error) {
         console.error('Erreur ajout feedback:', error);
-        res.status(500).json({ success: false, error: error.message });
+        res.status(500).json({ success: false, error: 'Erreur ajout feedback' });
     }
 });
 
 // Récupérer les feedbacks d'un rapport
-app.get('/api/reports/:reportId/feedbacks', (req, res) => {
+app.get('/api/reports/:id/feedbacks', async (req, res) => {
     try {
-        const feedbacks = db.feedbacks.filter(f => f.report_id === req.params.reportId);
-        res.json({ success: true, feedbacks });
+        const report = await Report.findById(req.params.id);
+        if (!report) return res.status(404).json({ success: false, error: 'Rapport introuvable' });
+        res.json({ success: true, feedbacks: report.feedbacks || [] });
     } catch (error) {
-        console.error('Erreur récupération feedbacks:', error);
-        res.status(500).json({ success: false, error: error.message });
+        console.error('Erreur chargement feedbacks:', error);
+        res.status(500).json({ success: false, error: 'Erreur chargement feedbacks' });
     }
 });
 
-// Gestion des sites
-app.get('/api/sites', (req, res) => {
-    try {
-        res.json({ success: true, sites: db.sites });
-    } catch (error) {
-        res.status(500).json({ success: false, error: error.message });
-    }
-});
-
-app.post('/api/sites', (req, res) => {
+// SITES API
+app.post('/api/sites', async (req, res) => {
     try {
         const { id, name, location } = req.body;
-        
-        const site = {
-            id: id || uuidv4(),
-            name,
-            location,
-            created_at: new Date().toISOString()
-        };
-        
-        // Vérifier si le site existe déjà
-        const existingIndex = db.sites.findIndex(s => s.id === site.id);
-        if (existingIndex !== -1) {
-            db.sites[existingIndex] = site;
+        const siteId = id || uuidv4();
+
+        let site = await Site.findOne({ id: siteId });
+        if (site) {
+            site.name = name;
+            site.location = location;
+            await site.save();
         } else {
-            db.sites.push(site);
+            site = new Site({ id: siteId, name, location });
+            await site.save();
         }
-        
-        saveDB(db);
         res.json({ success: true, site });
     } catch (error) {
+        console.error('Erreur sites:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+app.get('/api/sites', async (req, res) => {
+    try {
+        const sites = await Site.find().sort({ created_at: -1 });
+        res.json({ success: true, sites });
+    } catch (error) {
+        console.error('Erreur chargement sites:', error);
         res.status(500).json({ success: false, error: error.message });
     }
 });
 
 // ================== EXPORT API ==================
 
-// Export rapports en CSV (pour Excel)
-app.get('/api/export/excel', (req, res) => {
+app.get('/api/export/excel', async (req, res) => {
     try {
         const { region, date } = req.query;
-        let reports = [...db.reports];
-        
-        // Filtrer par région
+        let query = {};
+
         if (region) {
-            reports = reports.filter(r => r.region === region);
+            query.region = region;
         }
-        
-        // Filtrer par date
+
+        const reports = await Report.find(query).sort({ created_at: -1 });
+
+        let filteredReports = reports;
         if (date) {
             const filterDate = new Date(date).toDateString();
-            reports = reports.filter(r => new Date(r.created_at).toDateString() === filterDate);
+            filteredReports = reports.filter(r => new Date(r.created_at).toDateString() === filterDate);
         }
-        
-        // Créer le CSV
+
         const headers = ['Site ID', 'Nom du Site', 'Région', 'Superviseur', 'Activités', 'Commentaires', 'Status', 'Date', 'Nb Photos'];
-        const rows = reports.map(r => [
+        const rows = filteredReports.map(r => [
             r.site_id,
             r.site_name,
             r.region || 'N/A',
@@ -309,11 +282,10 @@ app.get('/api/export/excel', (req, res) => {
             new Date(r.created_at).toLocaleString('fr-FR'),
             r.images?.length || 0
         ]);
-        
-        // BOM pour UTF-8 dans Excel
+
         const BOM = '\uFEFF';
         const csv = BOM + headers.join(';') + '\n' + rows.map(r => r.join(';')).join('\n');
-        
+
         const filename = `eastcastle-rapports-${new Date().toISOString().split('T')[0]}.csv`;
         res.setHeader('Content-Type', 'text/csv; charset=utf-8');
         res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
@@ -324,22 +296,20 @@ app.get('/api/export/excel', (req, res) => {
     }
 });
 
-// Export rapport unique en JSON (pour génération PDF côté client)
-app.get('/api/export/report/:id', (req, res) => {
+app.get('/api/export/report/:id', async (req, res) => {
     try {
-        const report = db.reports.find(r => r.id === req.params.id);
+        const report = await Report.findById(req.params.id);
         if (!report) {
             return res.status(404).json({ success: false, error: 'Rapport non trouvé' });
         }
-        
-        const feedbacks = db.feedbacks.filter(f => f.report_id === req.params.id);
-        
-        res.json({ 
-            success: true, 
-            report: { ...report, feedbacks },
+
+        res.json({
+            success: true,
+            report: report,
             company: 'Eastcastle'
         });
     } catch (error) {
+        console.error('Erreur export JSON:', error);
         res.status(500).json({ success: false, error: error.message });
     }
 });
@@ -348,18 +318,16 @@ app.get('/api/export/report/:id', (req, res) => {
 
 io.on('connection', (socket) => {
     console.log('Client connecté:', socket.id);
-    
-    // Rejoindre une room selon le rôle
+
     socket.on('join-role', (role) => {
         socket.join(role);
         console.log(`Client ${socket.id} rejoint le rôle: ${role}`);
     });
-    
-    // Rejoindre une room de rapport spécifique
+
     socket.on('join-report', (reportId) => {
         socket.join(`report-${reportId}`);
     });
-    
+
     socket.on('disconnect', () => {
         console.log('Client déconnecté:', socket.id);
     });
@@ -382,6 +350,5 @@ server.listen(PORT, '0.0.0.0', () => {
 ║  💻 PM:     http://[VOTRE-IP]:${PORT}/pm                      ║
 ║                                                            ║
 ║  Le serveur est prêt à recevoir des rapports!              ║
-╚════════════════════════════════════════════════════════════╝
-    `);
+╚═`);
 });
