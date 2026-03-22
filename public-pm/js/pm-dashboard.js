@@ -35,16 +35,7 @@ class PMDashboard {
     }
     
     getServerUrl() {
-        // Si on est dans une app native, on a TOUJOURS besoin d'une URL serveur
-        if (this.isNativeApp) {
-            return localStorage.getItem('serverUrl') || '';
-        }
-        // Si on est sur localhost en dev (navigateur http), pas besoin d'URL
-        if (window.location.protocol === 'http:' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
-            return '';
-        }
-        // Sinon, utiliser l'URL sauvegardée ou demander
-        return localStorage.getItem('serverUrl') || '';
+        return 'https://daily-report-app-fanv.onrender.com';
     }
     
     getApiUrl(endpoint) {
@@ -247,7 +238,7 @@ class PMDashboard {
             <!DOCTYPE html>
             <html>
             <head>
-                <title>Eastcastle - Rapport Journalier</title>
+                <title>YoRiv Daily Reports</title>
                 <style>
                     body { font-family: Arial, sans-serif; padding: 20px; }
                     .header { text-align: center; border-bottom: 2px solid #2563eb; padding-bottom: 20px; margin-bottom: 20px; }
@@ -269,7 +260,7 @@ class PMDashboard {
             </head>
             <body>
                 <div class="header">
-                    <h1>🏗️ EASTCASTLE</h1>
+                    <h1>🏗️ YORIV</h1>
                     <p>Rapport Journalier des Sites</p>
                     <p><strong>Région:</strong> ${region} | <strong>Date:</strong> ${date}</p>
                     <p><strong>Total:</strong> ${filtered.length} rapport(s)</p>
@@ -302,7 +293,7 @@ class PMDashboard {
                     </div>
                 `).join('')}
                 <div class="footer">
-                    <p>Eastcastle - Document généré le ${new Date().toLocaleString('fr-FR')}</p>
+                    <p>YoRiv - Document généré le ${new Date().toLocaleString('fr-FR')}</p>
                 </div>
             </body>
             </html>

@@ -1,7 +1,7 @@
 {
-    "name": "Eastcastle PM Dashboard",
-    "short_name": "Eastcastle PM",
-    "description": "Dashboard Project Manager - Eastcastle Daily Report",
+    "name": "YoRiv - Dashboard PM",
+    "short_name": "YoRiv PM",
+    "description": "Dashboard Project Manager - YoRiv Daily Reports",
     "start_url": "/pm",
     "display": "standalone",
     "background_color": "#ffffff",

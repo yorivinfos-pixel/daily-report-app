@@ -286,7 +286,7 @@ app.get('/api/export/excel', async (req, res) => {
         const BOM = '\uFEFF';
         const csv = BOM + headers.join(';') + '\n' + rows.map(r => r.join(';')).join('\n');
 
-        const filename = `eastcastle-rapports-${new Date().toISOString().split('T')[0]}.csv`;
+        const filename = `yoriv-rapports-${new Date().toISOString().split('T')[0]}.csv`;
         res.setHeader('Content-Type', 'text/csv; charset=utf-8');
         res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
         res.send(csv);
@@ -306,7 +306,7 @@ app.get('/api/export/report/:id', async (req, res) => {
         res.json({
             success: true,
             report: report,
-            company: 'Eastcastle'
+            company: 'YoRiv'
         });
     } catch (error) {
         console.error('Erreur export JSON:', error);

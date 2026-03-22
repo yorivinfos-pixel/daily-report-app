@@ -38,8 +38,8 @@ const backups = {};
 
 // Configuration PM
 const PM_CONFIG = {
-    appId: 'com.eastcastle.pm',
-    appName: 'Eastcastle PM Dashboard'
+    appId: 'com.yoriv.pm',
+    appName: 'YoRiv - Dashboard PM'
 };
 
 function backup(filePath) {
@@ -109,11 +109,11 @@ function modifyCapacitorConfig() {
 function modifyBuildGradle() {
     let content = fs.readFileSync(files.buildGradle, 'utf8');
     content = content.replace(
-        /namespace = "com\.eastcastle\.dailyreport"/,
+        /namespace = "com\.yoriv\.dailyreport"/,
         `namespace = "${PM_CONFIG.appId}"`
     );
     content = content.replace(
-        /applicationId "com\.eastcastle\.dailyreport"/,
+        /applicationId "com\.yoriv\.dailyreport"/,
         `applicationId "${PM_CONFIG.appId}"`
     );
     fs.writeFileSync(files.buildGradle, content, 'utf8');
@@ -148,7 +148,7 @@ const restoreOnly = process.argv.includes('--restore');
 
 async function main() {
     console.log('╔════════════════════════════════════════════════════════════╗');
-    console.log('║        🏗️  Build PM APK - Eastcastle PM Dashboard          ║');
+    console.log('║        🏗️  Build PM APK - YoRiv - Dashboard PM          ║');
     console.log('╚════════════════════════════════════════════════════════════╝\n');
 
     if (restoreOnly) {

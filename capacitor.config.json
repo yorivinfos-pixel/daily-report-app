@@ -1,6 +1,6 @@
 {
-  "appId": "com.eastcastle.pm",
-  "appName": "Eastcastle PM Dashboard",
+  "appId": "com.yoriv.pm",
+  "appName": "YoRiv - Dashboard PM",
   "webDir": "public-pm",
   "android": {
     "allowMixedContent": true
