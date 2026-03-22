@@ -26,8 +26,8 @@ async function main() {
             execSync('./gradlew assembleDebug', { stdio: 'inherit' });
         }
 
-        const apkSource = path.join(__dirname, 'app', 'build', 'outputs', 'apk', 'debug', 'app-debug.apk');
-        const apkDest = path.join(__dirname, '..', 'yoriv-supervisor.apk');
+        const apkSource = path.join(__dirname, 'android', 'app', 'build', 'outputs', 'apk', 'debug', 'app-debug.apk');
+        const apkDest = path.join(__dirname, 'yoriv-supervisor.apk');
         
         if (fs.existsSync(apkSource)) {
             fs.copyFileSync(apkSource, apkDest);

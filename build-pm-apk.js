@@ -108,10 +108,7 @@ function modifyCapacitorConfig() {
 
 function modifyBuildGradle() {
     let content = fs.readFileSync(files.buildGradle, 'utf8');
-    content = content.replace(
-        /namespace = "com\.yoriv\.dailyreport"/,
-        `namespace = "${PM_CONFIG.appId}"`
-    );
+    // Ne pas changer le namespace, seulement l'applicationId !
     content = content.replace(
         /applicationId "com\.yoriv\.dailyreport"/,
         `applicationId "${PM_CONFIG.appId}"`

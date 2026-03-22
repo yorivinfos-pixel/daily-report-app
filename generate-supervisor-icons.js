@@ -3,7 +3,7 @@ const path = require('path');
 
 const sizes = [72, 96, 128, 144, 152, 192, 384, 512];
 const iconsDir = path.join(__dirname, 'public', 'icons');
-const logoPath = path.join(iconsDir, 'logo-supervisor.png');
+const logoPath = path.join(iconsDir, 'logo.png');
 
 async function generateSupervisorIcons() {
     for (const size of sizes) {

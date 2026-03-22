@@ -1,7 +1,7 @@
 {
-  "appId": "com.yoriv.pm",
-  "appName": "YoRiv - Dashboard PM",
-  "webDir": "public-pm",
+  "appId": "com.yoriv.dailyreport",
+  "appName": "YoRiv Daily Reports",
+  "webDir": "public",
   "android": {
     "allowMixedContent": true
   },

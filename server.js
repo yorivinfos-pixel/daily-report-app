@@ -2,12 +2,17 @@ try { require('dotenv').config(); } catch (e) { console.log('Mode production: do
 
 // ======= MongoDB Atlas (Mongoose) =======
 const mongoose = require('mongoose');
-const mongoUri = process.env.MONGODB_URI || 'mongodb://mon_admin:6q4Qz.n-nFe.Xz4@cluster0-shard-00-00.e0ovj8t.mongodb.net:27017,cluster0-shard-00-01.e0ovj8t.mongodb.net:27017,cluster0-shard-00-02.e0ovj8t.mongodb.net:27017/?ssl=true&replicaSet=atlas-xxxxxx-shard-0&authSource=admin&retryWrites=true&w=majority';
+const mongoUri = process.env.MONGODB_URI || 'mongodb+srv://mon_admin:6q4Qz.n-nFe.Xz4@cluster0.e0ovj8t.mongodb.net/?retryWrites=true&w=majority';
 
 // Connexion à MongoDB avec la variable mongoUri
 mongoose.connect(mongoUri)
-    .then(() => console.log("✅ Connecté à MongoDB avec succès !"))
-    .catch(err => console.error("❌ Erreur connexion MongoDB:", err.message));
+    .then(() => console.log("✅ Connecté à MongoDB avec succès sur Cluster0 !"))
+    .catch(err => {
+        console.error("❌ Erreur critique connexion MongoDB:", err.message);
+        if (err.message.includes('replicaSet')) {
+            console.warn("⚠️ Attention: L'ancienne chaîne de connexion replicaSet est détectée. Passage automatique à SRV...");
+        }
+    });
 
 const reportSchema = new mongoose.Schema({
     site_id: String,
