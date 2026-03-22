@@ -7,6 +7,7 @@ class SupervisorApp {
         this.socket = null;
         this.selectedImages = [];
         this.myReports = [];
+        this.serverUrl = 'https://daily-report-app-fanv.onrender.com';
         
         this.init();
     }
@@ -32,7 +33,7 @@ class SupervisorApp {
     // ================== Socket.IO Setup ==================
     
     setupSocket() {
-        this.socket = io();
+        this.socket = io(this.serverUrl);
         
         this.socket.on('connect', () => {
             console.log('Connecté au serveur');
@@ -184,7 +185,7 @@ class SupervisorApp {
             };
             
             // Créer le rapport
-            const response = await fetch('/api/reports', {
+            const response = await fetch(this.serverUrl + '/api/reports', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(formData)
@@ -223,7 +224,7 @@ class SupervisorApp {
             formData.append('images', file);
         });
         
-        const response = await fetch(`/api/reports/${reportId}/images`, {
+        const response = await fetch(`${this.serverUrl}/api/reports/${reportId}/images`, {
             method: 'POST',
             body: formData
         });
@@ -248,7 +249,7 @@ class SupervisorApp {
         const container = document.getElementById('my-reports');
         
         try {
-            const response = await fetch('/api/reports');
+            const response = await fetch(this.serverUrl + '/api/reports');
             const result = await response.json();
             
             if (!result.success) {
@@ -329,7 +330,7 @@ class SupervisorApp {
         const modalBody = document.getElementById('modal-body');
         
         try {
-            const response = await fetch(`/api/reports/${reportId}`);
+            const response = await fetch(`${this.serverUrl}/api/reports/${reportId}`);
             const result = await response.json();
             
             if (!result.success) {
@@ -421,7 +422,7 @@ class SupervisorApp {
         }
         
         try {
-            const response = await fetch(`/api/reports/${reportId}`, {
+            const response = await fetch(`${this.serverUrl}/api/reports/${reportId}`, {
                 method: 'DELETE'
             });
             

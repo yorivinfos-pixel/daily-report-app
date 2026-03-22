@@ -16,12 +16,7 @@ class PMDashboard {
     }
     
     getServerUrl() {
-        // Si on est sur localhost, pas besoin d'URL
-        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-            return '';
-        }
-        // Sinon, utiliser l'URL sauvegardée ou demander
-        return localStorage.getItem('serverUrl') || '';
+        return 'https://daily-report-app-fanv.onrender.com';
     }
     
     getApiUrl(endpoint) {
