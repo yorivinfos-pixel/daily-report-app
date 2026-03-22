@@ -1,0 +1,66 @@
+Guide Déploiement Gratuit du Dashboard PM sur Render.com
+========================================================
+
+1. PRÉPARATION
+--------------
+- Crée un compte gratuit sur https://render.com
+- Prépare ton projet dans un dossier (tous les fichiers, y compris server.js, package.json, public, public-pm, etc.)
+- (Optionnel) Mets ton projet sur GitHub pour un déploiement plus simple
+
+2. CRÉATION DU SERVICE WEB
+--------------------------
+A. Sur Render.com, clique sur "New +" > "Web Service"
+B. Connecte ton compte GitHub et sélectionne le dépôt du projet (ou clique sur "Manual Deploy" si tu veux uploader un zip)
+C. Paramètres importants :
+   - **Environment** : Node
+   - **Build Command** : npm install
+   - **Start Command** : node server.js
+   - **Root Directory** : (laisse vide si server.js est à la racine)
+   - **Free Plan** : choisis le plan gratuit
+D. Clique sur "Create Web Service"
+
+3. PREMIER DÉPLOIEMENT
+----------------------
+- Render va installer les dépendances et lancer automatiquement le serveur
+- Attends la fin du déploiement (quelques minutes)
+- Une URL publique sera générée (ex : https://dashboardpm.onrender.com)
+
+4. CONFIGURATION DE L'APPLICATION
+---------------------------------
+- Utilise l'URL Render dans l'application mobile et web (remplace localhost:3000 par l'URL Render)
+- Pour l'APK, entre l'URL Render comme adresse du serveur lors du premier lancement
+
+
+5. STOCKAGE D'IMAGES 100% STATELESS (CLOUDINARY)
+------------------------------------------------
+Depuis la version cloud, les images sont stockées sur Cloudinary (hébergement cloud, stateless) :
+
+**Comment ajouter les clés Cloudinary sur Render ?**
+1. Sur Render, va dans ton service web > Settings > Environment > Add Environment Variable
+2. Ajoute les 3 variables suivantes :
+   - `CLOUDINARY_CLOUD_NAME` : (ex : `d3abcxyz`)
+   - `CLOUDINARY_API_KEY` : (ex : `123456789012345`)
+   - `CLOUDINARY_API_SECRET` : (ex : `aBcDeFgHiJkLmNoPqRsT`)
+3. Clique sur "Save Changes" puis redeploie le service si besoin
+
+**Où trouver ces clés ?**
+ - Crée un compte gratuit sur https://cloudinary.com
+ - Va dans le Dashboard > Account Details
+ - Copie les valeurs `Cloud name`, `API Key`, `API Secret`
+
+**Résultat :**
+ - Les images uploadées sont hébergées sur Cloudinary, accessibles partout, et ne dépendent plus du serveur Render
+ - Le backend est 100% stateless : tu peux redéployer, scaler, ou changer de serveur sans rien perdre
+
+6. ASTUCES
+----------
+- Pour un stockage d’images fiable et stateless, Cloudinary est déjà intégré (voir section 5)
+- Pour une base de données fiable, utilise MongoDB Atlas (gratuit pour petits usages)
+- Pour un nom de domaine personnalisé, configure-le dans Render (option gratuite)
+
+7. SUPPORT
+----------
+- Documentation Render : https://render.com/docs
+- Pour toute question technique, contacte ton administrateur ou demande de l’aide sur le support Render
+
+Bonne mise en ligne du Dashboard PM !

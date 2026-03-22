@@ -10,11 +10,34 @@ class PMDashboard {
         this.selectedReport = null;
         this.currentImages = [];
         this.currentImageIndex = 0;
+        this.serverUrl = this.getServerUrl();
         
         this.init();
     }
     
+    getServerUrl() {
+        // Si on est sur localhost, pas besoin d'URL
+        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+            return '';
+        }
+        // Sinon, utiliser l'URL sauvegardée ou demander
+        return localStorage.getItem('serverUrl') || '';
+    }
+    
+    getApiUrl(endpoint) {
+        if (this.serverUrl) {
+            return `${this.serverUrl}${endpoint}`;
+        }
+        return endpoint;
+    }
+    
     init() {
+        // Vérifier si on a besoin de configurer le serveur
+        if (!this.serverUrl && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+            this.showServerConfig();
+            return;
+        }
+        
         this.setupSocket();
         this.setupNavigation();
         this.setupSearch();
@@ -24,10 +47,44 @@ class PMDashboard {
         this.loadPMName();
     }
     
+    showServerConfig() {
+        const app = document.getElementById('app');
+        app.innerHTML = `
+            <div class="server-config-overlay">
+                <div class="server-config-modal">
+                    <h2>⚙️ Configuration du Serveur</h2>
+                    <p>Entrez l'adresse IP de votre serveur (ex: 192.168.1.100)</p>
+                    <div class="config-form">
+                        <div class="input-group">
+                            <span class="prefix">http://</span>
+                            <input type="text" id="server-ip" placeholder="192.168.1.x" pattern="[0-9.]+">
+                            <span class="suffix">:3000</span>
+                        </div>
+                        <button id="save-server-btn" class="btn-primary">💾 Enregistrer</button>
+                        <p class="help-text">Trouvez l'IP de votre PC avec la commande: <code>ipconfig</code></p>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        document.getElementById('save-server-btn').addEventListener('click', () => {
+            const ip = document.getElementById('server-ip').value.trim();
+            if (ip) {
+                const url = `http://${ip}:3000`;
+                localStorage.setItem('serverUrl', url);
+                this.serverUrl = url;
+                window.location.reload();
+            } else {
+                alert('Veuillez entrer une adresse IP valide');
+            }
+        });
+    }
+    
     // ================== Socket.IO Setup ==================
     
     setupSocket() {
-        this.socket = io();
+        try {
+            this.socket = this.serverUrl ? io(this.serverUrl) : io();
         
         this.socket.on('connect', () => {
             console.log('PM Dashboard connecté');
@@ -55,6 +112,22 @@ class PMDashboard {
             console.log('Nouvelles images:', data);
             this.handleNewImages(data);
         });
+        
+        // Rapport supprimé
+        this.socket.on('report-deleted', (data) => {
+            console.log('Rapport supprimé:', data);
+            this.handleReportDeleted(data);
+        });
+        
+        // Erreur de connexion
+        this.socket.on('connect_error', (error) => {
+            console.error('Erreur de connexion:', error);
+            document.getElementById('connection-text').textContent = 'Erreur connexion';
+        });
+        } catch (error) {
+            console.error('Erreur setup socket:', error);
+            this.showToast('Erreur de connexion au serveur', 'error');
+        }
     }
     
     // ================== Navigation ==================
@@ -257,7 +330,7 @@ class PMDashboard {
         const grid = document.getElementById('reports-grid');
         
         try {
-            const response = await fetch('/api/reports');
+            const response = await fetch(this.getApiUrl('/api/reports'));
             const result = await response.json();
             
             if (!result.success) {
@@ -416,7 +489,7 @@ class PMDashboard {
         });
         
         try {
-            const response = await fetch(`/api/reports/${reportId}`);
+            const response = await fetch(this.getApiUrl(`/api/reports/${reportId}`));
             const result = await response.json();
             
             if (!result.success) {
@@ -513,6 +586,12 @@ class PMDashboard {
                     📤 Envoyer l'avis
                 </button>
             </div>
+            
+            <div class="delete-report-section">
+                <button id="delete-report-btn" class="delete-report-btn">
+                    🗑️ Supprimer ce rapport
+                </button>
+            </div>
         `;
         
         // Event listeners pour les images
@@ -527,6 +606,39 @@ class PMDashboard {
         document.getElementById('send-feedback-btn').addEventListener('click', () => {
             this.sendFeedback();
         });
+        
+        // Event listener pour supprimer le rapport
+        document.getElementById('delete-report-btn').addEventListener('click', () => {
+            this.deleteReport();
+        });
+    }
+    
+    async deleteReport() {
+        if (!this.selectedReport) return;
+        
+        const confirmed = confirm(`Êtes-vous sûr de vouloir supprimer ce rapport ?\n\nSite: ${this.selectedReport.site_name}\nDate: ${this.formatDate(this.selectedReport.created_at)}\n\nCette action est irréversible.`);
+        
+        if (!confirmed) return;
+        
+        try {
+            const response = await fetch(this.getApiUrl(`/api/reports/${this.selectedReport.id}`), {
+                method: 'DELETE'
+            });
+            
+            const result = await response.json();
+            
+            if (!result.success) {
+                throw new Error(result.error);
+            }
+            
+            this.showToast('Rapport supprimé avec succès', 'success');
+            this.closeDetailPanel();
+            await this.loadReports();
+            
+        } catch (error) {
+            console.error('Erreur:', error);
+            this.showToast('Erreur lors de la suppression du rapport', 'error');
+        }
     }
     
     async sendFeedback() {
@@ -539,7 +651,7 @@ class PMDashboard {
         }
         
         try {
-            const response = await fetch(`/api/reports/${this.selectedReport.id}/feedback`, {
+            const response = await fetch(this.getApiUrl(`/api/reports/${this.selectedReport.id}/feedback`), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -673,6 +785,21 @@ class PMDashboard {
             // Si c'est le rapport sélectionné, rafraîchir le panel
             if (this.selectedReport?.id === data.reportId) {
                 this.selectReport(data.reportId);
+            }
+        }
+    }
+    
+    handleReportDeleted(data) {
+        // Supprimer le rapport de la liste locale
+        const reportIndex = this.reports.findIndex(r => r.id === data.reportId);
+        if (reportIndex !== -1) {
+            this.reports.splice(reportIndex, 1);
+            this.updateStats();
+            this.renderReports();
+            
+            // Si c'est le rapport sélectionné, fermer le panel
+            if (this.selectedReport?.id === data.reportId) {
+                this.closeDetailPanel();
             }
         }
     }

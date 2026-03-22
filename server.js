@@ -1,4 +1,4 @@
-require('dotenv').config();
+try { require('dotenv').config(); } catch (e) { console.log('Mode production: dotenv ignoré'); }
 
 // ======= MongoDB Atlas (Mongoose) =======
 const mongoose = require('mongoose');

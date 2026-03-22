@@ -1,5 +1,12 @@
 {
-  "appId": "com.eastcastle.dailyreport",
-  "appName": "Eastcastle Daily Report",
-  "webDir": "public"
+  "appId": "com.eastcastle.pm",
+  "appName": "Eastcastle PM Dashboard",
+  "webDir": "public-pm",
+  "android": {
+    "allowMixedContent": true
+  },
+  "server": {
+    "androidScheme": "http",
+    "cleartext": true
+  }
 }

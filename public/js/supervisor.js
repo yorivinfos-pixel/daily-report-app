@@ -388,9 +388,20 @@ class SupervisorApp {
                         `).join('')}
                     </div>
                 ` : ''}
+                
+                <div class="detail-actions">
+                    <button class="btn-delete" id="delete-report-btn" data-id="${report.id}">
+                        🗑️ Supprimer ce rapport
+                    </button>
+                </div>
             `;
             
             modal.classList.add('active');
+            
+            // Ajouter l'event listener pour la suppression
+            document.getElementById('delete-report-btn').addEventListener('click', () => {
+                this.deleteReport(report.id);
+            });
             
         } catch (error) {
             console.error('Erreur:', error);
@@ -400,6 +411,34 @@ class SupervisorApp {
     
     closeModal() {
         document.getElementById('report-modal').classList.remove('active');
+    }
+    
+    // ================== Delete Report ==================
+    
+    async deleteReport(reportId) {
+        if (!confirm('Êtes-vous sûr de vouloir supprimer ce rapport ? Cette action est irréversible.')) {
+            return;
+        }
+        
+        try {
+            const response = await fetch(`/api/reports/${reportId}`, {
+                method: 'DELETE'
+            });
+            
+            const result = await response.json();
+            
+            if (!result.success) {
+                throw new Error(result.error || 'Erreur lors de la suppression');
+            }
+            
+            this.showToast('Rapport supprimé avec succès', 'success');
+            this.closeModal();
+            this.loadMyReports();
+            
+        } catch (error) {
+            console.error('Erreur suppression:', error);
+            this.showToast('Erreur lors de la suppression du rapport', 'error');
+        }
     }
     
     // ================== Handle Feedback ==================
@@ -444,35 +483,48 @@ class SupervisorApp {
         
         container.appendChild(toast);
         
-        setTimeout(() => {
-            toast.style.animation = 'slideIn 0.3s ease reverse';
-            setTimeout(() => toast.remove(), 300);
-        }, 4000);
-    }
-    
-    getToastIcon(type) {
-        const icons = {
-            success: '✅',
-            error: '❌',
-            warning: '⚠️',
-            info: '📢'
-        };
-        return icons[type] || icons.info;
-    }
-    
-    formatDate(dateString) {
-        const date = new Date(dateString);
-        return date.toLocaleDateString('fr-FR', {
-            day: '2-digit',
-            month: '2-digit',
-            year: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit'
-        });
-    }
-    
-    truncateText(text, maxLength) {
-        if (!text) return '';
+            container.innerHTML = this.myReports.map(report => `
+                <div class="report-card ${report.status}" data-id="${report.id}">
+                    <div class="report-card-header">
+                        <div class="report-site-info">
+                            <span class="report-site-id">${report.site_id}</span>
+                            <div class="report-site-name">${report.site_name}</div>
+                        </div>
+                        <span class="report-status ${report.status}">
+                            ${report.status === 'pending' ? '⏳ En attente' : '✅ Examiné'}
+                        </span>
+                    </div>
+                    <div class="report-card-body">
+                        ${this.truncateText(report.activities, 100)}
+                    </div>
+                    <div class="report-card-footer">
+                        <span class="report-date">${this.formatDate(report.created_at)}</span>
+                        <span class="report-images-count">
+                            📷 ${report.images?.length || 0} photos
+                        </span>
+                        <button class="btn-delete-card" title="Supprimer ce rapport" data-id="${report.id}">🗑️</button>
+                    </div>
+                </div>
+            `).join('');
+
+            // Ajouter event listeners pour voir les détails (hors bouton suppression)
+            container.querySelectorAll('.report-card').forEach(card => {
+                card.addEventListener('click', (e) => {
+                    // Ne pas ouvrir la modale si clic sur le bouton suppression
+                    if (e.target.classList.contains('btn-delete-card')) return;
+                    const reportId = card.dataset.id;
+                    this.showReportDetails(reportId);
+                });
+            });
+
+            // Event listeners pour suppression directe
+            container.querySelectorAll('.btn-delete-card').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const reportId = btn.dataset.id;
+                    this.deleteReport(reportId);
+                });
+            });
         if (text.length <= maxLength) return text;
         return text.substring(0, maxLength) + '...';
     }
