@@ -2,6 +2,36 @@
 // Daily Report Site Supervisor - PM Dashboard JS
 // ============================================
 
+function normalizeProvince(str = '') {
+    return String(str)
+        .trim()
+        .normalize('NFD')
+        // Compatibility: remove accents by stripping combining marks
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase();
+}
+
+const PROVINCE_TO_ZONE = {
+    // Zone 1
+    [normalizeProvince('Kinshasa')]: 'Zone 1',
+    [normalizeProvince('Kongo-Central')]: 'Zone 1',
+    [normalizeProvince('Bandundu')]: 'Zone 1',
+    [normalizeProvince('Kwango')]: 'Zone 1',
+    [normalizeProvince('Kwilu')]: 'Zone 1',
+
+    // Zone 2
+    [normalizeProvince('Haut-Katanga')]: 'Zone 2',
+    [normalizeProvince('Lualaba')]: 'Zone 2',
+    [normalizeProvince('Lomami')]: 'Zone 2',
+    [normalizeProvince('Haut-Lomami')]: 'Zone 2',
+
+    // Zone 3
+    [normalizeProvince('Kasai-Central')]: 'Zone 3',
+    [normalizeProvince('Kasai-Oriental')]: 'Zone 3',
+    // UI uses "Kasai"
+    [normalizeProvince('Kasai')]: 'Zone 3',
+};
+
 class PMDashboard {
     constructor() {
         this.socket = null;
@@ -63,6 +93,7 @@ class PMDashboard {
         this.setupImageModal();
         this.loadReports();
         this.loadPMName();
+        this.loadPMZone();
     }
     
     showServerConfig() {
@@ -184,6 +215,8 @@ class PMDashboard {
         const searchInput = document.getElementById('search-input');
         const dateFilter = document.getElementById('date-filter');
         const regionFilter = document.getElementById('region-filter');
+        const pmZoneFilter = document.getElementById('pm-zone-filter');
+        const showOtherZones = document.getElementById('show-other-zones');
         
         searchInput.addEventListener('input', () => {
             this.renderReports();
@@ -196,6 +229,19 @@ class PMDashboard {
         regionFilter.addEventListener('change', () => {
             this.renderReports();
         });
+
+        if (pmZoneFilter) {
+            pmZoneFilter.addEventListener('change', () => {
+                localStorage.setItem('pmZone', pmZoneFilter.value);
+                this.renderReports();
+            });
+        }
+
+        if (showOtherZones) {
+            showOtherZones.addEventListener('change', () => {
+                this.renderReports();
+            });
+        }
         
         // Boutons d'export
         document.getElementById('export-pdf').addEventListener('click', () => {
@@ -212,9 +258,12 @@ class PMDashboard {
     exportExcel() {
         const region = document.getElementById('region-filter').value;
         const date = document.getElementById('date-filter').value;
+        const pmZone = document.getElementById('pm-zone-filter')?.value;
+        const showOtherZones = document.getElementById('show-other-zones')?.checked;
         
         let url = '/api/export/excel?';
         if (region) url += `region=${encodeURIComponent(region)}&`;
+        if (pmZone && !showOtherZones) url += `zone=${encodeURIComponent(pmZone)}&`;
         if (date) url += `date=${encodeURIComponent(date)}`;
         
         window.location.href = url;
@@ -311,6 +360,13 @@ class PMDashboard {
         if (this.currentFilter !== 'all') {
             filtered = filtered.filter(r => r.status === this.currentFilter);
         }
+
+        // Filtre par zone du PM (par défaut)
+        const pmZone = document.getElementById('pm-zone-filter')?.value;
+        const showOtherZones = document.getElementById('show-other-zones')?.checked;
+        if (pmZone && !showOtherZones) {
+            filtered = filtered.filter(r => this.getReportZone(r) === pmZone);
+        }
         
         // Filtre par région
         const regionFilter = document.getElementById('region-filter').value;
@@ -366,10 +422,14 @@ class PMDashboard {
     }
     
     updateStats() {
-        const total = this.reports.length;
-        const pending = this.reports.filter(r => r.status === 'pending').length;
-        const reviewed = this.reports.filter(r => r.status === 'reviewed').length;
-        const totalImages = this.reports.reduce((sum, r) => sum + (r.images?.length || 0), 0);
+        return this.updateStatsForReports(this.reports);
+    }
+
+    updateStatsForReports(reports) {
+        const total = reports.length;
+        const pending = reports.filter(r => r.status === 'pending').length;
+        const reviewed = reports.filter(r => r.status === 'reviewed').length;
+        const totalImages = reports.reduce((sum, r) => sum + (r.images?.length || 0), 0);
         
         document.getElementById('stat-total').textContent = total;
         document.getElementById('stat-pending').textContent = pending;
@@ -384,6 +444,8 @@ class PMDashboard {
     renderReports() {
         const grid = document.getElementById('reports-grid');
         const filtered = this.getFilteredReports();
+
+        this.updateStatsForReports(filtered);
         
         if (filtered.length === 0) {
             grid.innerHTML = `
@@ -431,6 +493,7 @@ class PMDashboard {
                         <h3>${report.site_name}</h3>
                         <span class="pm-supervisor">👷 ${report.supervisor_name || 'Non spécifié'}</span>
                         <span class="pm-region">🌍 ${report.region || 'N/A'}</span>
+                        <span class="pm-zone">🗺️ ${this.getReportZone(report)}</span>
                         <span class="pm-report-date">📆 Rapport du: ${report.report_date || 'N/A'}</span>
                     </div>
                     <span class="pm-status-badge ${report.status}">
@@ -445,6 +508,12 @@ class PMDashboard {
                 </div>
             </div>
         `;
+    }
+
+    getReportZone(report) {
+        if (report?.zone) return report.zone;
+        const region = report?.region || '';
+        return PROVINCE_TO_ZONE[normalizeProvince(region)] || 'Zone 4';
     }
     
     createImagesPreview(images) {
@@ -492,6 +561,13 @@ class PMDashboard {
         if (savedName) {
             document.getElementById('pm-name-input').value = savedName;
         }
+    }
+
+    loadPMZone() {
+        const select = document.getElementById('pm-zone-filter');
+        if (!select) return;
+        const savedZone = localStorage.getItem('pmZone') || select.value || 'Zone 1';
+        select.value = savedZone;
     }
     
     async selectReport(reportId) {

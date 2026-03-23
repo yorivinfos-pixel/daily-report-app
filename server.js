@@ -21,6 +21,7 @@ const reportSchema = new mongoose.Schema({
     comments: String,
     supervisor_name: String,
     region: String,
+    zone: String,
     report_date: String,
     created_at: { type: Date, default: Date.now },
     status: { type: String, default: 'pending' },
@@ -40,6 +41,41 @@ const reportSchema = new mongoose.Schema({
 }, { toJSON: { virtuals: true }, toObject: { virtuals: true } });
 
 const Report = mongoose.model('Report', reportSchema);
+
+function normalizeProvince(str = '') {
+    return String(str)
+        .trim()
+        .normalize('NFD')
+        // Compatibility: remove accents by stripping combining marks
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase();
+}
+
+const PROVINCE_TO_ZONE = {
+    // Zone 1
+    [normalizeProvince('Kinshasa')]: 'Zone 1',
+    [normalizeProvince('Kongo-Central')]: 'Zone 1',
+    [normalizeProvince('Bandundu')]: 'Zone 1',
+    [normalizeProvince('Kwango')]: 'Zone 1',
+    [normalizeProvince('Kwilu')]: 'Zone 1',
+
+    // Zone 2
+    [normalizeProvince('Haut-Katanga')]: 'Zone 2',
+    [normalizeProvince('Lualaba')]: 'Zone 2',
+    [normalizeProvince('Lomami')]: 'Zone 2',
+    [normalizeProvince('Haut-Lomami')]: 'Zone 2',
+
+    // Zone 3
+    [normalizeProvince('Kasai-Central')]: 'Zone 3',
+    [normalizeProvince('Kasai-Oriental')]: 'Zone 3',
+    // UI uses "Kasai" (not "Kasai-Occidental")
+    [normalizeProvince('Kasai')]: 'Zone 3',
+};
+
+function getZoneFromRegion(region) {
+    // Zone 4 = default (partie Est + provinces restantes)
+    return PROVINCE_TO_ZONE[normalizeProvince(region)] || 'Zone 4';
+}
 
 const siteSchema = new mongoose.Schema({
     id: String,
@@ -141,6 +177,7 @@ app.post('/api/reports', async (req, res) => {
         const reportData = { ...req.body };
         if (!reportData.report_date) reportData.report_date = new Date().toISOString().split('T')[0];
         if (!reportData.region) reportData.region = 'Non spécifiée';
+        if (!reportData.zone) reportData.zone = getZoneFromRegion(reportData.region);
 
         const report = new Report(reportData);
         await report.save();
@@ -261,11 +298,14 @@ app.get('/api/sites', async (req, res) => {
 
 app.get('/api/export/excel', async (req, res) => {
     try {
-        const { region, date } = req.query;
+        const { region, zone, date } = req.query;
         let query = {};
 
         if (region) {
             query.region = region;
+        }
+        if (zone) {
+            query.zone = zone;
         }
 
         const reports = await Report.find(query).sort({ created_at: -1 });

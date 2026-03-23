@@ -335,6 +335,40 @@
     cursor: pointer;
 }
 
+.zone-filter {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+}
+
+.zone-filter label {
+    font-size: 0.875rem;
+    color: var(--gray-600);
+    white-space: nowrap;
+}
+
+.zone-filter select {
+    padding: var(--spacing-sm) var(--spacing-md);
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius-md);
+    background: white;
+    cursor: pointer;
+}
+
+.other-zones-toggle {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    margin-left: var(--spacing-sm);
+    white-space: nowrap;
+}
+
+.other-zones-toggle input {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+}
+
 .export-buttons {
     display: flex;
     gap: var(--spacing-sm);
@@ -515,6 +549,15 @@
     font-size: 0.75rem;
     color: var(--primary);
     background: rgba(37, 99, 235, 0.1);
+    padding: 2px 8px;
+    border-radius: var(--radius-full);
+    margin-left: 8px;
+}
+
+.pm-zone {
+    font-size: 0.75rem;
+    color: var(--success);
+    background: rgba(5, 150, 105, 0.12);
     padding: 2px 8px;
     border-radius: var(--radius-full);
     margin-left: 8px;
