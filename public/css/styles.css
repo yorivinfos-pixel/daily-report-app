@@ -286,6 +286,36 @@ textarea {
     color: var(--gray-500);
 }
 
+.upload-actions {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--spacing-sm);
+    margin-top: var(--spacing-sm);
+    margin-bottom: var(--spacing-xs);
+}
+
+.upload-action-btn {
+    background: rgba(37, 99, 235, 0.08);
+    border: 1px solid rgba(37, 99, 235, 0.25);
+    color: var(--primary);
+    padding: 0.55rem 1rem;
+    border-radius: var(--radius-md);
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.upload-action-btn:hover {
+    background: rgba(37, 99, 235, 0.14);
+    border-color: rgba(37, 99, 235, 0.35);
+}
+
+.upload-action-btn:active {
+    transform: scale(0.98);
+}
+
 .image-preview {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));

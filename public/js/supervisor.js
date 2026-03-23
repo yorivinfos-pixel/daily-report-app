@@ -100,11 +100,38 @@ class SupervisorApp {
     
     setupImageUpload() {
         const uploadArea = document.getElementById('image-upload-area');
-        const imageInput = document.getElementById('image-input');
-        const previewContainer = document.getElementById('image-preview');
+        const imageInputGallery = document.getElementById('image-input-gallery');
+        const imageInputCamera = document.getElementById('image-input-camera');
+        const pickGalleryBtn = document.getElementById('pick-from-gallery');
+        const pickCameraBtn = document.getElementById('pick-from-camera');
+
+        const handleFileInput = (inputEl) => {
+            if (!inputEl) return;
+            const files = Array.from(inputEl.files || []).filter(f => f.type.startsWith('image/'));
+            if (files.length > 0) this.addImages(files);
+            inputEl.value = ''; // reset pour permettre re-selection
+        };
         
         // Click sur la zone d'upload
-        uploadArea.addEventListener('click', () => imageInput.click());
+        uploadArea.addEventListener('click', () => {
+            // Par défaut: ouvrir la galerie
+            if (imageInputGallery) imageInputGallery.click();
+        });
+
+        // Boutons explicites
+        if (pickGalleryBtn && imageInputGallery) {
+            pickGalleryBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                imageInputGallery.click();
+            });
+        }
+
+        if (pickCameraBtn && imageInputCamera) {
+            pickCameraBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                imageInputCamera.click();
+            });
+        }
         
         // Drag & Drop
         uploadArea.addEventListener('dragover', (e) => {
@@ -124,11 +151,17 @@ class SupervisorApp {
         });
         
         // Selection de fichiers
-        imageInput.addEventListener('change', () => {
-            const files = Array.from(imageInput.files);
-            this.addImages(files);
-            imageInput.value = ''; // Reset pour permettre re-selection
-        });
+        if (imageInputGallery) {
+            imageInputGallery.addEventListener('change', () => {
+                handleFileInput(imageInputGallery);
+            });
+        }
+
+        if (imageInputCamera) {
+            imageInputCamera.addEventListener('change', () => {
+                handleFileInput(imageInputCamera);
+            });
+        }
     }
     
     addImages(files) {
@@ -190,11 +223,21 @@ class SupervisorApp {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(formData)
             });
-            
-            const result = await response.json();
-            
-            if (!result.success) {
-                throw new Error(result.error || 'Erreur lors de la création du rapport');
+
+            let result = null;
+            try {
+                result = await response.json();
+            } catch (_) {
+                // response non-JSON (ou erreur réseau)
+            }
+
+            if (!response.ok) {
+                const serverMsg = result?.error ? `: ${result.error}` : '';
+                throw new Error(`Erreur création du rapport (HTTP ${response.status})${serverMsg}`);
+            }
+
+            if (!result?.success) {
+                throw new Error(result?.error || 'Erreur lors de la création du rapport');
             }
             
             // Upload des images si présentes
@@ -228,9 +271,20 @@ class SupervisorApp {
             method: 'POST',
             body: formData
         });
-        
+
+        let result = null;
+        try {
+            result = await response.json();
+        } catch (_) {
+            // response non-JSON
+        }
+
         if (!response.ok) {
-            throw new Error('Erreur lors de l\'upload des images');
+            throw new Error(`Erreur upload des images (HTTP ${response.status})${result?.error ? `: ${result.error}` : ''}`);
+        }
+
+        if (!result?.success) {
+            throw new Error(result?.error || 'Erreur lors de l\'upload des images');
         }
     }
     
@@ -484,48 +538,35 @@ class SupervisorApp {
         
         container.appendChild(toast);
         
-            container.innerHTML = this.myReports.map(report => `
-                <div class="report-card ${report.status}" data-id="${report.id}">
-                    <div class="report-card-header">
-                        <div class="report-site-info">
-                            <span class="report-site-id">${report.site_id}</span>
-                            <div class="report-site-name">${report.site_name}</div>
-                        </div>
-                        <span class="report-status ${report.status}">
-                            ${report.status === 'pending' ? '⏳ En attente' : '✅ Examiné'}
-                        </span>
-                    </div>
-                    <div class="report-card-body">
-                        ${this.truncateText(report.activities, 100)}
-                    </div>
-                    <div class="report-card-footer">
-                        <span class="report-date">${this.formatDate(report.created_at)}</span>
-                        <span class="report-images-count">
-                            📷 ${report.images?.length || 0} photos
-                        </span>
-                        <button class="btn-delete-card" title="Supprimer ce rapport" data-id="${report.id}">🗑️</button>
-                    </div>
-                </div>
-            `).join('');
+        setTimeout(() => {
+            toast.style.animation = 'slideIn 0.3s ease reverse';
+            setTimeout(() => toast.remove(), 300);
+        }, 4000);
+    }
 
-            // Ajouter event listeners pour voir les détails (hors bouton suppression)
-            container.querySelectorAll('.report-card').forEach(card => {
-                card.addEventListener('click', (e) => {
-                    // Ne pas ouvrir la modale si clic sur le bouton suppression
-                    if (e.target.classList.contains('btn-delete-card')) return;
-                    const reportId = card.dataset.id;
-                    this.showReportDetails(reportId);
-                });
-            });
+    getToastIcon(type) {
+        const icons = {
+            success: '✅',
+            error: '❌',
+            warning: '⚠️',
+            info: '📢'
+        };
+        return icons[type] || icons.info;
+    }
 
-            // Event listeners pour suppression directe
-            container.querySelectorAll('.btn-delete-card').forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    const reportId = btn.dataset.id;
-                    this.deleteReport(reportId);
-                });
-            });
+    formatDate(dateString) {
+        const date = new Date(dateString);
+        return date.toLocaleDateString('fr-FR', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    }
+
+    truncateText(text, maxLength) {
+        if (!text) return '';
         if (text.length <= maxLength) return text;
         return text.substring(0, maxLength) + '...';
     }

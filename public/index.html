@@ -142,12 +142,22 @@
                             Photos du Site
                         </label>
                         <div class="image-upload-area" id="image-upload-area">
-                            <input type="file" id="image-input" name="images" 
+                            <input type="file" id="image-input-gallery" name="images"
                                    accept="image/*" multiple hidden>
+                            <input type="file" id="image-input-camera" name="images"
+                                   accept="image/*" multiple capture="environment" hidden>
                             <div class="upload-content">
                                 <div class="upload-icon">📸</div>
-                                <p class="upload-text">Cliquez pour ajouter des photos</p>
-                                <p class="upload-hint">ou prenez une photo avec votre appareil</p>
+                                <p class="upload-text">Cliquez pour choisir des photos</p>
+                                <div class="upload-actions">
+                                    <button type="button" class="upload-action-btn" id="pick-from-gallery">
+                                        Galerie
+                                    </button>
+                                    <button type="button" class="upload-action-btn" id="pick-from-camera">
+                                        Caméra
+                                    </button>
+                                </div>
+                                <p class="upload-hint">ou faites glisser des images si besoin</p>
                             </div>
                         </div>
                         <div id="image-preview" class="image-preview"></div>
