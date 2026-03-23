@@ -653,7 +653,12 @@ class SupervisorApp {
             
             // Upload des images si présentes
             if (this.selectedImages.length > 0) {
-                await this.uploadImages(result.report.id);
+                try {
+                    await this.uploadImages(result.report.id);
+                } catch (imageError) {
+                    // The report already exists; keep success and only warn for image upload.
+                    this.showToast(`Rapport envoyé, mais erreur photos: ${imageError.message}`, 'warning');
+                }
             }
 
             if (formData.is_final_acceptance) {
@@ -745,7 +750,11 @@ class SupervisorApp {
         const container = document.getElementById('my-reports');
         
         try {
-            const response = await fetch(this.serverUrl + '/api/reports');
+            const supervisorName = (document.getElementById('supervisor-name')?.value || '').trim();
+            const url = supervisorName
+                ? `${this.serverUrl}/api/reports?supervisor_name=${encodeURIComponent(supervisorName)}`
+                : `${this.serverUrl}/api/reports`;
+            const response = await fetch(url);
             const result = await response.json();
             
             if (!result.success) {

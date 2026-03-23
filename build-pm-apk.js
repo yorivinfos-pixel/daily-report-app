@@ -92,8 +92,23 @@ function backupAndReplaceIcons() {
 
 function restoreIcons() {
     console.log('🔄 Restauration des icônes originales...');
-    for (const [targetPath, data] of Object.entries(iconBackups)) {
-        fs.writeFileSync(targetPath, data);
+    const supervisorIcons = {
+        hdpi: 'icon-72.png',
+        xhdpi: 'icon-96.png',
+        xxhdpi: 'icon-144.png',
+        xxxhdpi: 'icon-192.png'
+    };
+    const base = path.join(__dirname, 'public', 'icons');
+    const iconFiles = ['ic_launcher.png', 'ic_launcher_round.png', 'ic_launcher_foreground.png'];
+
+    for (const [density, iconName] of Object.entries(supervisorIcons)) {
+        const source = path.join(base, iconName);
+        const targetDir = iconDirs[density];
+        if (!fs.existsSync(source) || !fs.existsSync(targetDir)) continue;
+        iconFiles.forEach((targetIcon) => {
+            const targetPath = path.join(targetDir, targetIcon);
+            if (fs.existsSync(targetPath)) fs.copyFileSync(source, targetPath);
+        });
     }
     console.log('✅ Icônes restaurées!');
 }

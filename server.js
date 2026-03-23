@@ -313,7 +313,11 @@ app.get('/pm', (req, res) => {
 // GET tous les rapports
 app.get('/api/reports', async (req, res) => {
     try {
-        const reports = await Report.find().sort({ created_at: -1 });
+        const query = {};
+        if (req.query.supervisor_name) {
+            query.supervisor_name = String(req.query.supervisor_name).trim();
+        }
+        const reports = await Report.find(query).sort({ created_at: -1 });
         res.json({ success: true, reports });
     } catch (err) {
         console.error('Erreur chargement rapports:', err);

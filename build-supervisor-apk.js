@@ -2,6 +2,27 @@ const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
 
+function forceSupervisorIcons() {
+    const iconsDir = path.join(__dirname, 'public', 'icons');
+    const targets = [
+        { src: 'icon-72.png', dir: 'mipmap-hdpi' },
+        { src: 'icon-96.png', dir: 'mipmap-xhdpi' },
+        { src: 'icon-144.png', dir: 'mipmap-xxhdpi' },
+        { src: 'icon-192.png', dir: 'mipmap-xxxhdpi' }
+    ];
+    const names = ['ic_launcher.png', 'ic_launcher_round.png', 'ic_launcher_foreground.png'];
+
+    targets.forEach(({ src, dir }) => {
+        const srcPath = path.join(iconsDir, src);
+        const targetDir = path.join(__dirname, 'android', 'app', 'src', 'main', 'res', dir);
+        if (!fs.existsSync(srcPath) || !fs.existsSync(targetDir)) return;
+        names.forEach(name => {
+            const targetPath = path.join(targetDir, name);
+            if (fs.existsSync(targetPath)) fs.copyFileSync(srcPath, targetPath);
+        });
+    });
+}
+
 function forceSupervisorConfig() {
     const capacitorConfigPath = path.join(__dirname, 'capacitor.config.json');
     const buildGradlePath = path.join(__dirname, 'android', 'app', 'build.gradle');
@@ -35,6 +56,8 @@ async function main() {
     try {
         console.log('🛡️ Forçage configuration Superviseur...');
         forceSupervisorConfig();
+        console.log('🎨 Forçage des icônes Superviseur...');
+        forceSupervisorIcons();
 
         console.log('🔄 Synchronisation Capacitor (mise à jour des liens Render)...');
         execSync('npx cap sync android', { stdio: 'inherit' });

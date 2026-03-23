@@ -126,7 +126,6 @@ class PMDashboard {
     applyLanguage() {
         const mappings = [
             ['.logo-subtitle', this.t('PM Dashboard', 'PM Dashboard')],
-            ['#view-title', this.t('Tous les Rapports', 'All Reports')],
             ['.header-subtitle', this.t('Rapports journaliers des superviseurs', 'Daily supervisor reports')],
             ['#search-input', this.t('Rechercher par site, superviseur...', 'Search by site, supervisor...'), 'placeholder'],
             ['#pm-zone-chat-input', this.t('Écrire un message à la zone...', 'Write a message to the zone...'), 'placeholder'],
@@ -154,6 +153,43 @@ class PMDashboard {
         if (exportPdf) exportPdf.innerHTML = `<span>📄</span> ${this.t('PDF', 'PDF')}`;
         const exportExcel = document.querySelector('#export-excel');
         if (exportExcel) exportExcel.innerHTML = `<span>📊</span> ${this.t('Excel', 'Excel')}`;
+
+        const labels = document.querySelectorAll('.header-right label');
+        if (labels.length >= 3) {
+            labels[0].textContent = this.t('🌍 Province:', '🌍 Province:');
+            labels[1].textContent = this.t('🗺️ Zone du PM:', '🗺️ PM Zone:');
+            labels[2].textContent = this.t('Date:', 'Date:');
+        }
+
+        const showOtherZonesLabel = document.querySelector('.other-zones-toggle');
+        if (showOtherZonesLabel) {
+            const checkbox = showOtherZonesLabel.querySelector('input');
+            showOtherZonesLabel.innerHTML = '';
+            if (checkbox) showOtherZonesLabel.appendChild(checkbox);
+            showOtherZonesLabel.appendChild(document.createTextNode(` ${this.t('Voir aussi les autres zones', 'Also show other zones')}`));
+        }
+
+        const statLabels = document.querySelectorAll('.stat-label');
+        if (statLabels.length >= 4) {
+            statLabels[0].textContent = this.t('Total Rapports', 'Total Reports');
+            statLabels[1].textContent = this.t('En Attente', 'Pending');
+            statLabels[2].textContent = this.t('Examinés', 'Reviewed');
+            statLabels[3].textContent = this.t('Photos', 'Photos');
+        }
+
+        const sectionTitles = document.querySelectorAll('.site-assignment-section .section-title');
+        if (sectionTitles.length >= 2) {
+            sectionTitles[0].innerHTML = `<span class="title-icon">🧭</span> ${this.t('Attribution de site au superviseur', 'Assign site to supervisor')}`;
+            sectionTitles[1].innerHTML = `<span class="title-icon">💬</span> ${this.t('Chat de Zone (PM ↔ Superviseurs)', 'Zone Chat (PM ↔ Supervisors)')} <span id="pm-zone-chat-badge" class="nav-badge warning" style="display:none;">${this.unreadZoneCount || 0}</span>`;
+            this.updateZoneBadge();
+        }
+
+        const assignSubmit = document.querySelector('#site-assignment-form button[type="submit"]');
+        if (assignSubmit) assignSubmit.textContent = this.t('Affecter', 'Assign');
+        const zoneSendBtn = document.querySelector('#pm-zone-chat-form button[type="submit"]');
+        if (zoneSendBtn) zoneSendBtn.textContent = this.t('Envoyer', 'Send');
+
+        this.updateViewTitle();
     }
     
     showServerConfig() {
@@ -199,7 +235,7 @@ class PMDashboard {
             console.log('PM Dashboard connecté');
             document.getElementById('connection-status').classList.add('online');
             document.getElementById('connection-status').classList.remove('offline');
-            document.getElementById('connection-text').textContent = 'Connecté';
+            document.getElementById('connection-text').textContent = this.t('Connecté', 'Connected');
             this.socket.emit('join-role', 'pm');
             this.joinZoneRoom();
         });
@@ -208,7 +244,7 @@ class PMDashboard {
             console.log('PM Dashboard déconnecté');
             document.getElementById('connection-status').classList.remove('online');
             document.getElementById('connection-status').classList.add('offline');
-            document.getElementById('connection-text').textContent = 'Déconnecté';
+            document.getElementById('connection-text').textContent = this.t('Déconnecté', 'Disconnected');
         });
         
         // Nouveau rapport reçu
@@ -268,9 +304,9 @@ class PMDashboard {
     
     updateViewTitle() {
         const titleMap = {
-            'all': 'Tous les Rapports',
-            'pending': 'Rapports En Attente',
-            'reviewed': 'Rapports Examinés'
+            'all': this.t('Tous les Rapports', 'All Reports'),
+            'pending': this.t('Rapports En Attente', 'Pending Reports'),
+            'reviewed': this.t('Rapports Examinés', 'Reviewed Reports')
         };
         document.getElementById('view-title').textContent = titleMap[this.currentFilter];
     }
