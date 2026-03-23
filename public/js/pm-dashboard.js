@@ -125,9 +125,16 @@ class PMDashboard {
 
     applyLanguage() {
         const mappings = [
+            ['.logo-subtitle', this.t('PM Dashboard', 'PM Dashboard')],
+            ['#view-title', this.t('Tous les Rapports', 'All Reports')],
+            ['.header-subtitle', this.t('Rapports journaliers des superviseurs', 'Daily supervisor reports')],
             ['#search-input', this.t('Rechercher par site, superviseur...', 'Search by site, supervisor...'), 'placeholder'],
             ['#pm-zone-chat-input', this.t('Écrire un message à la zone...', 'Write a message to the zone...'), 'placeholder'],
-            ['#connection-text', this.t('Déconnecté', 'Disconnected')]
+            ['#connection-text', this.t('Déconnecté', 'Disconnected')],
+            ['#assign-site-id', this.t('Site ID (ex: CDKN-045)', 'Site ID (ex: CDKN-045)'), 'placeholder'],
+            ['#assign-site-name', this.t('Nom du site', 'Site name'), 'placeholder'],
+            ['#assign-supervisor-name', this.t('Nom du superviseur', 'Supervisor name'), 'placeholder'],
+            ['#assign-site-location', this.t('Localisation (optionnel)', 'Location (optional)'), 'placeholder']
         ];
         mappings.forEach(([selector, value, attr]) => {
             const el = document.querySelector(selector);
@@ -135,6 +142,18 @@ class PMDashboard {
             if (attr === 'placeholder') el.setAttribute('placeholder', value);
             else el.textContent = value;
         });
+
+        const navTexts = document.querySelectorAll('.nav-item .nav-text');
+        if (navTexts.length >= 3) {
+            navTexts[0].textContent = this.t('Tous les Rapports', 'All Reports');
+            navTexts[1].textContent = this.t('En Attente', 'Pending');
+            navTexts[2].textContent = this.t('Examinés', 'Reviewed');
+        }
+
+        const exportPdf = document.querySelector('#export-pdf');
+        if (exportPdf) exportPdf.innerHTML = `<span>📄</span> ${this.t('PDF', 'PDF')}`;
+        const exportExcel = document.querySelector('#export-excel');
+        if (exportExcel) exportExcel.innerHTML = `<span>📊</span> ${this.t('Excel', 'Excel')}`;
     }
     
     showServerConfig() {

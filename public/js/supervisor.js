@@ -74,10 +74,18 @@ class SupervisorApp {
 
     applyLanguage() {
         const mappings = [
+            ['.logo-subtitle', this.t('Daily Report', 'Daily Report')],
+            ['.report-form-section .section-title', this.t('Nouveau Rapport Journalier', 'New Daily Report')],
             ['#submit-btn .btn-text', this.t('Envoyer le Rapport', 'Submit Report')],
             ['#supervisor-zone-chat-input', this.t('Écrire un message à votre zone...', 'Write a message to your zone...'), 'placeholder'],
             ['#activities', this.t("Décrivez les activités réalisées aujourd'hui...", 'Describe ongoing site work...'), 'placeholder'],
-            ['#comments', this.t('Ajoutez des commentaires supplémentaires...', 'Add additional comments...'), 'placeholder']
+            ['#comments', this.t('Ajoutez des commentaires supplémentaires...', 'Add additional comments...'), 'placeholder'],
+            ['#site-id', this.t('Ex: CDKN-001', 'Ex: CDKN-001'), 'placeholder'],
+            ['#site-name', this.t('Ex: Chantier Centre-Ville', 'Ex: Downtown Site'), 'placeholder'],
+            ['#supervisor-name', this.t('Entrez votre nom', 'Enter your name'), 'placeholder'],
+            ['#phase-actual-days', this.t('Ex: 3', 'Ex: 3'), 'placeholder'],
+            ['#phase-estimated-display', this.t('Estimé: N/A | Écart: N/A', 'Estimated: N/A | Variance: N/A')],
+            ['.reports-history-section .section-title', this.t('Mes Rapports Récents', 'My Recent Reports')]
         ];
 
         mappings.forEach(([selector, value, attr]) => {
@@ -86,6 +94,9 @@ class SupervisorApp {
             if (attr === 'placeholder') el.setAttribute('placeholder', value);
             else el.textContent = value;
         });
+
+        const chatSendBtn = document.querySelector('#supervisor-zone-chat-form .btn-text');
+        if (chatSendBtn) chatSendBtn.textContent = this.t('Envoyer', 'Send');
     }
     
     setDefaultDate() {
