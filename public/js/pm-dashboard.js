@@ -2,6 +2,14 @@
 // Daily Report Site Supervisor - PM Dashboard JS
 // ============================================
 
+function safeJsonParse(value, fallback) {
+    try {
+        return JSON.parse(value);
+    } catch (_) {
+        return fallback;
+    }
+}
+
 function normalizeProvince(str = '') {
     return String(str)
         .trim()
@@ -44,7 +52,7 @@ class PMDashboard {
     constructor() {
         this.socket = null;
         this.reports = [];
-        this.unreadReportCounts = JSON.parse(localStorage.getItem('pmUnreadReportCounts') || '{}');
+        this.unreadReportCounts = safeJsonParse(localStorage.getItem('pmUnreadReportCounts') || '{}', {});
         this.unreadZoneCount = parseInt(localStorage.getItem('pmUnreadZoneCount') || '0', 10);
         this.currentFilter = 'all';
         this.selectedReport = null;

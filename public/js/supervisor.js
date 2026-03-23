@@ -2,6 +2,14 @@
 // Daily Report Site Supervisor - Supervisor JS
 // ============================================
 
+function safeJsonParse(value, fallback) {
+    try {
+        return JSON.parse(value);
+    } catch (_) {
+        return fallback;
+    }
+}
+
 class SupervisorApp {
     constructor() {
         this.socket = null;
@@ -9,7 +17,7 @@ class SupervisorApp {
         this.myReports = [];
         this.assignedSites = [];
         this.zoneChatMessages = [];
-        this.unreadReportCounts = JSON.parse(localStorage.getItem('supervisorUnreadReportCounts') || '{}');
+        this.unreadReportCounts = safeJsonParse(localStorage.getItem('supervisorUnreadReportCounts') || '{}', {});
         this.unreadZoneCount = parseInt(localStorage.getItem('supervisorUnreadZoneCount') || '0', 10);
         this.serverUrl = 'https://daily-report-app-fanv.onrender.com';
         this.language = localStorage.getItem('appLanguage') || 'fr';
@@ -62,7 +70,6 @@ class SupervisorApp {
         const mappings = [
             ['#submit-btn .btn-text', this.t('Envoyer le Rapport', 'Submit Report')],
             ['#supervisor-zone-chat-input', this.t('Écrire un message à votre zone...', 'Write a message to your zone...'), 'placeholder'],
-            ['#pm-zone-chat-input', this.t('Écrire un message à la zone...', 'Write a message to the zone...'), 'placeholder'],
             ['#activities', this.t("Décrivez les activités réalisées aujourd'hui...", 'Describe ongoing site work...'), 'placeholder'],
             ['#comments', this.t('Ajoutez des commentaires supplémentaires...', 'Add additional comments...'), 'placeholder']
         ];
@@ -497,7 +504,16 @@ class SupervisorApp {
         if (pickCameraBtn && imageInputCamera) {
             pickCameraBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
-                imageInputCamera.click();
+                // Runtime-created input is more reliable on some Android webviews
+                const runtimeInput = document.createElement('input');
+                runtimeInput.type = 'file';
+                runtimeInput.accept = 'image/*';
+                runtimeInput.capture = 'environment';
+                runtimeInput.addEventListener('change', () => {
+                    const files = Array.from(runtimeInput.files || []).filter(f => f.type.startsWith('image/'));
+                    if (files.length > 0) this.addImages(files);
+                });
+                runtimeInput.click();
             });
         }
         
