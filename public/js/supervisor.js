@@ -58,12 +58,18 @@ class SupervisorApp {
             this.language = select.value;
             localStorage.setItem('appLanguage', this.language);
             this.applyLanguage();
+            this.showToast(this.t('Langue changée', 'Language changed'), 'success');
         });
         this.applyLanguage();
     }
 
     t(fr, en) {
         return this.language === 'en' ? en : fr;
+    }
+
+    getFieldValue(id, fallback = '') {
+        const el = document.getElementById(id);
+        return el ? (el.value ?? fallback) : fallback;
     }
 
     applyLanguage() {
@@ -591,20 +597,25 @@ class SupervisorApp {
         submitBtn.disabled = true;
         
         try {
+            const phaseName = this.getFieldValue('phase-name', '').trim();
             const formData = {
-                site_id: document.getElementById('site-id').value,
-                site_name: document.getElementById('site-name').value,
-                activities: document.getElementById('activities').value,
-                comments: document.getElementById('comments').value,
-                supervisor_name: document.getElementById('supervisor-name').value,
-                region: document.getElementById('region').value,
-                report_date: document.getElementById('report-date').value,
-                phase_name: document.getElementById('phase-name').value,
-                phase_status: document.getElementById('phase-status').value,
-                phase_actual_days: Number(document.getElementById('phase-actual-days').value || 0),
-                is_final_acceptance: document.getElementById('is-final-acceptance').checked
+                site_id: this.getFieldValue('site-id', '').trim(),
+                site_name: this.getFieldValue('site-name', '').trim(),
+                activities: this.getFieldValue('activities', '').trim(),
+                comments: this.getFieldValue('comments', '').trim(),
+                supervisor_name: this.getFieldValue('supervisor-name', '').trim(),
+                region: this.getFieldValue('region', ''),
+                report_date: this.getFieldValue('report-date', ''),
+                phase_name: phaseName,
+                phase_status: this.getFieldValue('phase-status', 'on track'),
+                phase_actual_days: Number(this.getFieldValue('phase-actual-days', 0) || 0),
+                is_final_acceptance: Boolean(document.getElementById('is-final-acceptance')?.checked)
             };
-            formData.milestone_category = formData.phase_name;
+            formData.milestone_category = formData.phase_name || 'Autres';
+
+            if (!formData.site_id || !formData.site_name || !formData.activities || !formData.supervisor_name || !formData.region) {
+                throw new Error(this.t('Veuillez remplir tous les champs obligatoires', 'Please fill all required fields'));
+            }
             
             // Créer le rapport
             const response = await fetch(this.serverUrl + '/api/reports', {

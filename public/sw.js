@@ -2,7 +2,7 @@
 // Daily Report Site Supervisor - Service Worker
 // ============================================
 
-const CACHE_NAME = 'daily-report-v1';
+const CACHE_NAME = 'daily-report-v2';
 const STATIC_ASSETS = [
     '/',
     '/pm',
