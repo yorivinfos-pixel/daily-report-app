@@ -42,7 +42,8 @@
                     Nouveau Rapport Journalier
                 </h2>
                 
-                <form id="report-form" class="report-form">
+                <!-- novalidate: validation explicite dans supervisor.js (messages clairs sur mobile) -->
+                <form id="report-form" class="report-form" novalidate>
                     <div class="form-row">
                         <div class="form-group">
                             <label for="supervisor-name">
@@ -325,8 +326,9 @@
     <script src="/socket.io/socket.io.js"></script>
     <script src="/js/supervisor.js"></script>
     <script>
-        // Register Service Worker for PWA
-        if ('serviceWorker' in navigator) {
+        // Sur APK Capacitor, le SW en cache-first peut bloquer les mises à jour JS → pas de SW en natif
+        const __isCapNative = typeof window.Capacitor !== 'undefined' && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform();
+        if ('serviceWorker' in navigator && !__isCapNative) {
             navigator.serviceWorker.register('/sw.js')
                 .then(reg => console.log('Service Worker registered'))
                 .catch(err => console.log('Service Worker registration failed:', err));

@@ -10,6 +10,12 @@ function safeJsonParse(value, fallback) {
     }
 }
 
+function getReportId(report) {
+    if (!report) return '';
+    const v = report.id != null ? report.id : report._id;
+    return v != null ? String(v) : '';
+}
+
 function normalizeProvince(str = '') {
     return String(str)
         .trim()
@@ -115,6 +121,8 @@ class PMDashboard {
             this.language = select.value;
             localStorage.setItem('pmLanguage', this.language);
             this.applyLanguage();
+            this.renderReports();
+            this.showToast(this.t('Langue mise à jour', 'Language updated'), 'success');
         });
         this.applyLanguage();
     }
@@ -150,16 +158,22 @@ class PMDashboard {
         }
 
         const exportPdf = document.querySelector('#export-pdf');
-        if (exportPdf) exportPdf.innerHTML = `<span>📄</span> ${this.t('PDF', 'PDF')}`;
-        const exportExcel = document.querySelector('#export-excel');
-        if (exportExcel) exportExcel.innerHTML = `<span>📊</span> ${this.t('Excel', 'Excel')}`;
-
-        const labels = document.querySelectorAll('.header-right label');
-        if (labels.length >= 3) {
-            labels[0].textContent = this.t('🌍 Province:', '🌍 Province:');
-            labels[1].textContent = this.t('🗺️ Zone du PM:', '🗺️ PM Zone:');
-            labels[2].textContent = this.t('Date:', 'Date:');
+        if (exportPdf) {
+            exportPdf.innerHTML = `<span>📄</span> ${this.t('PDF', 'PDF')}`;
+            exportPdf.title = this.t('Exporter en PDF', 'Export as PDF');
         }
+        const exportExcel = document.querySelector('#export-excel');
+        if (exportExcel) {
+            exportExcel.innerHTML = `<span>📊</span> ${this.t('Excel', 'Excel')}`;
+            exportExcel.title = this.t('Exporter en Excel', 'Export as Excel');
+        }
+
+        const lp = document.getElementById('pm-label-province');
+        if (lp) lp.textContent = this.t('🌍 Province:', '🌍 Province:');
+        const lz = document.getElementById('pm-label-zone');
+        if (lz) lz.textContent = this.t('🗺️ Zone du PM:', '🗺️ PM Zone:');
+        const ld = document.getElementById('pm-label-date');
+        if (ld) ld.textContent = this.t('Date:', 'Date:');
 
         const showOtherZonesLabel = document.querySelector('.other-zones-toggle');
         if (showOtherZonesLabel) {
@@ -188,6 +202,35 @@ class PMDashboard {
         if (assignSubmit) assignSubmit.textContent = this.t('Affecter', 'Assign');
         const zoneSendBtn = document.querySelector('#pm-zone-chat-form button[type="submit"]');
         if (zoneSendBtn) zoneSendBtn.textContent = this.t('Envoyer', 'Send');
+
+        const pmName = document.getElementById('pm-name-input');
+        if (pmName) pmName.setAttribute('placeholder', this.t('Votre nom (PM)', 'Your name (PM)'));
+
+        const loadEl = document.getElementById('pm-loading-reports');
+        if (loadEl) loadEl.textContent = this.t('Chargement des rapports...', 'Loading reports...');
+
+        const detailTitle = document.querySelector('.detail-header h2');
+        if (detailTitle) detailTitle.textContent = this.t('Détails du Rapport', 'Report details');
+
+        const detailEmpty = document.getElementById('pm-detail-empty');
+        if (detailEmpty) {
+            detailEmpty.textContent = this.t('Sélectionnez un rapport pour voir les détails', 'Select a report to see details');
+        }
+
+        const regionSel = document.getElementById('region-filter');
+        if (regionSel && regionSel.options.length) {
+            regionSel.options[0].textContent = this.t('Toutes les provinces', 'All provinces');
+        }
+        const assignReg = document.getElementById('assign-site-region');
+        if (assignReg && assignReg.options.length) {
+            assignReg.options[0].textContent = this.t('Province du site', 'Site province');
+        }
+
+        const dlImg = document.getElementById('download-image');
+        if (dlImg) dlImg.innerHTML = `<span>📥</span> ${this.t('Télécharger', 'Download')}`;
+
+        const closePanel = document.getElementById('close-panel');
+        if (closePanel) closePanel.setAttribute('aria-label', this.t('Fermer', 'Close'));
 
         this.updateViewTitle();
     }
@@ -638,19 +681,25 @@ class PMDashboard {
         
         try {
             const response = await fetch(this.getApiUrl('/api/reports'));
-            const result = await response.json();
+            const raw = await response.text();
+            let result = null;
+            try {
+                result = raw ? JSON.parse(raw) : null;
+            } catch (_) {
+                throw new Error(this.t('Réponse serveur illisible', 'Invalid server response'));
+            }
             
             if (!result.success) {
                 throw new Error(result.error);
             }
             
-            this.reports = result.reports;
+            this.reports = result.reports || [];
             this.updateStats();
             this.renderReports();
             
         } catch (error) {
             console.error('Erreur chargement rapports:', error);
-            grid.innerHTML = '<div class="empty-state"><p>Erreur lors du chargement des rapports</p></div>';
+            grid.innerHTML = `<div class="empty-state"><p>${this.t('Erreur lors du chargement des rapports', 'Error loading reports')}: ${error.message}</p></div>`;
         }
     }
     
@@ -679,7 +728,7 @@ class PMDashboard {
             grid.innerHTML = `
                 <div class="empty-state">
                     <div class="empty-state-icon">📭</div>
-                    <p>Aucun rapport trouvé</p>
+                    <p>${this.t('Aucun rapport trouvé', 'No reports found')}</p>
                 </div>
             `;
             return;
@@ -699,7 +748,7 @@ class PMDashboard {
             img.addEventListener('click', (e) => {
                 e.stopPropagation();
                 const reportId = img.closest('.pm-report-card').dataset.id;
-                const report = this.reports.find(r => r.id === reportId);
+                const report = this.reports.find(r => getReportId(r) === reportId);
                 if (report && report.images) {
                     const index = parseInt(img.dataset.index);
                     this.openImageModal(report.images, index);
@@ -709,13 +758,14 @@ class PMDashboard {
     }
     
     createReportCard(report) {
+        const rid = getReportId(report);
         const isNew = this.isNewReport(report);
         const imagesHtml = this.createImagesPreview(report.images);
-        const unreadCount = this.unreadReportCounts[report.id] || 0;
+        const unreadCount = this.unreadReportCounts[rid] || 0;
         
         return `
-            <div class="pm-report-card ${isNew ? 'new' : ''} ${this.selectedReport?.id === report.id ? 'selected' : ''}" 
-                 data-id="${report.id}">
+            <div class="pm-report-card ${isNew ? 'new' : ''} ${getReportId(this.selectedReport) === rid ? 'selected' : ''}" 
+                 data-id="${rid}">
                 <div class="pm-card-header">
                     <div class="pm-site-info">
                         <span class="pm-site-id">${report.site_id}</span>
@@ -723,17 +773,17 @@ class PMDashboard {
                         <span class="pm-supervisor">👷 ${report.supervisor_name || 'Non spécifié'}</span>
                         <span class="pm-region">🌍 ${report.region || 'N/A'}</span>
                         <span class="pm-zone">🗺️ ${this.getReportZone(report)}</span>
-                        <span class="pm-report-date">📆 Rapport du: ${report.report_date || 'N/A'}</span>
+                        <span class="pm-report-date">📆 ${this.t('Rapport du:', 'Report date:')} ${report.report_date || 'N/A'}</span>
                     </div>
                     <span class="pm-status-badge ${report.status}">
-                        ${report.status === 'pending' ? '⏳ En attente' : '✅ Examiné'}
+                        ${report.status === 'pending' ? `⏳ ${this.t('En attente', 'Pending')}` : `✅ ${this.t('Examiné', 'Reviewed')}`}
                     </span>
                 </div>
                 <div class="pm-card-content">${report.activities}</div>
                 ${imagesHtml}
                 <div class="pm-card-footer">
-                    <span>📅 Soumis: ${this.formatDate(report.created_at)} • ${report.phase_name || report.milestone_category || 'Jalon N/A'} (${report.phase_status || 'on track'})</span>
-                    <span>📷 ${report.images?.length || 0} photos ${unreadCount > 0 ? `<span class="pm-chat-badge">${unreadCount}</span>` : ''}</span>
+                    <span>📅 ${this.t('Soumis:', 'Submitted:')} ${this.formatDate(report.created_at)} • ${report.phase_name || report.milestone_category || this.t('Jalon N/A', 'Milestone N/A')} (${report.phase_status || 'on track'})</span>
+                    <span>📷 ${report.images?.length || 0} ${this.t('photos', 'photos')} ${unreadCount > 0 ? `<span class="pm-chat-badge">${unreadCount}</span>` : ''}</span>
                 </div>
             </div>
         `;
@@ -998,7 +1048,7 @@ class PMDashboard {
         if (!confirmed) return;
         
         try {
-            const response = await fetch(this.getApiUrl(`/api/reports/${this.selectedReport.id}`), {
+            const response = await fetch(this.getApiUrl(`/api/reports/${getReportId(this.selectedReport)}`), {
                 method: 'DELETE'
             });
             
@@ -1028,7 +1078,7 @@ class PMDashboard {
         }
         
         try {
-            const response = await fetch(this.getApiUrl(`/api/reports/${this.selectedReport.id}/feedback`), {
+            const response = await fetch(this.getApiUrl(`/api/reports/${getReportId(this.selectedReport)}/feedback`), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -1047,7 +1097,7 @@ class PMDashboard {
             
             // Rafraîchir les données
             await this.loadReports();
-            await this.selectReport(this.selectedReport.id);
+            await this.selectReport(getReportId(this.selectedReport));
             
         } catch (error) {
             console.error('Erreur:', error);
@@ -1056,12 +1106,12 @@ class PMDashboard {
     }
 
     async loadReportChatMessages() {
-        if (!this.selectedReport?.id) return;
+        if (!getReportId(this.selectedReport)) return;
         const list = document.getElementById('pm-report-chat-list');
         if (!list) return;
 
         try {
-            const response = await fetch(this.getApiUrl(`/api/chat/messages?scope_type=report&scope_id=${encodeURIComponent(this.selectedReport.id)}&limit=120`));
+            const response = await fetch(this.getApiUrl(`/api/chat/messages?scope_type=report&scope_id=${encodeURIComponent(getReportId(this.selectedReport))}&limit=120`));
             const result = await response.json();
             if (!result.success) throw new Error(result.error || 'Erreur chargement chat');
             const messages = result.messages || [];
@@ -1087,7 +1137,7 @@ class PMDashboard {
     }
 
     async sendReportChatMessage() {
-        if (!this.selectedReport?.id) return;
+        if (!getReportId(this.selectedReport)) return;
         const pmName = document.getElementById('pm-name-input')?.value?.trim() || 'PM';
         const input = document.getElementById('pm-report-chat-text');
         const text = (input?.value || '').trim();
@@ -1099,7 +1149,7 @@ class PMDashboard {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     scope_type: 'report',
-                    scope_id: this.selectedReport.id,
+                    scope_id: getReportId(this.selectedReport),
                     sender_role: 'pm',
                     sender_name: pmName,
                     message: text
@@ -1211,7 +1261,7 @@ class PMDashboard {
     
     handleNewImages(data) {
         // Mettre à jour le rapport avec les nouvelles images
-        const reportIndex = this.reports.findIndex(r => r.id === data.reportId);
+        const reportIndex = this.reports.findIndex(r => getReportId(r) === String(data.reportId));
         if (reportIndex !== -1) {
             if (!this.reports[reportIndex].images) {
                 this.reports[reportIndex].images = [];
@@ -1221,22 +1271,22 @@ class PMDashboard {
             this.renderReports();
             
             // Si c'est le rapport sélectionné, rafraîchir le panel
-            if (this.selectedReport?.id === data.reportId) {
-                this.selectReport(data.reportId);
+            if (getReportId(this.selectedReport) === String(data.reportId)) {
+                this.selectReport(String(data.reportId));
             }
         }
     }
     
     handleReportDeleted(data) {
         // Supprimer le rapport de la liste locale
-        const reportIndex = this.reports.findIndex(r => r.id === data.reportId);
+        const reportIndex = this.reports.findIndex(r => getReportId(r) === String(data.reportId));
         if (reportIndex !== -1) {
             this.reports.splice(reportIndex, 1);
             this.updateStats();
             this.renderReports();
             
             // Si c'est le rapport sélectionné, fermer le panel
-            if (this.selectedReport?.id === data.reportId) {
+            if (getReportId(this.selectedReport) === String(data.reportId)) {
                 this.closeDetailPanel();
             }
         }
@@ -1255,8 +1305,8 @@ class PMDashboard {
 
     handleIncomingReportChat(message) {
         if (message?.scope_type !== 'report') return;
-        const currentId = this.selectedReport?.id;
-        if (currentId && message.scope_id === currentId) {
+        const currentId = getReportId(this.selectedReport);
+        if (currentId && String(message.scope_id) === currentId) {
             this.loadReportChatMessages();
             return;
         }
@@ -1302,8 +1352,11 @@ class PMDashboard {
     }
     
     formatDate(dateString) {
+        if (!dateString) return '—';
         const date = new Date(dateString);
-        return date.toLocaleDateString('fr-FR', {
+        if (Number.isNaN(date.getTime())) return '—';
+        const locale = this.language === 'en' ? 'en-US' : 'fr-FR';
+        return date.toLocaleDateString(locale, {
             day: '2-digit',
             month: '2-digit',
             year: 'numeric',

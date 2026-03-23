@@ -310,12 +310,20 @@ app.get('/pm', (req, res) => {
 
 // ================== API ROUTES (MongoDB Only) ==================
 
+function escapeRegex(str) {
+    return String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 // GET tous les rapports
 app.get('/api/reports', async (req, res) => {
     try {
         const query = {};
         if (req.query.supervisor_name) {
-            query.supervisor_name = String(req.query.supervisor_name).trim();
+            const raw = String(req.query.supervisor_name).trim();
+            if (raw) {
+                // Correspondance insensible à la casse / espaces superflus côté DB
+                query.supervisor_name = new RegExp(`^\\s*${escapeRegex(raw)}\\s*$`, 'i');
+            }
         }
         const reports = await Report.find(query).sort({ created_at: -1 });
         res.json({ success: true, reports });

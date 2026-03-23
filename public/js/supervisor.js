@@ -10,6 +10,13 @@ function safeJsonParse(value, fallback) {
     }
 }
 
+/** ID MongoDB fiable (certaines réponses n'exposent que _id) */
+function getReportId(report) {
+    if (!report) return '';
+    const v = report.id != null ? report.id : report._id;
+    return v != null ? String(v) : '';
+}
+
 class SupervisorApp {
     constructor() {
         this.socket = null;
@@ -43,8 +50,9 @@ class SupervisorApp {
         this.setupForm();
         this.setupImageUpload();
         this.setupModal();
-        this.loadMyReports();
+        // Nom / province d'abord : sinon GET /api/reports part sans superviseur et la liste est fausse
         this.loadSavedSupervisorName();
+        this.loadMyReports();
         this.loadAssignedSites();
         this.setupZoneChat();
         this.setDefaultDate();
@@ -159,6 +167,7 @@ class SupervisorApp {
             document.getElementById('user-name').textContent = supervisorInput.value || 'Superviseur';
             this.joinSupervisorRoom();
             this.loadAssignedSites();
+            this.loadMyReports();
         });
         
         // Auto-remplir le préfixe du Site ID quand une province est sélectionnée
@@ -521,15 +530,18 @@ class SupervisorApp {
         if (pickCameraBtn && imageInputCamera) {
             pickCameraBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
-                // Runtime-created input is more reliable on some Android webviews
+                // Input dans le DOM + clic : plusieurs WebViews Android ignorent sinon
                 const runtimeInput = document.createElement('input');
                 runtimeInput.type = 'file';
                 runtimeInput.accept = 'image/*';
-                runtimeInput.capture = 'environment';
+                runtimeInput.setAttribute('capture', 'environment');
+                runtimeInput.style.cssText = 'position:fixed;left:-9999px;opacity:0;width:1px;height:1px;';
                 runtimeInput.addEventListener('change', () => {
                     const files = Array.from(runtimeInput.files || []).filter(f => f.type.startsWith('image/'));
                     if (files.length > 0) this.addImages(files);
+                    runtimeInput.remove();
                 });
+                document.body.appendChild(runtimeInput);
                 runtimeInput.click();
             });
         }
@@ -627,6 +639,9 @@ class SupervisorApp {
             if (!formData.site_id || !formData.site_name || !formData.activities || !formData.supervisor_name || !formData.region) {
                 throw new Error(this.t('Veuillez remplir tous les champs obligatoires', 'Please fill all required fields'));
             }
+            if (!formData.phase_name) {
+                throw new Error(this.t('Choisissez une phase / jalon dans la liste.', 'Please select a phase / milestone.'));
+            }
             
             // Créer le rapport
             const response = await fetch(this.serverUrl + '/api/reports', {
@@ -635,11 +650,12 @@ class SupervisorApp {
                 body: JSON.stringify(formData)
             });
 
+            const rawText = await response.text();
             let result = null;
             try {
-                result = await response.json();
+                result = rawText ? JSON.parse(rawText) : null;
             } catch (_) {
-                // response non-JSON (ou erreur réseau)
+                throw new Error(this.t('Réponse serveur illisible (pas du JSON). Vérifiez la connexion.', 'Server returned invalid data. Check your connection.'));
             }
 
             if (!response.ok) {
@@ -650,11 +666,16 @@ class SupervisorApp {
             if (!result?.success) {
                 throw new Error(result?.error || 'Erreur lors de la création du rapport');
             }
+
+            const newReportId = getReportId(result.report);
+            if (!newReportId) {
+                throw new Error(this.t('Réponse serveur sans identifiant de rapport.', 'Server response missing report id.'));
+            }
             
             // Upload des images si présentes
             if (this.selectedImages.length > 0) {
                 try {
-                    await this.uploadImages(result.report.id);
+                    await this.uploadImages(newReportId);
                 } catch (imageError) {
                     // The report already exists; keep success and only warn for image upload.
                     this.showToast(`Rapport envoyé, mais erreur photos: ${imageError.message}`, 'warning');
@@ -666,7 +687,7 @@ class SupervisorApp {
                 if (!acceptanceFile) {
                     throw new Error('Le document acceptance est obligatoire pour clôturer le site');
                 }
-                await this.uploadAcceptanceDocument(result.report.id, acceptanceFile);
+                await this.uploadAcceptanceDocument(newReportId, acceptanceFile);
             }
             
             // Succès
@@ -755,18 +776,37 @@ class SupervisorApp {
                 ? `${this.serverUrl}/api/reports?supervisor_name=${encodeURIComponent(supervisorName)}`
                 : `${this.serverUrl}/api/reports`;
             const response = await fetch(url);
-            const result = await response.json();
+            const rawText = await response.text();
+            let result = null;
+            try {
+                result = rawText ? JSON.parse(rawText) : null;
+            } catch (_) {
+                throw new Error(this.t('Réponse serveur illisible.', 'Invalid server response.'));
+            }
             
             if (!result.success) {
                 throw new Error(result.error);
             }
             
-            this.myReports = result.reports;
+            let list = result.reports || [];
+            // Secours si un vieux backend ignore ?supervisor_name=…
+            if (supervisorName && list.length === 0) {
+                const r2 = await fetch(`${this.serverUrl}/api/reports`);
+                const t2 = await r2.text();
+                let all = [];
+                try {
+                    const j2 = t2 ? JSON.parse(t2) : {};
+                    if (j2.success && Array.isArray(j2.reports)) all = j2.reports;
+                } catch (_) { /* ignore */ }
+                const want = supervisorName.trim().toLowerCase();
+                list = all.filter(r => (r.supervisor_name || '').trim().toLowerCase() === want);
+            }
+            this.myReports = list;
             this.renderMyReports();
             
         } catch (error) {
             console.error('Erreur chargement rapports:', error);
-            container.innerHTML = '<div class="empty-state"><p>Impossible de charger les rapports</p></div>';
+            container.innerHTML = `<div class="empty-state"><p>${this.t('Impossible de charger les rapports', 'Could not load reports')}: ${error.message}</p></div>`;
         }
     }
     
@@ -784,9 +824,10 @@ class SupervisorApp {
         }
         
         container.innerHTML = this.myReports.map(report => {
-            const unreadCount = this.unreadReportCounts[report.id] || 0;
+            const rid = getReportId(report);
+            const unreadCount = this.unreadReportCounts[rid] || 0;
             return `
-            <div class="report-card ${report.status}" data-id="${report.id}">
+            <div class="report-card ${report.status}" data-id="${rid}">
                 <div class="report-card-header">
                     <div class="report-site-info">
                         <span class="report-site-id">${report.site_id}</span>
@@ -940,7 +981,7 @@ class SupervisorApp {
                 ` : ''}
                 
                 <div class="detail-actions">
-                    <button class="btn-delete" id="delete-report-btn" data-id="${report.id}">
+                    <button class="btn-delete" id="delete-report-btn" data-id="${getReportId(report)}">
                         🗑️ Supprimer ce rapport
                     </button>
                 </div>
@@ -948,15 +989,16 @@ class SupervisorApp {
             
             modal.classList.add('active');
             
+            const rid = getReportId(report);
             // Ajouter l'event listener pour la suppression
             document.getElementById('delete-report-btn').addEventListener('click', () => {
-                this.deleteReport(report.id);
+                this.deleteReport(rid);
             });
 
             document.getElementById('supervisor-report-chat-send').addEventListener('click', () => {
-                this.sendReportChatMessage(report.id);
+                this.sendReportChatMessage(rid);
             });
-            this.loadReportChatMessages(report.id);
+            this.loadReportChatMessages(rid);
             
         } catch (error) {
             console.error('Erreur:', error);
@@ -1055,8 +1097,11 @@ class SupervisorApp {
     }
 
     formatDate(dateString) {
+        if (!dateString) return '—';
         const date = new Date(dateString);
-        return date.toLocaleDateString('fr-FR', {
+        if (Number.isNaN(date.getTime())) return '—';
+        const locale = this.language === 'en' ? 'en-US' : 'fr-FR';
+        return date.toLocaleDateString(locale, {
             day: '2-digit',
             month: '2-digit',
             year: 'numeric',
