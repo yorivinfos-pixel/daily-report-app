@@ -19,17 +19,25 @@ const PROVINCE_TO_ZONE = {
     [normalizeProvince('Bandundu')]: 'Zone 1',
     [normalizeProvince('Kwango')]: 'Zone 1',
     [normalizeProvince('Kwilu')]: 'Zone 1',
+    [normalizeProvince('Equateur')]: 'Zone 1',
+    [normalizeProvince('Mai-Ndombe')]: 'Zone 1',
+    [normalizeProvince('Mongala')]: 'Zone 1',
+    [normalizeProvince('Tshuapa')]: 'Zone 1',
+    [normalizeProvince('Nord-Ubangi')]: 'Zone 1',
+    [normalizeProvince('Sud-Ubangi')]: 'Zone 1',
 
     // Zone 2
     [normalizeProvince('Haut-Katanga')]: 'Zone 2',
     [normalizeProvince('Lualaba')]: 'Zone 2',
     [normalizeProvince('Lomami')]: 'Zone 2',
     [normalizeProvince('Haut-Lomami')]: 'Zone 2',
+    [normalizeProvince('Tanganyika')]: 'Zone 2',
 
     // Zone 3
     [normalizeProvince('Kasai-Central')]: 'Zone 3',
     [normalizeProvince('Kasai-Oriental')]: 'Zone 3',
-    [normalizeProvince('Kasai')]: 'Zone 3'
+    [normalizeProvince('Kasai')]: 'Zone 3',
+    [normalizeProvince('Sankuru')]: 'Zone 3'
 };
 
 class PMDashboard {
