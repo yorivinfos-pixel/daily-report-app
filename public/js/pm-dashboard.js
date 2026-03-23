@@ -74,6 +74,7 @@ class PMDashboard {
         this.setupSocket();
         this.setupNavigation();
         this.setupSearch();
+        this.setupSiteAssignment();
         this.setupDetailPanel();
         this.setupImageModal();
         this.loadReports();
@@ -236,6 +237,46 @@ class PMDashboard {
         document.getElementById('export-excel').addEventListener('click', () => {
             this.exportExcel();
         });
+    }
+
+    setupSiteAssignment() {
+        const form = document.getElementById('site-assignment-form');
+        if (!form) return;
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            await this.assignSiteToSupervisor();
+        });
+    }
+
+    async assignSiteToSupervisor() {
+        const pmName = document.getElementById('pm-name-input')?.value?.trim() || 'PM';
+        const payload = {
+            id: document.getElementById('assign-site-id').value.trim(),
+            name: document.getElementById('assign-site-name').value.trim(),
+            region: document.getElementById('assign-site-region').value,
+            assigned_supervisor: document.getElementById('assign-supervisor-name').value.trim(),
+            location: document.getElementById('assign-site-location').value.trim(),
+            assigned_by_pm: pmName
+        };
+
+        try {
+            const response = await fetch(this.getApiUrl('/api/sites'), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const result = await response.json();
+            if (!response.ok || !result.success) {
+                throw new Error(result?.error || `HTTP ${response.status}`);
+            }
+
+            this.showToast(`Site ${payload.id} attribué à ${payload.assigned_supervisor}`, 'success');
+            document.getElementById('site-assignment-form').reset();
+        } catch (error) {
+            console.error('Erreur attribution site:', error);
+            this.showToast(`Erreur attribution: ${error.message}`, 'error');
+        }
     }
     
     // ================== Export Functions ==================

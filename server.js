@@ -89,6 +89,11 @@ const siteSchema = new mongoose.Schema({
     id: String,
     name: String,
     location: String,
+    region: String,
+    zone: String,
+    assigned_supervisor: String,
+    assigned_by_pm: String,
+    assigned_at: Date,
     created_at: { type: Date, default: Date.now }
 });
 const Site = mongoose.model('Site', siteSchema);
@@ -273,18 +278,46 @@ app.get('/api/reports/:id/feedbacks', async (req, res) => {
 // SITES API
 app.post('/api/sites', async (req, res) => {
     try {
-        const { id, name, location } = req.body;
+        const { id, name, location, region, assigned_supervisor, assigned_by_pm } = req.body;
+        if (!id || !name || !region || !assigned_supervisor) {
+            return res.status(400).json({
+                success: false,
+                error: 'Champs requis: id, name, region, assigned_supervisor'
+            });
+        }
+
         const siteId = id || uuidv4();
+        const zone = getZoneFromRegion(region);
+        const now = new Date();
 
         let site = await Site.findOne({ id: siteId });
         if (site) {
             site.name = name;
             site.location = location;
+            site.region = region;
+            site.zone = zone;
+            site.assigned_supervisor = assigned_supervisor;
+            site.assigned_by_pm = assigned_by_pm || 'PM';
+            site.assigned_at = now;
             await site.save();
         } else {
-            site = new Site({ id: siteId, name, location });
+            site = new Site({
+                id: siteId,
+                name,
+                location,
+                region,
+                zone,
+                assigned_supervisor,
+                assigned_by_pm: assigned_by_pm || 'PM',
+                assigned_at: now
+            });
             await site.save();
         }
+
+        const sitePayload = site.toObject ? site.toObject() : site;
+        io.to('supervisor').emit('new-site-assigned', sitePayload);
+        io.to(`supervisor-${normalizeProvince(assigned_supervisor)}`).emit('new-site-assigned', sitePayload);
+
         res.json({ success: true, site });
     } catch (error) {
         console.error('Erreur sites:', error);
@@ -294,7 +327,14 @@ app.post('/api/sites', async (req, res) => {
 
 app.get('/api/sites', async (req, res) => {
     try {
-        const sites = await Site.find().sort({ created_at: -1 });
+        const { supervisor_name, zone, region } = req.query;
+        const query = {};
+
+        if (supervisor_name) query.assigned_supervisor = supervisor_name;
+        if (zone) query.zone = zone;
+        if (region) query.region = region;
+
+        const sites = await Site.find(query).sort({ assigned_at: -1, created_at: -1 });
         res.json({ success: true, sites });
     } catch (error) {
         console.error('Erreur chargement sites:', error);
@@ -380,6 +420,11 @@ io.on('connection', (socket) => {
 
     socket.on('join-report', (reportId) => {
         socket.join(`report-${reportId}`);
+    });
+
+    socket.on('join-supervisor', (supervisorName) => {
+        if (!supervisorName) return;
+        socket.join(`supervisor-${normalizeProvince(supervisorName)}`);
     });
 
     socket.on('disconnect', () => {

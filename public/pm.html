@@ -161,6 +161,51 @@
                 </div>
             </div>
 
+            <section class="site-assignment-section">
+                <h2 class="section-title">
+                    <span class="title-icon">🧭</span>
+                    Attribution de site au superviseur
+                </h2>
+                <form id="site-assignment-form" class="site-assignment-form">
+                    <input type="text" id="assign-site-id" placeholder="Site ID (ex: CDKN-045)" required>
+                    <input type="text" id="assign-site-name" placeholder="Nom du site" required>
+                    <select id="assign-site-region" required>
+                        <option value="">Province du site</option>
+                        <option value="Kinshasa">Kinshasa</option>
+                        <option value="Kongo-Central">Kongo-Central</option>
+                        <option value="Kwango">Kwango</option>
+                        <option value="Kwilu">Kwilu</option>
+                        <option value="Mai-Ndombe">Mai-Ndombe</option>
+                        <option value="Bandundu">Bandundu</option>
+                        <option value="Equateur">Équateur</option>
+                        <option value="Sud-Ubangi">Sud-Ubangi</option>
+                        <option value="Nord-Ubangi">Nord-Ubangi</option>
+                        <option value="Mongala">Mongala</option>
+                        <option value="Tshuapa">Tshuapa</option>
+                        <option value="Tshopo">Tshopo</option>
+                        <option value="Province-Orientale">Province Orientale</option>
+                        <option value="Bas-Uele">Bas-Uélé</option>
+                        <option value="Haut-Uele">Haut-Uélé</option>
+                        <option value="Ituri">Ituri</option>
+                        <option value="Nord-Kivu">Nord-Kivu</option>
+                        <option value="Sud-Kivu">Sud-Kivu</option>
+                        <option value="Maniema">Maniema</option>
+                        <option value="Haut-Katanga">Haut-Katanga</option>
+                        <option value="Lualaba">Lualaba</option>
+                        <option value="Haut-Lomami">Haut-Lomami</option>
+                        <option value="Tanganyika">Tanganyika</option>
+                        <option value="Kasai-Oriental">Kasaï-Oriental</option>
+                        <option value="Lomami">Lomami</option>
+                        <option value="Kasai-Central">Kasaï-Central</option>
+                        <option value="Kasai">Kasaï</option>
+                        <option value="Sankuru">Sankuru</option>
+                    </select>
+                    <input type="text" id="assign-supervisor-name" placeholder="Nom du superviseur" required>
+                    <input type="text" id="assign-site-location" placeholder="Localisation (optionnel)">
+                    <button type="submit" class="export-btn excel">Affecter</button>
+                </form>
+            </section>
+
             <!-- Reports Grid -->
             <div class="reports-section">
                 <div id="reports-grid" class="reports-grid">

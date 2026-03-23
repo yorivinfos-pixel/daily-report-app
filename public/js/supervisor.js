@@ -7,6 +7,7 @@ class SupervisorApp {
         this.socket = null;
         this.selectedImages = [];
         this.myReports = [];
+        this.assignedSites = [];
         this.serverUrl = 'https://daily-report-app-fanv.onrender.com';
         
         this.init();
@@ -19,6 +20,7 @@ class SupervisorApp {
         this.setupModal();
         this.loadMyReports();
         this.loadSavedSupervisorName();
+        this.loadAssignedSites();
         this.setDefaultDate();
     }
     
@@ -40,6 +42,7 @@ class SupervisorApp {
             document.getElementById('connection-status').classList.add('online');
             document.getElementById('connection-status').classList.remove('offline');
             this.socket.emit('join-role', 'supervisor');
+            this.joinSupervisorRoom();
         });
         
         this.socket.on('disconnect', () => {
@@ -51,6 +54,11 @@ class SupervisorApp {
         // Écouter les feedbacks du PM
         this.socket.on('new-feedback', (data) => {
             this.handleNewFeedback(data);
+        });
+
+        // Notification d'un nouveau site attribué
+        this.socket.on('new-site-assigned', (site) => {
+            this.handleNewAssignedSite(site);
         });
     }
     
@@ -66,6 +74,8 @@ class SupervisorApp {
         supervisorInput.addEventListener('change', () => {
             localStorage.setItem('supervisorName', supervisorInput.value);
             document.getElementById('user-name').textContent = supervisorInput.value || 'Superviseur';
+            this.joinSupervisorRoom();
+            this.loadAssignedSites();
         });
         
         // Auto-remplir le préfixe du Site ID quand une province est sélectionnée
@@ -94,6 +104,78 @@ class SupervisorApp {
             document.getElementById('supervisor-name').value = savedName;
             document.getElementById('user-name').textContent = savedName;
         }
+    }
+
+    getSupervisorName() {
+        return (document.getElementById('supervisor-name')?.value || '').trim();
+    }
+
+    joinSupervisorRoom() {
+        const supervisorName = this.getSupervisorName();
+        if (this.socket && supervisorName) {
+            this.socket.emit('join-supervisor', supervisorName);
+        }
+    }
+
+    async loadAssignedSites() {
+        const container = document.getElementById('assigned-sites');
+        const supervisorName = this.getSupervisorName();
+        if (!container) return;
+
+        if (!supervisorName) {
+            container.innerHTML = '<div class="empty-state"><p>Entrez votre nom pour voir vos sites attribués</p></div>';
+            return;
+        }
+
+        try {
+            const response = await fetch(`${this.serverUrl}/api/sites?supervisor_name=${encodeURIComponent(supervisorName)}`);
+            const result = await response.json();
+            if (!result.success) throw new Error(result.error || 'Erreur chargement sites');
+            this.assignedSites = result.sites || [];
+            this.renderAssignedSites();
+        } catch (error) {
+            console.error('Erreur chargement sites attribués:', error);
+            container.innerHTML = '<div class="empty-state"><p>Impossible de charger les sites attribués</p></div>';
+        }
+    }
+
+    renderAssignedSites() {
+        const container = document.getElementById('assigned-sites');
+        if (!container) return;
+
+        if (!this.assignedSites.length) {
+            container.innerHTML = '<div class="empty-state"><p>Aucun site attribué pour le moment</p></div>';
+            return;
+        }
+
+        container.innerHTML = this.assignedSites.map(site => `
+            <div class="report-card">
+                <div class="report-card-header">
+                    <div class="report-site-info">
+                        <span class="report-site-id">${site.id}</span>
+                        <div class="report-site-name">${site.name}</div>
+                    </div>
+                    <span class="report-status pending">🧭 ${site.zone || 'N/A'}</span>
+                </div>
+                <div class="report-card-body">
+                    <strong>Province:</strong> ${site.region || 'N/A'}<br>
+                    <strong>Localisation:</strong> ${site.location || 'N/A'}
+                </div>
+                <div class="report-card-footer">
+                    <span class="report-date">Affecté le: ${site.assigned_at ? this.formatDate(site.assigned_at) : 'N/A'}</span>
+                    <span class="report-images-count">PM: ${site.assigned_by_pm || 'PM'}</span>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    handleNewAssignedSite(site) {
+        const supervisorName = this.getSupervisorName().toLowerCase();
+        const target = (site?.assigned_supervisor || '').toLowerCase();
+        if (!supervisorName || supervisorName !== target) return;
+
+        this.showToast(`Nouveau site attribué: ${site.id} - ${site.name}`, 'info');
+        this.loadAssignedSites();
     }
     
     // ================== Image Upload ==================
