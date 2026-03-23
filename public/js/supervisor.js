@@ -9,9 +9,23 @@ class SupervisorApp {
         this.myReports = [];
         this.assignedSites = [];
         this.zoneChatMessages = [];
+        this.unreadReportCounts = JSON.parse(localStorage.getItem('supervisorUnreadReportCounts') || '{}');
+        this.unreadZoneCount = parseInt(localStorage.getItem('supervisorUnreadZoneCount') || '0', 10);
         this.serverUrl = 'https://daily-report-app-fanv.onrender.com';
         
         this.init();
+    }
+
+    persistUnreadState() {
+        localStorage.setItem('supervisorUnreadReportCounts', JSON.stringify(this.unreadReportCounts));
+        localStorage.setItem('supervisorUnreadZoneCount', String(this.unreadZoneCount));
+    }
+
+    updateZoneBadge() {
+        const badge = document.getElementById('supervisor-zone-chat-badge');
+        if (!badge) return;
+        badge.style.display = this.unreadZoneCount > 0 ? 'inline-flex' : 'none';
+        badge.textContent = String(this.unreadZoneCount);
     }
     
     init() {
@@ -66,6 +80,7 @@ class SupervisorApp {
 
         this.socket.on('new-chat-message', (message) => {
             this.handleIncomingZoneChat(message);
+            this.handleIncomingReportChat(message);
         });
     }
     
@@ -221,6 +236,7 @@ class SupervisorApp {
             await this.sendZoneChatMessage();
         });
         this.loadZoneChatMessages();
+        this.updateZoneBadge();
     }
 
     async loadZoneChatMessages() {
@@ -238,6 +254,9 @@ class SupervisorApp {
             if (!result.success) throw new Error(result.error || 'Erreur chat');
             this.zoneChatMessages = result.messages || [];
             this.renderZoneChatMessages();
+            this.unreadZoneCount = 0;
+            this.persistUnreadState();
+            this.updateZoneBadge();
         } catch (error) {
             console.error('Erreur chargement chat zone:', error);
             list.innerHTML = '<div class="empty-state"><p>Impossible de charger le chat de zone</p></div>';
@@ -305,7 +324,82 @@ class SupervisorApp {
         if (message?.scope_type !== 'zone') return;
         const zone = this.getCurrentZone();
         if (!zone || message.scope_id !== zone) return;
+        if (document.hidden) {
+            this.unreadZoneCount += 1;
+            this.persistUnreadState();
+            this.updateZoneBadge();
+        }
         this.loadZoneChatMessages();
+    }
+
+    async loadReportChatMessages(reportId) {
+        const list = document.getElementById('supervisor-report-chat-list');
+        if (!list || !reportId) return;
+        try {
+            const response = await fetch(`${this.serverUrl}/api/chat/messages?scope_type=report&scope_id=${encodeURIComponent(reportId)}&limit=120`);
+            const result = await response.json();
+            if (!result.success) throw new Error(result.error || 'Erreur chargement chat rapport');
+            const messages = result.messages || [];
+            if (!messages.length) {
+                list.innerHTML = '<div class="empty-state"><p>Aucun message pour ce rapport</p></div>';
+                return;
+            }
+            list.innerHTML = messages.map(m => `
+                <div class="feedback-item">
+                    <div class="feedback-header">
+                        <span class="feedback-pm">${m.sender_name} (${m.sender_role})</span>
+                        <span class="feedback-date">${this.formatDate(m.created_at)}</span>
+                    </div>
+                    <div class="feedback-text">${m.message}</div>
+                </div>
+            `).join('');
+            list.scrollTop = list.scrollHeight;
+        } catch (error) {
+            console.error('Erreur chat rapport superviseur:', error);
+            list.innerHTML = '<div class="empty-state"><p>Impossible de charger le chat du rapport</p></div>';
+        }
+    }
+
+    async sendReportChatMessage(reportId) {
+        const supervisorName = this.getSupervisorName();
+        const input = document.getElementById('supervisor-report-chat-text');
+        const text = (input?.value || '').trim();
+        if (!reportId || !supervisorName || !text) return;
+
+        try {
+            const response = await fetch(`${this.serverUrl}/api/chat/messages`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    scope_type: 'report',
+                    scope_id: reportId,
+                    sender_role: 'supervisor',
+                    sender_name: supervisorName,
+                    message: text
+                })
+            });
+            const result = await response.json();
+            if (!response.ok || !result.success) {
+                throw new Error(result?.error || `HTTP ${response.status}`);
+            }
+            input.value = '';
+        } catch (error) {
+            console.error('Erreur envoi chat rapport superviseur:', error);
+            this.showToast(`Erreur chat rapport: ${error.message}`, 'error');
+        }
+    }
+
+    handleIncomingReportChat(message) {
+        if (message?.scope_type !== 'report') return;
+        const deleteBtn = document.getElementById('delete-report-btn');
+        const currentReportId = deleteBtn?.dataset?.id;
+        if (currentReportId && message.scope_id === currentReportId) {
+            this.loadReportChatMessages(currentReportId);
+            return;
+        }
+        this.unreadReportCounts[message.scope_id] = (this.unreadReportCounts[message.scope_id] || 0) + 1;
+        this.persistUnreadState();
+        this.renderMyReports();
     }
     
     // ================== Image Upload ==================
@@ -544,7 +638,9 @@ class SupervisorApp {
             return;
         }
         
-        container.innerHTML = this.myReports.map(report => `
+        container.innerHTML = this.myReports.map(report => {
+            const unreadCount = this.unreadReportCounts[report.id] || 0;
+            return `
             <div class="report-card ${report.status}" data-id="${report.id}">
                 <div class="report-card-header">
                     <div class="report-site-info">
@@ -561,16 +657,22 @@ class SupervisorApp {
                 <div class="report-card-footer">
                     <span class="report-date">${this.formatDate(report.created_at)}</span>
                     <span class="report-images-count">
-                        📷 ${report.images?.length || 0} photos
+                        📷 ${report.images?.length || 0} photos ${unreadCount > 0 ? `<span class="report-chat-badge">${unreadCount}</span>` : ''}
                     </span>
                 </div>
             </div>
-        `).join('');
+        `;
+        }).join('');
         
         // Ajouter event listeners pour voir les détails
         container.querySelectorAll('.report-card').forEach(card => {
             card.addEventListener('click', () => {
                 const reportId = card.dataset.id;
+                if (this.unreadReportCounts[reportId]) {
+                    delete this.unreadReportCounts[reportId];
+                    this.persistUnreadState();
+                    this.renderMyReports();
+                }
                 this.showReportDetails(reportId);
             });
         });
@@ -594,6 +696,7 @@ class SupervisorApp {
     async showReportDetails(reportId) {
         const modal = document.getElementById('report-modal');
         const modalBody = document.getElementById('modal-body');
+        if (this.socket) this.socket.emit('join-report', reportId);
         
         try {
             const response = await fetch(`${this.serverUrl}/api/reports/${reportId}`);
@@ -655,6 +758,18 @@ class SupervisorApp {
                         `).join('')}
                     </div>
                 ` : ''}
+
+                <div class="detail-section">
+                    <div class="detail-section-title">Chat du rapport</div>
+                    <div id="supervisor-report-chat-list" class="feedback-list"></div>
+                    <div class="form-group" style="margin-top: 8px;">
+                        <textarea id="supervisor-report-chat-text" rows="2" placeholder="Répondre au PM sur ce rapport..."></textarea>
+                    </div>
+                    <button type="button" class="submit-btn" id="supervisor-report-chat-send">
+                        <span class="btn-icon">💬</span>
+                        <span class="btn-text">Envoyer</span>
+                    </button>
+                </div>
                 
                 <div class="detail-actions">
                     <button class="btn-delete" id="delete-report-btn" data-id="${report.id}">
@@ -669,6 +784,11 @@ class SupervisorApp {
             document.getElementById('delete-report-btn').addEventListener('click', () => {
                 this.deleteReport(report.id);
             });
+
+            document.getElementById('supervisor-report-chat-send').addEventListener('click', () => {
+                this.sendReportChatMessage(report.id);
+            });
+            this.loadReportChatMessages(report.id);
             
         } catch (error) {
             console.error('Erreur:', error);

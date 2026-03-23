@@ -44,6 +44,8 @@ class PMDashboard {
     constructor() {
         this.socket = null;
         this.reports = [];
+        this.unreadReportCounts = JSON.parse(localStorage.getItem('pmUnreadReportCounts') || '{}');
+        this.unreadZoneCount = parseInt(localStorage.getItem('pmUnreadZoneCount') || '0', 10);
         this.currentFilter = 'all';
         this.selectedReport = null;
         this.currentImages = [];
@@ -51,6 +53,18 @@ class PMDashboard {
         this.serverUrl = this.getServerUrl();
         
         this.init();
+    }
+
+    persistUnreadState() {
+        localStorage.setItem('pmUnreadReportCounts', JSON.stringify(this.unreadReportCounts));
+        localStorage.setItem('pmUnreadZoneCount', String(this.unreadZoneCount));
+    }
+
+    updateZoneBadge() {
+        const badge = document.getElementById('pm-zone-chat-badge');
+        if (!badge) return;
+        badge.style.display = this.unreadZoneCount > 0 ? 'inline-flex' : 'none';
+        badge.textContent = String(this.unreadZoneCount);
     }
     
     getServerUrl() {
@@ -158,6 +172,7 @@ class PMDashboard {
 
         this.socket.on('new-chat-message', (message) => {
             this.handleIncomingZoneChat(message);
+            this.handleIncomingReportChat(message);
         });
         
         // Erreur de connexion
@@ -255,6 +270,7 @@ class PMDashboard {
             await this.sendZoneChatMessage();
         });
         this.loadZoneChatMessages();
+        this.updateZoneBadge();
     }
 
     getCurrentPmZone() {
@@ -276,6 +292,9 @@ class PMDashboard {
             const result = await response.json();
             if (!result.success) throw new Error(result.error || 'Erreur chat');
             this.renderZoneChatMessages(result.messages || []);
+            this.unreadZoneCount = 0;
+            this.persistUnreadState();
+            this.updateZoneBadge();
         } catch (error) {
             console.error('Erreur chat zone:', error);
             list.innerHTML = '<div class="empty-state"><p>Impossible de charger le chat de zone</p></div>';
@@ -597,6 +616,7 @@ class PMDashboard {
     createReportCard(report) {
         const isNew = this.isNewReport(report);
         const imagesHtml = this.createImagesPreview(report.images);
+        const unreadCount = this.unreadReportCounts[report.id] || 0;
         
         return `
             <div class="pm-report-card ${isNew ? 'new' : ''} ${this.selectedReport?.id === report.id ? 'selected' : ''}" 
@@ -618,7 +638,7 @@ class PMDashboard {
                 ${imagesHtml}
                 <div class="pm-card-footer">
                     <span>📅 Soumis: ${this.formatDate(report.created_at)}</span>
-                    <span>📷 ${report.images?.length || 0} photos</span>
+                    <span>📷 ${report.images?.length || 0} photos ${unreadCount > 0 ? `<span class="pm-chat-badge">${unreadCount}</span>` : ''}</span>
                 </div>
             </div>
         `;
@@ -687,6 +707,7 @@ class PMDashboard {
     async selectReport(reportId) {
         const panel = document.getElementById('detail-panel');
         const content = document.getElementById('detail-content');
+        if (this.socket) this.socket.emit('join-report', reportId);
         
         // Marquer comme sélectionné
         document.querySelectorAll('.pm-report-card').forEach(card => {
@@ -705,7 +726,12 @@ class PMDashboard {
             }
             
             this.selectedReport = result.report;
+            if (this.unreadReportCounts[reportId]) {
+                delete this.unreadReportCounts[reportId];
+                this.persistUnreadState();
+            }
             this.renderDetailPanel();
+            this.renderReports();
             panel.classList.add('open');
             
         } catch (error) {
@@ -794,6 +820,16 @@ class PMDashboard {
                     📤 Envoyer l'avis
                 </button>
             </div>
+
+            <div class="feedback-form">
+                <h4>🗨️ Chat du rapport</h4>
+                <div id="pm-report-chat-list" class="previous-feedbacks" style="max-height: 220px; overflow-y: auto;"></div>
+                <textarea id="pm-report-chat-text" class="feedback-textarea"
+                          placeholder="Message en temps réel lié à ce rapport..."></textarea>
+                <button id="send-report-chat-btn" class="send-feedback-btn">
+                    💬 Envoyer au chat du rapport
+                </button>
+            </div>
             
             <div class="delete-report-section">
                 <button id="delete-report-btn" class="delete-report-btn">
@@ -814,11 +850,17 @@ class PMDashboard {
         document.getElementById('send-feedback-btn').addEventListener('click', () => {
             this.sendFeedback();
         });
+
+        document.getElementById('send-report-chat-btn').addEventListener('click', () => {
+            this.sendReportChatMessage();
+        });
         
         // Event listener pour supprimer le rapport
         document.getElementById('delete-report-btn').addEventListener('click', () => {
             this.deleteReport();
         });
+
+        this.loadReportChatMessages();
     }
     
     async deleteReport() {
@@ -883,6 +925,67 @@ class PMDashboard {
         } catch (error) {
             console.error('Erreur:', error);
             this.showToast('Erreur lors de l\'envoi de l\'avis', 'error');
+        }
+    }
+
+    async loadReportChatMessages() {
+        if (!this.selectedReport?.id) return;
+        const list = document.getElementById('pm-report-chat-list');
+        if (!list) return;
+
+        try {
+            const response = await fetch(this.getApiUrl(`/api/chat/messages?scope_type=report&scope_id=${encodeURIComponent(this.selectedReport.id)}&limit=120`));
+            const result = await response.json();
+            if (!result.success) throw new Error(result.error || 'Erreur chargement chat');
+            const messages = result.messages || [];
+            if (!messages.length) {
+                list.innerHTML = '<div class="empty-state"><p>Aucun message pour ce rapport</p></div>';
+                return;
+            }
+
+            list.innerHTML = messages.map(m => `
+                <div class="feedback-item">
+                    <div class="feedback-meta">
+                        <span>👤 ${m.sender_name} (${m.sender_role})</span>
+                        <span>${this.formatDate(m.created_at)}</span>
+                    </div>
+                    <div class="feedback-content">${m.message}</div>
+                </div>
+            `).join('');
+            list.scrollTop = list.scrollHeight;
+        } catch (error) {
+            console.error('Erreur chat rapport PM:', error);
+            list.innerHTML = '<div class="empty-state"><p>Impossible de charger le chat du rapport</p></div>';
+        }
+    }
+
+    async sendReportChatMessage() {
+        if (!this.selectedReport?.id) return;
+        const pmName = document.getElementById('pm-name-input')?.value?.trim() || 'PM';
+        const input = document.getElementById('pm-report-chat-text');
+        const text = (input?.value || '').trim();
+        if (!text) return;
+
+        try {
+            const response = await fetch(this.getApiUrl('/api/chat/messages'), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    scope_type: 'report',
+                    scope_id: this.selectedReport.id,
+                    sender_role: 'pm',
+                    sender_name: pmName,
+                    message: text
+                })
+            });
+            const result = await response.json();
+            if (!response.ok || !result.success) {
+                throw new Error(result?.error || `HTTP ${response.status}`);
+            }
+            input.value = '';
+        } catch (error) {
+            console.error('Erreur envoi chat rapport PM:', error);
+            this.showToast(`Erreur chat rapport: ${error.message}`, 'error');
         }
     }
     
@@ -1015,7 +1118,24 @@ class PMDashboard {
     handleIncomingZoneChat(message) {
         if (message?.scope_type !== 'zone') return;
         if (message.scope_id !== this.getCurrentPmZone()) return;
+        if (document.hidden) {
+            this.unreadZoneCount += 1;
+            this.persistUnreadState();
+            this.updateZoneBadge();
+        }
         this.loadZoneChatMessages();
+    }
+
+    handleIncomingReportChat(message) {
+        if (message?.scope_type !== 'report') return;
+        const currentId = this.selectedReport?.id;
+        if (currentId && message.scope_id === currentId) {
+            this.loadReportChatMessages();
+            return;
+        }
+        this.unreadReportCounts[message.scope_id] = (this.unreadReportCounts[message.scope_id] || 0) + 1;
+        this.persistUnreadState();
+        this.renderReports();
     }
     
     // ================== Utilities ==================
