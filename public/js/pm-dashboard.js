@@ -80,6 +80,7 @@ class PMDashboard {
         this.loadReports();
         this.loadPMName();
         this.loadPMZone();
+        this.setupZoneChat();
     }
     
     showServerConfig() {
@@ -127,6 +128,7 @@ class PMDashboard {
             document.getElementById('connection-status').classList.remove('offline');
             document.getElementById('connection-text').textContent = 'Connecté';
             this.socket.emit('join-role', 'pm');
+            this.joinZoneRoom();
         });
         
         this.socket.on('disconnect', () => {
@@ -152,6 +154,10 @@ class PMDashboard {
         this.socket.on('report-deleted', (data) => {
             console.log('Rapport supprimé:', data);
             this.handleReportDeleted(data);
+        });
+
+        this.socket.on('new-chat-message', (message) => {
+            this.handleIncomingZoneChat(message);
         });
         
         // Erreur de connexion
@@ -219,6 +225,8 @@ class PMDashboard {
         if (pmZoneFilter) {
             pmZoneFilter.addEventListener('change', () => {
                 localStorage.setItem('pmZone', pmZoneFilter.value);
+                this.joinZoneRoom();
+                this.loadZoneChatMessages();
                 this.renderReports();
             });
         }
@@ -237,6 +245,91 @@ class PMDashboard {
         document.getElementById('export-excel').addEventListener('click', () => {
             this.exportExcel();
         });
+    }
+
+    setupZoneChat() {
+        const form = document.getElementById('pm-zone-chat-form');
+        if (!form) return;
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            await this.sendZoneChatMessage();
+        });
+        this.loadZoneChatMessages();
+    }
+
+    getCurrentPmZone() {
+        return document.getElementById('pm-zone-filter')?.value || 'Zone 1';
+    }
+
+    joinZoneRoom() {
+        if (!this.socket) return;
+        this.socket.emit('join-zone', this.getCurrentPmZone());
+    }
+
+    async loadZoneChatMessages() {
+        const zone = this.getCurrentPmZone();
+        const list = document.getElementById('pm-zone-chat-list');
+        if (!list) return;
+
+        try {
+            const response = await fetch(this.getApiUrl(`/api/chat/messages?scope_type=zone&scope_id=${encodeURIComponent(zone)}&limit=120`));
+            const result = await response.json();
+            if (!result.success) throw new Error(result.error || 'Erreur chat');
+            this.renderZoneChatMessages(result.messages || []);
+        } catch (error) {
+            console.error('Erreur chat zone:', error);
+            list.innerHTML = '<div class="empty-state"><p>Impossible de charger le chat de zone</p></div>';
+        }
+    }
+
+    renderZoneChatMessages(messages) {
+        const list = document.getElementById('pm-zone-chat-list');
+        if (!list) return;
+        if (!messages.length) {
+            list.innerHTML = '<div class="empty-state"><p>Aucun message pour cette zone</p></div>';
+            return;
+        }
+
+        list.innerHTML = messages.map(m => `
+            <div class="feedback-item">
+                <div class="feedback-header">
+                    <span class="feedback-pm">${m.sender_name} (${m.sender_role})</span>
+                    <span class="feedback-date">${this.formatDate(m.created_at)}</span>
+                </div>
+                <div class="feedback-text">${m.message}</div>
+            </div>
+        `).join('');
+        list.scrollTop = list.scrollHeight;
+    }
+
+    async sendZoneChatMessage() {
+        const input = document.getElementById('pm-zone-chat-input');
+        const pmName = document.getElementById('pm-name-input')?.value?.trim() || 'PM';
+        const text = (input?.value || '').trim();
+        if (!text) return;
+
+        const zone = this.getCurrentPmZone();
+        try {
+            const response = await fetch(this.getApiUrl('/api/chat/messages'), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    scope_type: 'zone',
+                    scope_id: zone,
+                    sender_role: 'pm',
+                    sender_name: pmName,
+                    message: text
+                })
+            });
+            const result = await response.json();
+            if (!response.ok || !result.success) {
+                throw new Error(result?.error || `HTTP ${response.status}`);
+            }
+            input.value = '';
+        } catch (error) {
+            console.error('Erreur envoi chat zone:', error);
+            this.showToast(`Erreur chat: ${error.message}`, 'error');
+        }
     }
 
     setupSiteAssignment() {
@@ -917,6 +1010,12 @@ class PMDashboard {
                 this.closeDetailPanel();
             }
         }
+    }
+
+    handleIncomingZoneChat(message) {
+        if (message?.scope_type !== 'zone') return;
+        if (message.scope_id !== this.getCurrentPmZone()) return;
+        this.loadZoneChatMessages();
     }
     
     // ================== Utilities ==================

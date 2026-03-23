@@ -8,6 +8,7 @@ class SupervisorApp {
         this.selectedImages = [];
         this.myReports = [];
         this.assignedSites = [];
+        this.zoneChatMessages = [];
         this.serverUrl = 'https://daily-report-app-fanv.onrender.com';
         
         this.init();
@@ -21,6 +22,7 @@ class SupervisorApp {
         this.loadMyReports();
         this.loadSavedSupervisorName();
         this.loadAssignedSites();
+        this.setupZoneChat();
         this.setDefaultDate();
     }
     
@@ -43,6 +45,7 @@ class SupervisorApp {
             document.getElementById('connection-status').classList.remove('offline');
             this.socket.emit('join-role', 'supervisor');
             this.joinSupervisorRoom();
+            this.joinZoneRoom();
         });
         
         this.socket.on('disconnect', () => {
@@ -59,6 +62,10 @@ class SupervisorApp {
         // Notification d'un nouveau site attribué
         this.socket.on('new-site-assigned', (site) => {
             this.handleNewAssignedSite(site);
+        });
+
+        this.socket.on('new-chat-message', (message) => {
+            this.handleIncomingZoneChat(message);
         });
     }
     
@@ -82,6 +89,9 @@ class SupervisorApp {
         regionSelect.addEventListener('change', () => {
             const selectedOption = regionSelect.options[regionSelect.selectedIndex];
             const prefix = selectedOption.dataset.prefix;
+            localStorage.setItem('supervisorRegion', regionSelect.value);
+            this.joinZoneRoom();
+            this.loadZoneChatMessages();
             if (prefix) {
                 // Si le champ est vide ou ne contient qu'un ancien préfixe, on met le nouveau
                 const currentValue = siteIdInput.value;
@@ -104,6 +114,11 @@ class SupervisorApp {
             document.getElementById('supervisor-name').value = savedName;
             document.getElementById('user-name').textContent = savedName;
         }
+
+        const savedRegion = localStorage.getItem('supervisorRegion');
+        if (savedRegion && document.getElementById('region')) {
+            document.getElementById('region').value = savedRegion;
+        }
     }
 
     getSupervisorName() {
@@ -114,6 +129,26 @@ class SupervisorApp {
         const supervisorName = this.getSupervisorName();
         if (this.socket && supervisorName) {
             this.socket.emit('join-supervisor', supervisorName);
+        }
+    }
+
+    getCurrentZone() {
+        const region = document.getElementById('region')?.value || '';
+        if (!region) return null;
+        const normalized = String(region).trim().toLowerCase();
+        const zone1 = ['kinshasa', 'kongo-central', 'bandundu', 'kwango', 'kwilu', 'equateur', 'mai-ndombe', 'mongala', 'tshuapa', 'nord-ubangi', 'sud-ubangi'];
+        const zone2 = ['haut-katanga', 'lualaba', 'lomami', 'haut-lomami', 'tanganyika'];
+        const zone3 = ['kasai-central', 'kasai-oriental', 'kasai', 'sankuru'];
+        if (zone1.includes(normalized)) return 'Zone 1';
+        if (zone2.includes(normalized)) return 'Zone 2';
+        if (zone3.includes(normalized)) return 'Zone 3';
+        return 'Zone 4';
+    }
+
+    joinZoneRoom() {
+        const zone = this.getCurrentZone();
+        if (this.socket && zone) {
+            this.socket.emit('join-zone', zone);
         }
     }
 
@@ -176,6 +211,101 @@ class SupervisorApp {
 
         this.showToast(`Nouveau site attribué: ${site.id} - ${site.name}`, 'info');
         this.loadAssignedSites();
+    }
+
+    setupZoneChat() {
+        const form = document.getElementById('supervisor-zone-chat-form');
+        if (!form) return;
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            await this.sendZoneChatMessage();
+        });
+        this.loadZoneChatMessages();
+    }
+
+    async loadZoneChatMessages() {
+        const zone = this.getCurrentZone();
+        const list = document.getElementById('supervisor-zone-chat-list');
+        if (!list) return;
+        if (!zone) {
+            list.innerHTML = '<div class="empty-state"><p>Sélectionnez d’abord votre province pour activer le chat de zone</p></div>';
+            return;
+        }
+
+        try {
+            const response = await fetch(`${this.serverUrl}/api/chat/messages?scope_type=zone&scope_id=${encodeURIComponent(zone)}&limit=120`);
+            const result = await response.json();
+            if (!result.success) throw new Error(result.error || 'Erreur chat');
+            this.zoneChatMessages = result.messages || [];
+            this.renderZoneChatMessages();
+        } catch (error) {
+            console.error('Erreur chargement chat zone:', error);
+            list.innerHTML = '<div class="empty-state"><p>Impossible de charger le chat de zone</p></div>';
+        }
+    }
+
+    renderZoneChatMessages() {
+        const list = document.getElementById('supervisor-zone-chat-list');
+        if (!list) return;
+        if (!this.zoneChatMessages.length) {
+            list.innerHTML = '<div class="empty-state"><p>Aucun message dans votre zone</p></div>';
+            return;
+        }
+        list.innerHTML = this.zoneChatMessages.map(m => `
+            <div class="feedback-item">
+                <div class="feedback-header">
+                    <span class="feedback-pm">${m.sender_name} (${m.sender_role})</span>
+                    <span class="feedback-date">${this.formatDate(m.created_at)}</span>
+                </div>
+                <div class="feedback-text">${m.message}</div>
+            </div>
+        `).join('');
+        list.scrollTop = list.scrollHeight;
+    }
+
+    async sendZoneChatMessage() {
+        const zone = this.getCurrentZone();
+        const supervisorName = this.getSupervisorName();
+        const input = document.getElementById('supervisor-zone-chat-input');
+        const text = (input?.value || '').trim();
+        if (!zone) {
+            this.showToast('Choisissez votre province pour chatter dans votre zone', 'warning');
+            return;
+        }
+        if (!supervisorName) {
+            this.showToast('Entrez votre nom de superviseur', 'warning');
+            return;
+        }
+        if (!text) return;
+
+        try {
+            const response = await fetch(`${this.serverUrl}/api/chat/messages`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    scope_type: 'zone',
+                    scope_id: zone,
+                    sender_role: 'supervisor',
+                    sender_name: supervisorName,
+                    message: text
+                })
+            });
+            const result = await response.json();
+            if (!response.ok || !result.success) {
+                throw new Error(result?.error || `HTTP ${response.status}`);
+            }
+            input.value = '';
+        } catch (error) {
+            console.error('Erreur envoi chat zone:', error);
+            this.showToast(`Erreur chat: ${error.message}`, 'error');
+        }
+    }
+
+    handleIncomingZoneChat(message) {
+        if (message?.scope_type !== 'zone') return;
+        const zone = this.getCurrentZone();
+        if (!zone || message.scope_id !== zone) return;
+        this.loadZoneChatMessages();
     }
     
     // ================== Image Upload ==================

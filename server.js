@@ -98,6 +98,16 @@ const siteSchema = new mongoose.Schema({
 });
 const Site = mongoose.model('Site', siteSchema);
 
+const chatMessageSchema = new mongoose.Schema({
+    scope_type: { type: String, enum: ['zone', 'report'], required: true },
+    scope_id: { type: String, required: true },
+    sender_role: { type: String, enum: ['pm', 'supervisor'], required: true },
+    sender_name: { type: String, required: true },
+    message: { type: String, required: true },
+    created_at: { type: Date, default: Date.now }
+});
+const ChatMessage = mongoose.model('ChatMessage', chatMessageSchema);
+
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
@@ -342,6 +352,56 @@ app.get('/api/sites', async (req, res) => {
     }
 });
 
+// CHAT API
+app.get('/api/chat/messages', async (req, res) => {
+    try {
+        const { scope_type, scope_id, limit } = req.query;
+        if (!scope_type || !scope_id) {
+            return res.status(400).json({ success: false, error: 'scope_type et scope_id requis' });
+        }
+
+        const parsedLimit = Math.max(1, Math.min(parseInt(limit || '100', 10), 300));
+        const messages = await ChatMessage.find({ scope_type, scope_id })
+            .sort({ created_at: -1 })
+            .limit(parsedLimit);
+
+        res.json({ success: true, messages: messages.reverse() });
+    } catch (error) {
+        console.error('Erreur chargement messages:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+app.post('/api/chat/messages', async (req, res) => {
+    try {
+        const { scope_type, scope_id, sender_role, sender_name, message } = req.body;
+        if (!scope_type || !scope_id || !sender_role || !sender_name || !message) {
+            return res.status(400).json({ success: false, error: 'Champs requis manquants' });
+        }
+
+        const chatMessage = new ChatMessage({
+            scope_type,
+            scope_id,
+            sender_role,
+            sender_name,
+            message: String(message).trim()
+        });
+        await chatMessage.save();
+
+        const payload = chatMessage.toObject ? chatMessage.toObject() : chatMessage;
+        if (scope_type === 'zone') {
+            io.to(`zone-${scope_id}`).emit('new-chat-message', payload);
+        } else if (scope_type === 'report') {
+            io.to(`report-${scope_id}`).emit('new-chat-message', payload);
+        }
+
+        res.json({ success: true, message: payload });
+    } catch (error) {
+        console.error('Erreur envoi message:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
 // ================== EXPORT API ==================
 
 app.get('/api/export/excel', async (req, res) => {
@@ -425,6 +485,11 @@ io.on('connection', (socket) => {
     socket.on('join-supervisor', (supervisorName) => {
         if (!supervisorName) return;
         socket.join(`supervisor-${normalizeProvince(supervisorName)}`);
+    });
+
+    socket.on('join-zone', (zone) => {
+        if (!zone) return;
+        socket.join(`zone-${zone}`);
     });
 
     socket.on('disconnect', () => {
