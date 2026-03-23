@@ -51,6 +51,7 @@ class PMDashboard {
         this.currentImages = [];
         this.currentImageIndex = 0;
         this.serverUrl = this.getServerUrl();
+        this.language = localStorage.getItem('pmLanguage') || 'fr';
         
         this.init();
     }
@@ -85,6 +86,7 @@ class PMDashboard {
             return;
         }
         
+        this.setupLanguage();
         this.setupSocket();
         this.setupNavigation();
         this.setupSearch();
@@ -95,6 +97,36 @@ class PMDashboard {
         this.loadPMName();
         this.loadPMZone();
         this.setupZoneChat();
+    }
+
+    setupLanguage() {
+        const select = document.getElementById('pm-language-select');
+        if (!select) return;
+        select.value = this.language;
+        select.addEventListener('change', () => {
+            this.language = select.value;
+            localStorage.setItem('pmLanguage', this.language);
+            this.applyLanguage();
+        });
+        this.applyLanguage();
+    }
+
+    t(fr, en) {
+        return this.language === 'en' ? en : fr;
+    }
+
+    applyLanguage() {
+        const mappings = [
+            ['#search-input', this.t('Rechercher par site, superviseur...', 'Search by site, supervisor...'), 'placeholder'],
+            ['#pm-zone-chat-input', this.t('Écrire un message à la zone...', 'Write a message to the zone...'), 'placeholder'],
+            ['#connection-text', this.t('Déconnecté', 'Disconnected')]
+        ];
+        mappings.forEach(([selector, value, attr]) => {
+            const el = document.querySelector(selector);
+            if (!el) return;
+            if (attr === 'placeholder') el.setAttribute('placeholder', value);
+            else el.textContent = value;
+        });
     }
     
     showServerConfig() {
@@ -637,7 +669,7 @@ class PMDashboard {
                 <div class="pm-card-content">${report.activities}</div>
                 ${imagesHtml}
                 <div class="pm-card-footer">
-                    <span>📅 Soumis: ${this.formatDate(report.created_at)}</span>
+                    <span>📅 Soumis: ${this.formatDate(report.created_at)} • ${report.phase_name || report.milestone_category || 'Jalon N/A'} (${report.phase_status || 'on track'})</span>
                     <span>📷 ${report.images?.length || 0} photos ${unreadCount > 0 ? `<span class="pm-chat-badge">${unreadCount}</span>` : ''}</span>
                 </div>
             </div>
@@ -773,6 +805,27 @@ class PMDashboard {
                     📅 ${this.formatDate(report.created_at)}
                 </div>
             </div>
+
+            <div class="detail-section">
+                <div class="detail-section-title">Jalon & Planning</div>
+                <div class="detail-section-content">
+                    <strong>Phase:</strong> ${report.phase_name || report.milestone_category || 'N/A'}<br>
+                    <strong>Statut:</strong> ${report.phase_status || 'on track'}<br>
+                    <strong>Durée estimée:</strong> ${report.phase_estimated_label || 'N/A'} jours<br>
+                    <strong>Jours réels phase:</strong> ${report.phase_actual_days || 0} jours<br>
+                    <strong>Écart phase:</strong> ${report.phase_variance_days ?? 'N/A'} jours<br>
+                    <strong>Durée réalisée site:</strong> ${report.actual_duration_days || 0} jours
+                </div>
+            </div>
+
+            ${report.schedule_warnings?.length ? `
+                <div class="detail-section">
+                    <div class="detail-section-title">Alerte planning</div>
+                    <div class="detail-section-content">
+                        ${report.schedule_warnings.map(w => `- ${w}`).join('<br>')}
+                    </div>
+                </div>
+            ` : ''}
             
             <div class="detail-section">
                 <div class="detail-section-title">Activités sur le site</div>
@@ -809,6 +862,17 @@ class PMDashboard {
                             <div class="feedback-content">${fb.feedback}</div>
                         </div>
                     `).join('')}
+                </div>
+            ` : ''}
+
+            ${report.acceptance_document?.url ? `
+                <div class="detail-section">
+                    <div class="detail-section-title">Clôture / Acceptance</div>
+                    <div class="detail-section-content">
+                        <a href="${this.resolveFileUrl(report.acceptance_document.url)}" target="_blank">📎 Voir document acceptance</a><br>
+                        ${report.supervisor_score !== undefined ? `<strong>Note superviseur:</strong> ${report.supervisor_score}/100` : ''}<br>
+                        <strong>Milestone RFI:</strong> ${report.is_rfi_ready ? 'READY' : 'Non atteint'}
+                    </div>
                 </div>
             ` : ''}
             
@@ -1166,6 +1230,12 @@ class PMDashboard {
             info: '📢'
         };
         return icons[type] || icons.info;
+    }
+
+    resolveFileUrl(fileUrl) {
+        if (!fileUrl) return '';
+        if (/^https?:\/\//i.test(fileUrl)) return fileUrl;
+        return `${this.serverUrl}${fileUrl}`;
     }
     
     formatDate(dateString) {

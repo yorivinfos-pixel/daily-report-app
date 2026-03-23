@@ -12,6 +12,7 @@ class SupervisorApp {
         this.unreadReportCounts = JSON.parse(localStorage.getItem('supervisorUnreadReportCounts') || '{}');
         this.unreadZoneCount = parseInt(localStorage.getItem('supervisorUnreadZoneCount') || '0', 10);
         this.serverUrl = 'https://daily-report-app-fanv.onrender.com';
+        this.language = localStorage.getItem('appLanguage') || 'fr';
         
         this.init();
     }
@@ -29,6 +30,7 @@ class SupervisorApp {
     }
     
     init() {
+        this.setupLanguage();
         this.setupSocket();
         this.setupForm();
         this.setupImageUpload();
@@ -38,6 +40,39 @@ class SupervisorApp {
         this.loadAssignedSites();
         this.setupZoneChat();
         this.setDefaultDate();
+    }
+
+    setupLanguage() {
+        const select = document.getElementById('language-select');
+        if (!select) return;
+        select.value = this.language;
+        select.addEventListener('change', () => {
+            this.language = select.value;
+            localStorage.setItem('appLanguage', this.language);
+            this.applyLanguage();
+        });
+        this.applyLanguage();
+    }
+
+    t(fr, en) {
+        return this.language === 'en' ? en : fr;
+    }
+
+    applyLanguage() {
+        const mappings = [
+            ['#submit-btn .btn-text', this.t('Envoyer le Rapport', 'Submit Report')],
+            ['#supervisor-zone-chat-input', this.t('Écrire un message à votre zone...', 'Write a message to your zone...'), 'placeholder'],
+            ['#pm-zone-chat-input', this.t('Écrire un message à la zone...', 'Write a message to the zone...'), 'placeholder'],
+            ['#activities', this.t("Décrivez les activités réalisées aujourd'hui...", 'Describe ongoing site work...'), 'placeholder'],
+            ['#comments', this.t('Ajoutez des commentaires supplémentaires...', 'Add additional comments...'), 'placeholder']
+        ];
+
+        mappings.forEach(([selector, value, attr]) => {
+            const el = document.querySelector(selector);
+            if (!el) return;
+            if (attr === 'placeholder') el.setAttribute('placeholder', value);
+            else el.textContent = value;
+        });
     }
     
     setDefaultDate() {
@@ -91,6 +126,8 @@ class SupervisorApp {
         const supervisorInput = document.getElementById('supervisor-name');
         const regionSelect = document.getElementById('region');
         const siteIdInput = document.getElementById('site-id');
+        const phaseSelect = document.getElementById('phase-name');
+        const phaseActualDaysInput = document.getElementById('phase-actual-days');
         
         // Sauvegarder le nom du superviseur
         supervisorInput.addEventListener('change', () => {
@@ -121,6 +158,31 @@ class SupervisorApp {
             e.preventDefault();
             await this.submitReport();
         });
+
+        const updatePhaseEstimateDisplay = () => {
+            const display = document.getElementById('phase-estimated-display');
+            if (!display) return;
+            const opt = phaseSelect?.options?.[phaseSelect.selectedIndex];
+            const min = Number(opt?.dataset?.min || 0);
+            const max = Number(opt?.dataset?.max || 0);
+            const actual = Number(phaseActualDaysInput?.value || 0);
+            if (!min && !max) {
+                display.textContent = 'Estimé: N/A | Écart: N/A';
+                return;
+            }
+            const estimateLabel = min === max ? `${min}j` : `${min}-${max}j`;
+            if (!actual) {
+                display.textContent = `Estimé: ${estimateLabel} | Écart: N/A`;
+                return;
+            }
+            const estMid = (min + max) / 2;
+            const variance = Math.round((actual - estMid) * 10) / 10;
+            const sign = variance > 0 ? '+' : '';
+            display.textContent = `Estimé: ${estimateLabel} | Écart: ${sign}${variance}j`;
+        };
+        phaseSelect?.addEventListener('change', updatePhaseEstimateDisplay);
+        phaseActualDaysInput?.addEventListener('input', updatePhaseEstimateDisplay);
+        updatePhaseEstimateDisplay();
     }
     
     loadSavedSupervisorName() {
@@ -520,8 +582,13 @@ class SupervisorApp {
                 comments: document.getElementById('comments').value,
                 supervisor_name: document.getElementById('supervisor-name').value,
                 region: document.getElementById('region').value,
-                report_date: document.getElementById('report-date').value
+                report_date: document.getElementById('report-date').value,
+                phase_name: document.getElementById('phase-name').value,
+                phase_status: document.getElementById('phase-status').value,
+                phase_actual_days: Number(document.getElementById('phase-actual-days').value || 0),
+                is_final_acceptance: document.getElementById('is-final-acceptance').checked
             };
+            formData.milestone_category = formData.phase_name;
             
             // Créer le rapport
             const response = await fetch(this.serverUrl + '/api/reports', {
@@ -549,6 +616,14 @@ class SupervisorApp {
             // Upload des images si présentes
             if (this.selectedImages.length > 0) {
                 await this.uploadImages(result.report.id);
+            }
+
+            if (formData.is_final_acceptance) {
+                const acceptanceFile = document.getElementById('acceptance-document').files?.[0];
+                if (!acceptanceFile) {
+                    throw new Error('Le document acceptance est obligatoire pour clôturer le site');
+                }
+                await this.uploadAcceptanceDocument(result.report.id, acceptanceFile);
             }
             
             // Succès
@@ -593,6 +668,28 @@ class SupervisorApp {
             throw new Error(result?.error || 'Erreur lors de l\'upload des images');
         }
     }
+
+    async uploadAcceptanceDocument(reportId, file) {
+        const formData = new FormData();
+        formData.append('acceptance_document', file);
+
+        const response = await fetch(`${this.serverUrl}/api/reports/${reportId}/acceptance-document`, {
+            method: 'POST',
+            body: formData
+        });
+        let result = null;
+        try {
+            result = await response.json();
+        } catch (_) {}
+
+        if (!response.ok || !result?.success) {
+            throw new Error(result?.error || `Erreur upload acceptance (HTTP ${response.status})`);
+        }
+
+        if (result.report?.supervisor_score !== undefined) {
+            this.showToast(`Site clôturé. Note superviseur: ${result.report.supervisor_score}/100`, 'success');
+        }
+    }
     
     resetForm() {
         document.getElementById('report-form').reset();
@@ -601,6 +698,7 @@ class SupervisorApp {
         
         // Restaurer le nom du superviseur
         this.loadSavedSupervisorName();
+        this.setDefaultDate();
     }
     
     // ================== Load Reports ==================
@@ -655,7 +753,7 @@ class SupervisorApp {
                     ${this.truncateText(report.activities, 100)}
                 </div>
                 <div class="report-card-footer">
-                    <span class="report-date">${this.formatDate(report.created_at)}</span>
+                    <span class="report-date">${this.formatDate(report.created_at)} • ${report.phase_name || report.milestone_category || 'Jalon N/A'} (${report.phase_status || 'on track'})</span>
                     <span class="report-images-count">
                         📷 ${report.images?.length || 0} photos ${unreadCount > 0 ? `<span class="report-chat-badge">${unreadCount}</span>` : ''}
                     </span>
@@ -725,6 +823,18 @@ class SupervisorApp {
                     <div class="detail-section-title">Activités</div>
                     <div class="detail-section-content">${report.activities}</div>
                 </div>
+
+                <div class="detail-section">
+                    <div class="detail-section-title">Jalon & Planning</div>
+                    <div class="detail-section-content">
+                        <strong>Phase:</strong> ${report.phase_name || report.milestone_category || 'N/A'}<br>
+                        <strong>Statut:</strong> ${report.phase_status || 'on track'}<br>
+                        <strong>Durée estimée:</strong> ${report.phase_estimated_label || 'N/A'} jours<br>
+                        <strong>Jours réels phase:</strong> ${report.phase_actual_days || 0} jours<br>
+                        <strong>Écart phase:</strong> ${report.phase_variance_days ?? 'N/A'} jours<br>
+                        <strong>Durée réalisée site:</strong> ${report.actual_duration_days || 0} jours
+                    </div>
+                </div>
                 
                 ${report.comments ? `
                     <div class="detail-section">
@@ -770,6 +880,17 @@ class SupervisorApp {
                         <span class="btn-text">Envoyer</span>
                     </button>
                 </div>
+
+                ${report.acceptance_document?.url ? `
+                    <div class="detail-section">
+                        <div class="detail-section-title">Document acceptance</div>
+                        <div class="detail-section-content">
+                            <a href="${report.acceptance_document.url}" target="_blank">📎 Voir le document</a><br>
+                            ${report.supervisor_score !== undefined ? `<strong>Note superviseur:</strong> ${report.supervisor_score}/100` : ''}<br>
+                            <strong>Milestone RFI:</strong> ${report.is_rfi_ready ? 'READY' : 'Non atteint'}
+                        </div>
+                    </div>
+                ` : ''}
                 
                 <div class="detail-actions">
                     <button class="btn-delete" id="delete-report-btn" data-id="${report.id}">

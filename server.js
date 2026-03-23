@@ -22,6 +22,31 @@ const reportSchema = new mongoose.Schema({
     supervisor_name: String,
     region: String,
     zone: String,
+    phase_name: String,
+    phase_status: String,
+    phase_estimated_label: String,
+    phase_estimated_min_days: Number,
+    phase_estimated_max_days: Number,
+    phase_actual_days: Number,
+    phase_variance_days: Number,
+    schedule_warnings: [String],
+    is_rfi_ready: { type: Boolean, default: false },
+    rfi_ready_at: Date,
+    milestone_category: String,
+    planned_duration_days: Number,
+    actual_duration_days: Number,
+    is_final_acceptance: { type: Boolean, default: false },
+    acceptance_document: {
+        filename: String,
+        original_name: String,
+        url: String,
+        uploaded_at: Date
+    },
+    supervisor_score: Number,
+    score_breakdown: {
+        schedule_score: Number,
+        quality_score: Number
+    },
     report_date: String,
     created_at: { type: Date, default: Date.now },
     status: { type: String, default: 'pending' },
@@ -115,6 +140,7 @@ const multer = require('multer');
 const cloudinary = require('cloudinary').v2;
 const { CloudinaryStorage } = require('multer-storage-cloudinary');
 const path = require('path');
+const fs = require('fs');
 const cors = require('cors');
 const { v4: uuidv4 } = require('uuid');
 
@@ -165,6 +191,119 @@ const upload = multer({
     },
 });
 
+const acceptanceUploadDir = path.join(__dirname, 'uploads', 'acceptance');
+if (!fs.existsSync(acceptanceUploadDir)) {
+    fs.mkdirSync(acceptanceUploadDir, { recursive: true });
+}
+
+const acceptanceStorage = multer.diskStorage({
+    destination: (req, file, cb) => cb(null, acceptanceUploadDir),
+    filename: (req, file, cb) => {
+        const ext = path.extname(file.originalname || '');
+        cb(null, `${Date.now()}-${uuidv4()}${ext}`);
+    }
+});
+
+const acceptanceUpload = multer({
+    storage: acceptanceStorage,
+    limits: { fileSize: 20 * 1024 * 1024 },
+    fileFilter: (req, file, cb) => {
+        const allowed = /pdf|jpeg|jpg|png|webp/;
+        const extname = allowed.test(path.extname(file.originalname).toLowerCase());
+        const mimetype = /(application\/pdf|image\/jpeg|image\/jpg|image\/png|image\/webp)/.test(file.mimetype);
+        if (extname && mimetype) return cb(null, true);
+        cb(new Error('Document acceptance invalide (PDF ou image uniquement).'));
+    }
+});
+
+function computeActualDurationDays(startDate, endDate) {
+    const diffMs = new Date(endDate).getTime() - new Date(startDate).getTime();
+    const day = Math.floor(diffMs / (1000 * 60 * 60 * 24)) + 1;
+    return Math.max(1, day);
+}
+
+function computeSupervisorScore({ plannedDays, actualDays, reportsCount, totalImages, feedbackCount }) {
+    const planned = Number(plannedDays) || 0;
+    const actual = Number(actualDays) || 0;
+    let scheduleScore = 70;
+    if (planned > 0 && actual > 0) {
+        if (actual <= planned) scheduleScore = 100;
+        else {
+            const overrunPct = ((actual - planned) / planned) * 100;
+            scheduleScore = Math.max(20, Math.round(100 - overrunPct));
+        }
+    }
+
+    const hasImageScore = Math.min(100, totalImages > 0 ? 70 + Math.min(30, totalImages * 2) : 40);
+    const reportingScore = Math.min(100, 60 + Math.min(40, reportsCount * 4));
+    const communicationScore = Math.min(100, 60 + Math.min(40, feedbackCount * 8));
+    const qualityScore = Math.round((hasImageScore * 0.4) + (reportingScore * 0.35) + (communicationScore * 0.25));
+
+    const finalScore = Math.round((scheduleScore * 0.6) + (qualityScore * 0.4));
+    return { finalScore, scheduleScore, qualityScore };
+}
+
+const PHASES_CONFIG = {
+    'Implantation': { min: 1, max: 1, deps: [], weight: 2 },
+    'Excavation': { min: 2, max: 5, deps: [], weight: 6 },
+    'Réseau de terre': { min: 1, max: 1, deps: ['Excavation'], weight: 4 },
+    'Béton de propreté': { min: 1, max: 1, deps: ['Excavation'], weight: 3 },
+    'Rebars': { min: 2, max: 5, deps: ['Béton de propreté'], weight: 6 },
+    'RFC (Ready for Casting)': { min: 1, max: 1, deps: ['Rebars'], weight: 3 },
+    'Casting (Coulage)': { min: 1, max: 1, deps: ['Rebars'], weight: 7 },
+    'Curing': { min: 5, max: 7, deps: ['Casting (Coulage)'], weight: 5 },
+    'Backfilling': { min: 2, max: 3, deps: ['Casting (Coulage)'], weight: 5 },
+    'Tower Erection': { min: 3, max: 5, deps: ['Casting (Coulage)'], weight: 8 },
+    'Casting Slabs': { min: 1, max: 2, deps: ['Backfilling'], weight: 6 },
+    'Manholes': { min: 2, max: 3, deps: ['Tower Erection'], weight: 6 },
+    'Power Installation': { min: 1, max: 2, deps: ['Casting Slabs', 'Tower Erection'], weight: 8 },
+    'Guardhouse': { min: 5, max: 10, deps: ['Tower Erection'], weight: 9 },
+    'Fence': { min: 5, max: 10, deps: ['Tower Erection'], weight: 9 },
+    'Nivellement & Épandage': { min: 1, max: 2, deps: ['Guardhouse', 'Fence'], weight: 6 },
+    'Cleaning Site': { min: 1, max: 1, deps: ['Power Installation', 'Nivellement & Épandage'], weight: 7 }
+};
+
+function buildEstimatedLabel(min, max) {
+    return min === max ? `${min}` : `${min}-${max}`;
+}
+
+const RFI_REQUIRED_PHASES = [
+    'Casting (Coulage)',
+    'Tower Erection',
+    'Casting Slabs',
+    'Power Installation',
+    'Manholes'
+];
+
+function computePhaseWeightedScore(siteReports) {
+    const closedByPhase = new Map();
+    siteReports.forEach(r => {
+        if (!r.phase_name || r.phase_status !== 'closed') return;
+        const prev = closedByPhase.get(r.phase_name);
+        if (!prev || new Date(r.created_at) > new Date(prev.created_at)) closedByPhase.set(r.phase_name, r);
+    });
+
+    let score = 0;
+    Object.entries(PHASES_CONFIG).forEach(([phaseName, cfg]) => {
+        const report = closedByPhase.get(phaseName);
+        if (!report) return;
+        const actual = Number(report.phase_actual_days || 0);
+        let factor = 1;
+        if (actual > 0 && cfg.max > 0 && actual > cfg.max) {
+            factor = Math.max(0.3, cfg.max / actual);
+        }
+        score += cfg.weight * factor;
+    });
+    return Math.round(score * 10) / 10;
+}
+
+function isSiteRfiReady(siteReports) {
+    const closed = new Set(
+        siteReports.filter(r => r.phase_name && r.phase_status === 'closed').map(r => r.phase_name)
+    );
+    return RFI_REQUIRED_PHASES.every(p => closed.has(p));
+}
+
 app.get('/pm', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'pm.html'));
 });
@@ -201,9 +340,66 @@ app.post('/api/reports', async (req, res) => {
         if (!reportData.report_date) reportData.report_date = new Date().toISOString().split('T')[0];
         if (!reportData.region) reportData.region = 'Non spécifiée';
         if (!reportData.zone) reportData.zone = getZoneFromRegion(reportData.region);
+        if (!reportData.milestone_category) reportData.milestone_category = reportData.phase_name || 'Autres';
+        if (reportData.planned_duration_days !== undefined) {
+            reportData.planned_duration_days = Number(reportData.planned_duration_days) || 0;
+        }
+        if (reportData.phase_actual_days !== undefined) {
+            reportData.phase_actual_days = Number(reportData.phase_actual_days) || 0;
+        }
+        if (!reportData.phase_status) reportData.phase_status = 'on track';
+
+        const phaseCfg = PHASES_CONFIG[reportData.phase_name];
+        if (phaseCfg) {
+            reportData.phase_estimated_min_days = phaseCfg.min;
+            reportData.phase_estimated_max_days = phaseCfg.max;
+            reportData.phase_estimated_label = buildEstimatedLabel(phaseCfg.min, phaseCfg.max);
+            if (reportData.phase_actual_days > 0) {
+                const estimatedMid = (phaseCfg.min + phaseCfg.max) / 2;
+                reportData.phase_variance_days = Math.round((reportData.phase_actual_days - estimatedMid) * 10) / 10;
+            }
+        }
+
+        const warnings = [];
+        if (reportData.site_id && phaseCfg?.deps?.length) {
+            const siteReports = await Report.find({ site_id: reportData.site_id });
+            const closedPhases = new Set(
+                siteReports
+                    .filter(r => r.phase_name && r.phase_status === 'closed')
+                    .map(r => r.phase_name)
+            );
+            phaseCfg.deps.forEach(dep => {
+                if (!closedPhases.has(dep)) {
+                    warnings.push(`Dépendance non clôturée: ${dep}`);
+                }
+            });
+        }
+        reportData.schedule_warnings = warnings;
 
         const report = new Report(reportData);
         await report.save();
+
+        // Calcul de la durée réelle en fonction du 1er rapport du site
+        if (report.site_id) {
+            const firstReport = await Report.findOne({ site_id: report.site_id }).sort({ created_at: 1 });
+            const siteReports = await Report.find({ site_id: report.site_id }).sort({ created_at: 1 });
+            if (firstReport) {
+                report.actual_duration_days = computeActualDurationDays(firstReport.created_at, report.created_at);
+                await report.save();
+            }
+            const rfiReady = isSiteRfiReady(siteReports);
+            if (rfiReady && !report.is_rfi_ready) {
+                report.is_rfi_ready = true;
+                report.rfi_ready_at = new Date();
+                await report.save();
+                io.emit('site-rfi-ready', {
+                    site_id: report.site_id,
+                    report_id: report.id,
+                    milestone: 'RFI Ready'
+                });
+            }
+        }
+
         io.emit('new-report', report);
         res.json({ success: true, report });
     } catch (err) {
@@ -233,6 +429,54 @@ app.post('/api/reports/:reportId/images', upload.array('images', 10), async (req
         res.json({ success: true, images });
     } catch (error) {
         console.error('Erreur upload images:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Uploader document final d'acceptance et clôturer le site
+app.post('/api/reports/:reportId/acceptance-document', acceptanceUpload.single('acceptance_document'), async (req, res) => {
+    try {
+        const { reportId } = req.params;
+        const report = await Report.findById(reportId);
+        if (!report) return res.status(404).json({ success: false, error: 'Rapport non trouvé' });
+        if (!req.file) return res.status(400).json({ success: false, error: 'Document acceptance requis' });
+
+        const fileUrl = `/uploads/acceptance/${req.file.filename}`;
+        report.acceptance_document = {
+            filename: req.file.filename,
+            original_name: req.file.originalname,
+            url: fileUrl,
+            uploaded_at: new Date()
+        };
+        report.is_final_acceptance = true;
+
+        const siteReports = await Report.find({ site_id: report.site_id }).sort({ created_at: 1 });
+        const first = siteReports[0];
+        const last = siteReports[siteReports.length - 1];
+        const actualDays = computeActualDurationDays(first.created_at, last.created_at);
+        const phaseScore = computePhaseWeightedScore(siteReports);
+        const rfiReady = isSiteRfiReady(siteReports);
+
+        report.actual_duration_days = actualDays;
+        report.is_rfi_ready = rfiReady;
+        if (rfiReady && !report.rfi_ready_at) report.rfi_ready_at = new Date();
+        report.supervisor_score = phaseScore;
+        report.score_breakdown = {
+            schedule_score: phaseScore,
+            quality_score: phaseScore
+        };
+        await report.save();
+
+        io.emit('site-closed', {
+            reportId: report.id,
+            site_id: report.site_id,
+            supervisor_name: report.supervisor_name,
+            supervisor_score: phaseScore
+        });
+
+        res.json({ success: true, report });
+    } catch (error) {
+        console.error('Erreur upload acceptance document:', error);
         res.status(500).json({ success: false, error: error.message });
     }
 });
