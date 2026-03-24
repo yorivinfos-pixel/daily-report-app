@@ -158,26 +158,46 @@ app.use(express.json());
 app.use(express.static('public'));
 app.use('/uploads', express.static('uploads'));
 
+const hasCloudinaryCreds = Boolean(
+    process.env.CLOUDINARY_CLOUD_NAME &&
+    process.env.CLOUDINARY_API_KEY &&
+    process.env.CLOUDINARY_API_SECRET &&
+    process.env.CLOUDINARY_CLOUD_NAME !== 'VOTRE_CLOUD_NAME' &&
+    process.env.CLOUDINARY_API_KEY !== 'VOTRE_API_KEY' &&
+    process.env.CLOUDINARY_API_SECRET !== 'VOTRE_API_SECRET'
+);
+
 cloudinary.config({
     cloud_name: process.env.CLOUDINARY_CLOUD_NAME || 'VOTRE_CLOUD_NAME',
     api_key: process.env.CLOUDINARY_API_KEY || 'VOTRE_API_KEY',
     api_secret: process.env.CLOUDINARY_API_SECRET || 'VOTRE_API_SECRET',
 });
 
-const storage = new CloudinaryStorage({
+const imageUploadDir = path.join(__dirname, 'uploads', 'images');
+if (!fs.existsSync(imageUploadDir)) {
+    fs.mkdirSync(imageUploadDir, { recursive: true });
+}
+
+const localImageStorage = multer.diskStorage({
+    destination: (req, file, cb) => cb(null, imageUploadDir),
+    filename: (req, file, cb) => {
+        const ext = path.extname(file.originalname || '');
+        cb(null, `${Date.now()}-${uuidv4()}${ext}`);
+    }
+});
+
+const cloudinaryStorage = new CloudinaryStorage({
     cloudinary: cloudinary,
-    params: async (req, file) => {
-        return {
-            folder: 'daily-report-site-supervisor',
-            format: file.mimetype.split('/')[1],
-            public_id: `${Date.now()}-${uuidv4()}`,
-            resource_type: 'image',
-        };
-    },
+    params: async (req, file) => ({
+        folder: 'daily-report-site-supervisor',
+        format: file.mimetype.split('/')[1],
+        public_id: `${Date.now()}-${uuidv4()}`,
+        resource_type: 'image',
+    }),
 });
 
 const upload = multer({
-    storage,
+    storage: hasCloudinaryCreds ? cloudinaryStorage : localImageStorage,
     limits: { fileSize: 10 * 1024 * 1024 },
     fileFilter: (req, file, cb) => {
         // Some phones (e.g. iPhone) upload HEIC/HEIF photos
@@ -190,6 +210,10 @@ const upload = multer({
         cb(new Error('Seules les images sont autorisées!'));
     },
 });
+
+if (!hasCloudinaryCreds) {
+    console.warn('⚠️ Cloudinary non configuré: upload images en stockage local /uploads/images');
+}
 
 const acceptanceUploadDir = path.join(__dirname, 'uploads', 'acceptance');
 if (!fs.existsSync(acceptanceUploadDir)) {
@@ -421,13 +445,25 @@ app.post('/api/reports', async (req, res) => {
 });
 
 // Uploader des images pour un rapport
-app.post('/api/reports/:reportId/images', upload.array('images', 10), async (req, res) => {
+app.post('/api/reports/:reportId/images', (req, res, next) => {
+    upload.array('images', 10)(req, res, (err) => {
+        if (!err) return next();
+        console.error('Erreur middleware upload images:', err);
+        return res.status(400).json({ success: false, error: err.message || 'Upload images invalide' });
+    });
+}, async (req, res) => {
     try {
         const { reportId } = req.params;
-        const images = req.files.map(file => ({
+        const files = Array.isArray(req.files) ? req.files : [];
+        if (!files.length) {
+            return res.status(400).json({ success: false, error: 'Aucune image reçue' });
+        }
+        const images = files.map(file => ({
             filename: file.filename,
             original_name: file.originalname,
-            url: file.path || file.secure_url,
+            url: hasCloudinaryCreds
+                ? (file.path || file.secure_url)
+                : `/uploads/images/${file.filename}`,
             cloudinary_id: file.filename,
             created_at: new Date()
         }));
