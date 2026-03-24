@@ -80,6 +80,38 @@ class SupervisorApp {
         return el ? (el.value ?? fallback) : fallback;
     }
 
+    async wait(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    async apiFetchJson(url, options = {}, retryDelays = [0, 2500, 5000]) {
+        let lastError = null;
+        for (let i = 0; i < retryDelays.length; i++) {
+            if (retryDelays[i] > 0) await this.wait(retryDelays[i]);
+            try {
+                const response = await fetch(url, options);
+                const rawText = await response.text();
+                let json = null;
+                try {
+                    json = rawText ? JSON.parse(rawText) : null;
+                } catch (_) {
+                    throw new Error(this.t('Réponse serveur illisible (pas du JSON).', 'Invalid server response (non-JSON).'));
+                }
+                if (!response.ok) {
+                    const msg = json?.error ? `: ${json.error}` : '';
+                    throw new Error(`HTTP ${response.status}${msg}`);
+                }
+                if (!json?.success) {
+                    throw new Error(json?.error || this.t('Réponse serveur invalide', 'Invalid server response'));
+                }
+                return json;
+            } catch (err) {
+                lastError = err;
+            }
+        }
+        throw lastError || new Error(this.t('Erreur réseau', 'Network error'));
+    }
+
     applyLanguage() {
         const mappings = [
             ['.logo-subtitle', this.t('Daily Report', 'Daily Report')],
@@ -200,7 +232,7 @@ class SupervisorApp {
             const max = Number(opt?.dataset?.max || 0);
             const actual = Number(phaseActualDaysInput?.value || 0);
             if (!min && !max) {
-                display.textContent = 'Estimé: N/A | Écart: N/A';
+                display.textContent = 'Estimé: N/A | Retard: N/A';
                 return;
             }
             const estimateLabel = min === max ? `${min}j` : `${min}-${max}j`;
@@ -646,28 +678,15 @@ class SupervisorApp {
             }
             
             // Créer le rapport
-            const response = await fetch(this.serverUrl + '/api/reports', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(formData)
-            });
-
-            const rawText = await response.text();
-            let result = null;
-            try {
-                result = rawText ? JSON.parse(rawText) : null;
-            } catch (_) {
-                throw new Error(this.t('Réponse serveur illisible (pas du JSON). Vérifiez la connexion.', 'Server returned invalid data. Check your connection.'));
-            }
-
-            if (!response.ok) {
-                const serverMsg = result?.error ? `: ${result.error}` : '';
-                throw new Error(`Erreur création du rapport (HTTP ${response.status})${serverMsg}`);
-            }
-
-            if (!result?.success) {
-                throw new Error(result?.error || 'Erreur lors de la création du rapport');
-            }
+            const result = await this.apiFetchJson(
+                this.serverUrl + '/api/reports',
+                {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(formData)
+                },
+                [0, 3000, 7000]
+            );
 
             const newReportId = getReportId(result.report);
             if (!newReportId) {
@@ -714,43 +733,22 @@ class SupervisorApp {
             formData.append('images', file);
         });
         
-        const response = await fetch(`${this.serverUrl}/api/reports/${reportId}/images`, {
-            method: 'POST',
-            body: formData
-        });
-
-        let result = null;
-        try {
-            result = await response.json();
-        } catch (_) {
-            // response non-JSON
-        }
-
-        if (!response.ok) {
-            throw new Error(`Erreur upload des images (HTTP ${response.status})${result?.error ? `: ${result.error}` : ''}`);
-        }
-
-        if (!result?.success) {
-            throw new Error(result?.error || 'Erreur lors de l\'upload des images');
-        }
+        await this.apiFetchJson(
+            `${this.serverUrl}/api/reports/${reportId}/images`,
+            { method: 'POST', body: formData },
+            [0, 2500]
+        );
     }
 
     async uploadAcceptanceDocument(reportId, file) {
         const formData = new FormData();
         formData.append('acceptance_document', file);
 
-        const response = await fetch(`${this.serverUrl}/api/reports/${reportId}/acceptance-document`, {
-            method: 'POST',
-            body: formData
-        });
-        let result = null;
-        try {
-            result = await response.json();
-        } catch (_) {}
-
-        if (!response.ok || !result?.success) {
-            throw new Error(result?.error || `Erreur upload acceptance (HTTP ${response.status})`);
-        }
+        const result = await this.apiFetchJson(
+            `${this.serverUrl}/api/reports/${reportId}/acceptance-document`,
+            { method: 'POST', body: formData },
+            [0, 2500]
+        );
 
         if (result.report?.supervisor_score !== undefined) {
             this.showToast(`Site clôturé. Côte superviseur: ${result.report.supervisor_score}`, 'success');
@@ -777,27 +775,15 @@ class SupervisorApp {
             const url = supervisorName
                 ? `${this.serverUrl}/api/reports?supervisor_name=${encodeURIComponent(supervisorName)}`
                 : `${this.serverUrl}/api/reports`;
-            const response = await fetch(url);
-            const rawText = await response.text();
-            let result = null;
-            try {
-                result = rawText ? JSON.parse(rawText) : null;
-            } catch (_) {
-                throw new Error(this.t('Réponse serveur illisible.', 'Invalid server response.'));
-            }
-            
-            if (!result.success) {
-                throw new Error(result.error);
-            }
+            const result = await this.apiFetchJson(url, {}, [0, 3000, 7000]);
             
             let list = result.reports || [];
             // Secours si un vieux backend ignore ?supervisor_name=…
             if (supervisorName && list.length === 0) {
-                const r2 = await fetch(`${this.serverUrl}/api/reports`);
-                const t2 = await r2.text();
+                const r2 = await this.apiFetchJson(`${this.serverUrl}/api/reports`, {}, [0, 2500]);
                 let all = [];
                 try {
-                    const j2 = t2 ? JSON.parse(t2) : {};
+                    const j2 = r2 || {};
                     if (j2.success && Array.isArray(j2.reports)) all = j2.reports;
                 } catch (_) { /* ignore */ }
                 const want = supervisorName.trim().toLowerCase();
@@ -809,6 +795,7 @@ class SupervisorApp {
         } catch (error) {
             console.error('Erreur chargement rapports:', error);
             container.innerHTML = `<div class="empty-state"><p>${this.t('Impossible de charger les rapports', 'Could not load reports')}: ${error.message}</p></div>`;
+            setTimeout(() => this.loadMyReports(), 8000);
         }
     }
     
