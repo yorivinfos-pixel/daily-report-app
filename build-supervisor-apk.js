@@ -5,6 +5,7 @@ const { execSync } = require('child_process');
 function forceSupervisorIcons() {
     const iconsDir = path.join(__dirname, 'public', 'icons');
     const targets = [
+        { src: 'icon-72.png', dir: 'mipmap-mdpi' },
         { src: 'icon-72.png', dir: 'mipmap-hdpi' },
         { src: 'icon-96.png', dir: 'mipmap-xhdpi' },
         { src: 'icon-144.png', dir: 'mipmap-xxhdpi' },
@@ -71,9 +72,12 @@ async function main() {
             console.log('☕ Utilisation de Java 21 (Android Studio)');
         }
         
+        console.log('🧹 Nettoyage du cache Gradle...');
         if (process.platform === 'win32') {
+            execSync('.\\gradlew.bat clean', { stdio: 'inherit' });
             execSync('.\\gradlew.bat assembleDebug', { stdio: 'inherit' });
         } else {
+            execSync('./gradlew clean', { stdio: 'inherit' });
             execSync('./gradlew assembleDebug', { stdio: 'inherit' });
         }
 

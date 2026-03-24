@@ -26,6 +26,7 @@ const iconDirs = {
 
 // Correspondance tailles PM icons -> dossiers Android
 const iconMapping = {
+    mdpi: 'pm-icon-72.png',      // mdpi: pas de 48px, on utilise 72
     hdpi: 'pm-icon-72.png',      // 72x72
     xhdpi: 'pm-icon-96.png',     // 96x96
     xxhdpi: 'pm-icon-144.png',   // 144x144
@@ -246,6 +247,14 @@ async function main() {
             console.log('☕ Utilisation de Java 21 (Android Studio)');
         }
         
+        // Clean pour forcer le repackaging des icônes PM (sinon Gradle réutilise les icônes superviseur en cache)
+        console.log('🧹 Nettoyage du cache Gradle...');
+        if (process.platform === 'win32') {
+            execSync('.\\gradlew.bat clean', { stdio: 'inherit' });
+        } else {
+            execSync('./gradlew clean', { stdio: 'inherit' });
+        }
+
         // Build debug APK
         if (process.platform === 'win32') {
             execSync('.\\gradlew.bat assembleDebug', { stdio: 'inherit' });
