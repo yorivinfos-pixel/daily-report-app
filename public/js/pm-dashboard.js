@@ -1267,6 +1267,7 @@ class PMDashboard {
         this.renderReports();
         
         // Notification
+        this.playNotificationSound('success');
         this.showToast(`📋 Nouveau rapport de ${report.supervisor_name || 'un superviseur'}`, 'info');
         
         // Notification système si supporté
@@ -1314,6 +1315,7 @@ class PMDashboard {
     handleIncomingZoneChat(message) {
         if (message?.scope_type !== 'zone') return;
         if (message.scope_id !== this.getCurrentPmZone()) return;
+        this.playNotificationSound('default');
         if (document.hidden) {
             this.unreadZoneCount += 1;
             this.persistUnreadState();
@@ -1324,6 +1326,7 @@ class PMDashboard {
 
     handleIncomingReportChat(message) {
         if (message?.scope_type !== 'report') return;
+        this.playNotificationSound('default');
         const currentId = getReportId(this.selectedReport);
         if (currentId && String(message.scope_id) === currentId) {
             this.loadReportChatMessages();
@@ -1334,6 +1337,35 @@ class PMDashboard {
         this.renderReports();
     }
     
+    // ================== Notification Sound ==================
+
+    playNotificationSound(style = 'default') {
+        try {
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const now = ctx.currentTime;
+
+            const tones = style === 'success'
+                ? [[523.25, 0, 0.12], [659.25, 0.12, 0.12], [783.99, 0.24, 0.18]]
+                : style === 'warning'
+                    ? [[440, 0, 0.15], [440, 0.2, 0.15]]
+                    : [[587.33, 0, 0.1], [783.99, 0.12, 0.16]];
+
+            tones.forEach(([freq, offset, dur]) => {
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.value = freq;
+                gain.gain.setValueAtTime(0.25, now + offset);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + offset + dur);
+                osc.connect(gain).connect(ctx.destination);
+                osc.start(now + offset);
+                osc.stop(now + offset + dur + 0.05);
+            });
+
+            setTimeout(() => ctx.close(), 1500);
+        } catch (_) {}
+    }
+
     // ================== Utilities ==================
     
     showToast(message, type = 'info') {

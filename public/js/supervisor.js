@@ -371,6 +371,7 @@ class SupervisorApp {
         const target = (site?.assigned_supervisor || '').toLowerCase();
         if (!supervisorName || supervisorName !== target) return;
 
+        this.playNotificationSound('success');
         this.showToast(`Nouveau site attribué: ${site.id} - ${site.name}`, 'info');
         this.loadAssignedSites();
     }
@@ -471,6 +472,7 @@ class SupervisorApp {
         if (message?.scope_type !== 'zone') return;
         const zone = this.getCurrentZone();
         if (!zone || message.scope_id !== zone) return;
+        this.playNotificationSound('default');
         if (document.hidden) {
             this.unreadZoneCount += 1;
             this.persistUnreadState();
@@ -538,6 +540,7 @@ class SupervisorApp {
 
     handleIncomingReportChat(message) {
         if (message?.scope_type !== 'report') return;
+        this.playNotificationSound('default');
         const deleteBtn = document.getElementById('delete-report-btn');
         const currentReportId = deleteBtn?.dataset?.id;
         if (currentReportId && message.scope_id === currentReportId) {
@@ -729,7 +732,7 @@ class SupervisorApp {
                 await this.uploadAcceptanceDocument(newReportId, acceptanceFile);
             }
             
-            // Succès
+            this.playNotificationSound('success');
             this.showToast('Rapport envoyé avec succès!', 'success');
             this.resetForm();
             this.loadMyReports();
@@ -1059,7 +1062,7 @@ class SupervisorApp {
     // ================== Handle Feedback ==================
     
     handleNewFeedback(data) {
-        // Afficher notification
+        this.playNotificationSound('default');
         this.showToast('Nouvel avis reçu du PM!', 'info');
         
         // Recharger les rapports
@@ -1084,6 +1087,35 @@ class SupervisorApp {
         feedbackList.insertAdjacentHTML('afterbegin', feedbackHtml);
     }
     
+    // ================== Notification Sound ==================
+
+    playNotificationSound(style = 'default') {
+        try {
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const now = ctx.currentTime;
+
+            const tones = style === 'success'
+                ? [[523.25, 0, 0.12], [659.25, 0.12, 0.12], [783.99, 0.24, 0.18]]
+                : style === 'warning'
+                    ? [[440, 0, 0.15], [440, 0.2, 0.15]]
+                    : [[587.33, 0, 0.1], [783.99, 0.12, 0.16]];
+
+            tones.forEach(([freq, offset, dur]) => {
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.value = freq;
+                gain.gain.setValueAtTime(0.25, now + offset);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + offset + dur);
+                osc.connect(gain).connect(ctx.destination);
+                osc.start(now + offset);
+                osc.stop(now + offset + dur + 0.05);
+            });
+
+            setTimeout(() => ctx.close(), 1500);
+        } catch (_) {}
+    }
+
     // ================== Utilities ==================
     
     showToast(message, type = 'info') {
