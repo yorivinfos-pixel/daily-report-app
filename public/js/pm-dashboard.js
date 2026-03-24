@@ -983,8 +983,19 @@ class PMDashboard {
                     <div class="detail-section-title">Clôture / Acceptance</div>
                     <div class="detail-section-content">
                         <a href="${this.resolveFileUrl(report.acceptance_document.url)}" target="_blank">📎 Voir document acceptance</a><br>
-                        ${report.supervisor_score !== undefined ? `<strong>Note superviseur:</strong> ${report.supervisor_score}/100` : ''}<br>
+                        ${report.supervisor_score !== undefined ? `<strong>Côte superviseur:</strong> ${report.supervisor_score}` : ''}<br>
                         <strong>Milestone RFI:</strong> ${report.is_rfi_ready ? 'READY' : 'Non atteint'}
+                    </div>
+                </div>
+            ` : ''}
+
+            ${report.score_breakdown?.phase_points?.length ? `
+                <div class="detail-section">
+                    <div class="detail-section-title">Côtes par phase clôturée</div>
+                    <div class="detail-section-content">
+                        ${report.score_breakdown.phase_points
+                            .map(p => `- ${p.phase_name}: ${p.points > 0 ? '+' : ''}${p.points} ${p.delay_days > 0 ? `(retard ${p.delay_days}j)` : '(à temps)'}`)
+                            .join('<br>')}
                     </div>
                 </div>
             ` : ''}

@@ -45,7 +45,14 @@ const reportSchema = new mongoose.Schema({
     supervisor_score: Number,
     score_breakdown: {
         schedule_score: Number,
-        quality_score: Number
+        quality_score: Number,
+        phase_points: [
+            {
+                phase_name: String,
+                points: Number,
+                delay_days: Number
+            }
+        ]
     },
     report_date: String,
     created_at: { type: Date, default: Date.now },
@@ -315,17 +322,33 @@ function computePhaseWeightedScore(siteReports) {
     });
 
     let score = 0;
+    const phasePoints = [];
     Object.entries(PHASES_CONFIG).forEach(([phaseName, cfg]) => {
         const report = closedByPhase.get(phaseName);
         if (!report) return;
         const actual = Number(report.phase_actual_days || 0);
-        let factor = 1;
-        if (actual > 0 && cfg.max > 0 && actual > cfg.max) {
-            factor = Math.max(0.3, cfg.max / actual);
+        const delayDays = computeDelayDays(actual, cfg.max);
+
+        // 1 phase = 1 cote.
+        // A temps (<= max): points positifs (poids de phase).
+        // En retard (> max): points negatifs proportionnels au retard.
+        // Ex: poids 6, retard 2j => -12 points.
+        let phaseScore = cfg.weight;
+        if (delayDays > 0) {
+            phaseScore = -(cfg.weight * delayDays);
         }
-        score += cfg.weight * factor;
+        phaseScore = Math.round(phaseScore * 10) / 10;
+        score += phaseScore;
+        phasePoints.push({
+            phase_name: phaseName,
+            points: phaseScore,
+            delay_days: delayDays
+        });
     });
-    return Math.round(score * 10) / 10;
+    return {
+        total: Math.round(score * 10) / 10,
+        phasePoints
+    };
 }
 
 function isSiteRfiReady(siteReports) {
@@ -522,10 +545,11 @@ app.post('/api/reports/:reportId/acceptance-document', acceptanceUpload.single('
         report.actual_duration_days = actualDays;
         report.is_rfi_ready = rfiReady;
         if (rfiReady && !report.rfi_ready_at) report.rfi_ready_at = new Date();
-        report.supervisor_score = phaseScore;
+        report.supervisor_score = phaseScore.total;
         report.score_breakdown = {
-            schedule_score: phaseScore,
-            quality_score: phaseScore
+            schedule_score: phaseScore.total,
+            quality_score: phaseScore.total,
+            phase_points: phaseScore.phasePoints
         };
         await report.save();
 
@@ -533,7 +557,7 @@ app.post('/api/reports/:reportId/acceptance-document', acceptanceUpload.single('
             reportId: report.id,
             site_id: report.site_id,
             supervisor_name: report.supervisor_name,
-            supervisor_score: phaseScore
+            supervisor_score: phaseScore.total
         });
 
         res.json({ success: true, report });
