@@ -1070,35 +1070,112 @@
     
     .pm-header {
         flex-direction: column;
-        align-items: flex-start;
-        gap: var(--spacing-md);
+        align-items: stretch;
+        gap: var(--spacing-sm);
+        padding: var(--spacing-md);
+    }
+
+    .header-left h1 {
+        font-size: 1.2rem;
     }
     
     .header-right {
         width: 100%;
         flex-direction: column;
+        gap: var(--spacing-sm);
+    }
+
+    .header-right .region-filter,
+    .header-right .zone-filter,
+    .header-right .date-filter {
+        flex-wrap: wrap;
+        width: 100%;
+    }
+
+    .header-right .region-filter select,
+    .header-right .zone-filter select,
+    .header-right .date-filter input {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .other-zones-toggle {
+        margin-left: 0;
+        margin-top: 4px;
+        font-size: 0.8rem;
     }
     
     .search-box {
         width: 100%;
     }
+
+    .export-buttons {
+        width: 100%;
+        justify-content: stretch;
+    }
+
+    .export-btn {
+        flex: 1;
+        justify-content: center;
+    }
     
     .stats-grid {
         grid-template-columns: repeat(2, 1fr);
+        padding: var(--spacing-sm);
+        gap: var(--spacing-sm);
+    }
+
+    .stat-card {
         padding: var(--spacing-md);
+    }
+
+    .stat-value {
+        font-size: 1.2rem;
+    }
+
+    .stat-label {
+        font-size: 0.75rem;
+    }
+
+    .site-assignment-section {
+        margin: 0 var(--spacing-sm) var(--spacing-md);
+        padding: var(--spacing-md);
+    }
+
+    .site-assignment-form {
+        grid-template-columns: 1fr !important;
+    }
+
+    .site-assignment-form input,
+    .site-assignment-form select,
+    .site-assignment-form button {
+        width: 100%;
+    }
+
+    #pm-zone-chat-input {
+        grid-column: span 1 !important;
     }
     
     .reports-section {
-        padding: var(--spacing-md);
+        padding: var(--spacing-sm);
     }
     
     .reports-grid {
         grid-template-columns: 1fr;
+        gap: var(--spacing-sm);
+    }
+
+    .pm-report-card {
+        padding: var(--spacing-md);
     }
     
     .detail-panel {
         width: 100%;
         right: -100%;
+    }
+
+    .pm-footer {
+        margin-left: 0;
     }
 }
 
