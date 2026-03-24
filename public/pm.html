@@ -270,7 +270,15 @@
         </div>
     </footer>
 
-    <script src="/socket.io/socket.io.js"></script>
+    <!-- Socket.IO : CDN (nécessaire pour APK Capacitor qui charge en local) -->
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js" crossorigin="anonymous"></script>
+    <script>
+        if (typeof io === 'undefined') {
+            var s = document.createElement('script');
+            s.src = 'https://daily-report-app-fanv.onrender.com/socket.io/socket.io.js';
+            document.head.appendChild(s);
+        }
+    </script>
     <script src="/js/pm-dashboard.js"></script>
 </body>
 </html>

@@ -45,17 +45,27 @@ class SupervisorApp {
     }
     
     init() {
-        this.setupLanguage();
-        this.setupSocket();
-        this.setupForm();
-        this.setupImageUpload();
-        this.setupModal();
-        // Nom / province d'abord : sinon GET /api/reports part sans superviseur et la liste est fausse
-        this.loadSavedSupervisorName();
+        const safe = (label, fn) => {
+            try { fn(); } catch (e) { console.error(`[init] ${label} failed:`, e); }
+        };
+
+        safe('setupLanguage',  () => this.setupLanguage());
+        safe('setupSocket',    () => this.setupSocket());
+        safe('setupForm',      () => this.setupForm());
+        safe('setupImageUpload', () => this.setupImageUpload());
+        safe('setupModal',     () => this.setupModal());
+        safe('loadSavedName',  () => this.loadSavedSupervisorName());
+        safe('setupZoneChat',  () => this.setupZoneChat());
+        safe('setDefaultDate', () => this.setDefaultDate());
+
         this.loadMyReports();
         this.loadAssignedSites();
-        this.setupZoneChat();
-        this.setDefaultDate();
+
+        this.warmUpServer();
+    }
+
+    async warmUpServer() {
+        try { await fetch(`${this.serverUrl}/api/reports?limit=1`, { method: 'GET' }); } catch (_) {}
     }
 
     setupLanguage() {
@@ -150,12 +160,17 @@ class SupervisorApp {
     // ================== Socket.IO Setup ==================
     
     setupSocket() {
+        if (typeof io === 'undefined') {
+            console.warn('Socket.IO not loaded yet – real-time features disabled');
+            return;
+        }
+
         this.socket = io(this.serverUrl);
         
         this.socket.on('connect', () => {
             console.log('Connecté au serveur');
-            document.getElementById('connection-status').classList.add('online');
-            document.getElementById('connection-status').classList.remove('offline');
+            const cs = document.getElementById('connection-status');
+            if (cs) { cs.classList.add('online'); cs.classList.remove('offline'); }
             this.socket.emit('join-role', 'supervisor');
             this.joinSupervisorRoom();
             this.joinZoneRoom();
@@ -163,16 +178,14 @@ class SupervisorApp {
         
         this.socket.on('disconnect', () => {
             console.log('Déconnecté du serveur');
-            document.getElementById('connection-status').classList.remove('online');
-            document.getElementById('connection-status').classList.add('offline');
+            const cs = document.getElementById('connection-status');
+            if (cs) { cs.classList.remove('online'); cs.classList.add('offline'); }
         });
         
-        // Écouter les feedbacks du PM
         this.socket.on('new-feedback', (data) => {
             this.handleNewFeedback(data);
         });
 
-        // Notification d'un nouveau site attribué
         this.socket.on('new-site-assigned', (site) => {
             this.handleNewAssignedSite(site);
         });
@@ -181,6 +194,11 @@ class SupervisorApp {
             this.handleIncomingZoneChat(message);
             this.handleIncomingReportChat(message);
         });
+    }
+
+    retrySocketConnect() {
+        if (this.socket || typeof io === 'undefined') return;
+        try { this.setupSocket(); } catch (_) {}
     }
     
     // ================== Form Setup ==================

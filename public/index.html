@@ -323,7 +323,15 @@
         </div>
     </footer>
 
-    <script src="/socket.io/socket.io.js"></script>
+    <!-- Socket.IO : CDN d'abord (nécessaire pour APK Capacitor qui charge en local) -->
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js" crossorigin="anonymous"></script>
+    <script>
+        if (typeof io === 'undefined') {
+            var s = document.createElement('script');
+            s.src = 'https://daily-report-app-fanv.onrender.com/socket.io/socket.io.js';
+            document.head.appendChild(s);
+        }
+    </script>
     <script src="/js/supervisor.js"></script>
     <script>
         // Sur APK Capacitor, le SW en cache-first peut bloquer les mises à jour JS → pas de SW en natif

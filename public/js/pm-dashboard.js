@@ -94,22 +94,26 @@ class PMDashboard {
     }
     
     init() {
-        // Vérifier si on a besoin de configurer le serveur
         if (!this.serverUrl && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
             this.showServerConfig();
             return;
         }
+
+        const safe = (label, fn) => {
+            try { fn(); } catch (e) { console.error(`[PM init] ${label}:`, e); }
+        };
         
-        this.setupLanguage();
-        this.setupSocket();
-        this.setupNavigation();
-        this.setupSearch();
-        this.setupSiteAssignment();
-        this.setupDetailPanel();
-        this.setupImageModal();
+        safe('setupLanguage',      () => this.setupLanguage());
+        safe('setupSocket',        () => this.setupSocket());
+        safe('setupNavigation',    () => this.setupNavigation());
+        safe('setupSearch',        () => this.setupSearch());
+        safe('setupSiteAssignment',() => this.setupSiteAssignment());
+        safe('setupDetailPanel',   () => this.setupDetailPanel());
+        safe('setupImageModal',    () => this.setupImageModal());
+        safe('loadPMName',         () => this.loadPMName());
+        safe('loadPMZone',         () => this.loadPMZone());
+
         this.loadReports();
-        this.loadPMName();
-        this.loadPMZone();
         this.setupZoneChat();
     }
 
@@ -271,6 +275,10 @@ class PMDashboard {
     // ================== Socket.IO Setup ==================
     
     setupSocket() {
+        if (typeof io === 'undefined') {
+            console.warn('Socket.IO not loaded – real-time features disabled');
+            return;
+        }
         try {
             this.socket = this.serverUrl ? io(this.serverUrl) : io();
         
