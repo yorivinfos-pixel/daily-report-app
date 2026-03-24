@@ -92,7 +92,7 @@ class SupervisorApp {
             ['#site-name', this.t('Ex: Chantier Centre-Ville', 'Ex: Downtown Site'), 'placeholder'],
             ['#supervisor-name', this.t('Entrez votre nom', 'Enter your name'), 'placeholder'],
             ['#phase-actual-days', this.t('Ex: 3', 'Ex: 3'), 'placeholder'],
-            ['#phase-estimated-display', this.t('Estimé: N/A | Écart: N/A', 'Estimated: N/A | Variance: N/A')],
+            ['#phase-estimated-display', this.t('Estimé: N/A | Retard: N/A', 'Estimated: N/A | Delay: N/A')],
             ['.reports-history-section .section-title', this.t('Mes Rapports Récents', 'My Recent Reports')]
         ];
 
@@ -205,13 +205,15 @@ class SupervisorApp {
             }
             const estimateLabel = min === max ? `${min}j` : `${min}-${max}j`;
             if (!actual) {
-                display.textContent = `Estimé: ${estimateLabel} | Écart: N/A`;
+                display.textContent = `Estimé: ${estimateLabel} | Retard: N/A`;
                 return;
             }
-            const estMid = (min + max) / 2;
-            const variance = Math.round((actual - estMid) * 10) / 10;
-            const sign = variance > 0 ? '+' : '';
-            display.textContent = `Estimé: ${estimateLabel} | Écart: ${sign}${variance}j`;
+            const delay = Math.round((actual - max) * 10) / 10;
+            if (delay > 0) {
+                display.textContent = `Estimé: ${estimateLabel} | Retard: +${delay}j`;
+            } else {
+                display.textContent = `Estimé: ${estimateLabel} | Statut: À temps`;
+            }
         };
         phaseSelect?.addEventListener('change', updatePhaseEstimateDisplay);
         phaseActualDaysInput?.addEventListener('input', updatePhaseEstimateDisplay);
@@ -919,7 +921,7 @@ class SupervisorApp {
                         <strong>Statut:</strong> ${report.phase_status || 'on track'}<br>
                         <strong>Durée estimée:</strong> ${report.phase_estimated_label || 'N/A'} jours<br>
                         <strong>Jours réels phase:</strong> ${report.phase_actual_days || 0} jours<br>
-                        <strong>Écart phase:</strong> ${report.phase_variance_days ?? 'N/A'} jours<br>
+                        <strong>Retard phase:</strong> ${report.phase_variance_days ?? 0} jours<br>
                         <strong>Durée réalisée site:</strong> ${report.actual_duration_days || 0} jours
                     </div>
                 </div>

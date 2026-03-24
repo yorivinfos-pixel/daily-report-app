@@ -291,6 +291,13 @@ function buildEstimatedLabel(min, max) {
     return min === max ? `${min}` : `${min}-${max}`;
 }
 
+function computeDelayDays(actualDays, maxDays) {
+    const actual = Number(actualDays || 0);
+    const max = Number(maxDays || 0);
+    if (!actual || !max) return 0;
+    return Math.max(0, Math.round((actual - max) * 10) / 10);
+}
+
 const RFI_REQUIRED_PHASES = [
     'Casting (Coulage)',
     'Tower Erection',
@@ -391,8 +398,9 @@ app.post('/api/reports', async (req, res) => {
             reportData.phase_estimated_max_days = phaseCfg.max;
             reportData.phase_estimated_label = buildEstimatedLabel(phaseCfg.min, phaseCfg.max);
             if (reportData.phase_actual_days > 0) {
-                const estimatedMid = (phaseCfg.min + phaseCfg.max) / 2;
-                reportData.phase_variance_days = Math.round((reportData.phase_actual_days - estimatedMid) * 10) / 10;
+                // Retard basé sur la borne MAX:
+                // ex: tâche 5j -> 1..5 = OK, alerte à partir de 6.
+                reportData.phase_variance_days = computeDelayDays(reportData.phase_actual_days, phaseCfg.max);
             }
         }
 
@@ -409,6 +417,12 @@ app.post('/api/reports', async (req, res) => {
                     warnings.push(`Dépendance non clôturée: ${dep}`);
                 }
             });
+        }
+        if (phaseCfg && Number(reportData.phase_actual_days || 0) > 0) {
+            const delay = computeDelayDays(reportData.phase_actual_days, phaseCfg.max);
+            if (delay > 0) {
+                warnings.push(`Retard phase: +${delay}j (seuil max ${phaseCfg.max}j)`);
+            }
         }
         reportData.schedule_warnings = warnings;
 

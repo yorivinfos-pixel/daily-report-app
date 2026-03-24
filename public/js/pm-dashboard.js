@@ -926,7 +926,7 @@ class PMDashboard {
                     <strong>Statut:</strong> ${report.phase_status || 'on track'}<br>
                     <strong>Durée estimée:</strong> ${report.phase_estimated_label || 'N/A'} jours<br>
                     <strong>Jours réels phase:</strong> ${report.phase_actual_days || 0} jours<br>
-                    <strong>Écart phase:</strong> ${report.phase_variance_days ?? 'N/A'} jours<br>
+                    <strong>Retard phase:</strong> ${report.phase_variance_days ?? 0} jours<br>
                     <strong>Durée réalisée site:</strong> ${report.actual_duration_days || 0} jours
                 </div>
             </div>
