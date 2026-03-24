@@ -213,7 +213,18 @@ async function main() {
         console.log('\n🔄 Synchronisation Capacitor...');
         execSync('npx cap sync android', { stdio: 'inherit' });
 
-        // 3.5. Remplacer les icônes par les icônes PM
+        // 3.5. Remplacer index.html par pm.html pour que l'APK ouvre le dashboard PM
+        const assetsPublic = path.join(__dirname, 'android', 'app', 'src', 'main', 'assets', 'public');
+        const pmHtmlSrc = path.join(assetsPublic, 'pm.html');
+        const indexHtmlDest = path.join(assetsPublic, 'index.html');
+        if (fs.existsSync(pmHtmlSrc)) {
+            fs.copyFileSync(pmHtmlSrc, indexHtmlDest);
+            console.log('✅ index.html remplacé par pm.html (point d\'entrée PM)');
+        } else {
+            console.log('⚠️ pm.html non trouvé dans les assets – l\'APK ouvrira la page superviseur');
+        }
+
+        // 3.6. Remplacer les icônes par les icônes PM
         backupAndReplaceIcons();
 
         if (prepareOnly) {
