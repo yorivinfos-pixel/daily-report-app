@@ -69,10 +69,29 @@ const reportSchema = new mongoose.Schema({
             feedback: String,
             created_at: { type: Date, default: Date.now }
         }
-    ]
+    ],
+    reviewed_at: Date
 }, { toJSON: { virtuals: true }, toObject: { virtuals: true } });
 
 const Report = mongoose.model('Report', reportSchema);
+
+async function reconcileReviewedReports() {
+    try {
+        const result = await Report.updateMany(
+            { status: { $ne: 'reviewed' }, 'feedbacks.0': { $exists: true } },
+            { $set: { status: 'reviewed' } }
+        );
+        if (result.modifiedCount > 0) {
+            console.log(`ℹ️ Synchronisation statuts: ${result.modifiedCount} rapport(s) passés à reviewed`);
+        }
+    } catch (err) {
+        console.warn('⚠️ Impossible de synchroniser les statuts reviewed:', err.message);
+    }
+}
+
+setTimeout(() => {
+    reconcileReviewedReports();
+}, 2000);
 
 function normalizeProvince(str = '') {
     return String(str)
@@ -584,18 +603,23 @@ app.post('/api/reports/:reportId/feedback', async (req, res) => {
     try {
         const { feedback, pm_name } = req.body;
         const reportId = req.params.reportId;
+        const reviewer = (pm_name || 'PM').trim() || 'PM';
         const feedbackData = {
-            pm_name,
+            pm_name: reviewer,
             feedback,
             created_at: new Date()
         };
         const report = await Report.findByIdAndUpdate(
             reportId,
-            { $push: { feedbacks: { $each: [feedbackData], $position: 0 } } },
+            {
+                $push: { feedbacks: { $each: [feedbackData], $position: 0 } },
+                $set: { status: 'reviewed', reviewed_at: new Date() }
+            },
             { new: true }
         );
         if (!report) return res.status(404).json({ success: false, error: 'Rapport introuvable' });
         io.emit('new-feedback', { reportId, feedback: feedbackData });
+        io.emit('report-status-updated', { reportId, status: report.status, reviewed_at: report.reviewed_at });
         res.json({ success: true, feedback: feedbackData });
     } catch (error) {
         console.error('Erreur ajout feedback:', error);
