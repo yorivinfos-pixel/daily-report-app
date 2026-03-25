@@ -1150,10 +1150,46 @@ class PMDashboard {
             this.renderDetailPanel();
             this.renderReports();
             panel.classList.add('open');
+            this.loadSitePhasesStatus();
             
         } catch (error) {
             console.error('Erreur:', error);
             this.showToast('Erreur lors du chargement du rapport', 'error');
+        }
+    }
+
+    async loadSitePhasesStatus() {
+        const grid = document.getElementById('site-phases-grid');
+        if (!grid || !this.selectedReport?.site_id) return;
+
+        try {
+            const response = await this.authFetch(this.getApiUrl(`/api/sites/${encodeURIComponent(this.selectedReport.site_id)}/phases-status`));
+            const data = await response.json();
+            if (!data.success || !data.phases) throw new Error('Erreur');
+
+            const colorMap = {
+                green: { bg: 'rgba(5,150,105,0.2)', border: '#059669', text: '#6ee7b7', icon: '✅' },
+                orange: { bg: 'rgba(245,158,11,0.2)', border: '#d97706', text: '#fcd34d', icon: '⚠️' },
+                red: { bg: 'rgba(220,38,38,0.2)', border: '#dc2626', text: '#fca5a5', icon: '🔴' },
+                gray: { bg: 'rgba(100,116,139,0.1)', border: '#475569', text: '#94a3b8', icon: '⬜' }
+            };
+
+            grid.innerHTML = data.phases
+                .filter(p => p.name !== 'Autres')
+                .map(p => {
+                    const c = colorMap[p.color] || colorMap.gray;
+                    const statusLabel = p.status === 'closed' ? 'Clôturée'
+                        : p.status === 'in_progress' ? 'En cours'
+                        : 'Non démarrée';
+                    const daysInfo = p.actual_days > 0 ? ` — ${p.actual_days}j / ${p.max}j max` : '';
+                    return `<div style="display:flex;align-items:center;gap:6px;padding:5px 8px;background:${c.bg};border-left:3px solid ${c.border};border-radius:6px;font-size:0.8rem;">
+                        <span>${c.icon}</span>
+                        <span style="color:${c.text};flex:1;font-weight:500;">${p.name}</span>
+                        <span style="color:${c.text};font-size:0.75rem;">${statusLabel}${daysInfo}</span>
+                    </div>`;
+                }).join('');
+        } catch (err) {
+            grid.innerHTML = '<div style="color:#64748b;font-size:0.82rem;">Impossible de charger les phases</div>';
         }
     }
     
@@ -1211,6 +1247,13 @@ class PMDashboard {
                     </div>
                 </div>
             ` : ''}
+
+            <div class="detail-section">
+                <div class="detail-section-title">📊 Progression des phases du site</div>
+                <div id="site-phases-grid" style="display:grid;grid-template-columns:1fr;gap:4px;margin-top:8px;">
+                    <div style="color:#94a3b8;font-size:0.85rem;">Chargement...</div>
+                </div>
+            </div>
             
             <div class="detail-section">
                 <div class="detail-section-title">Activités sur le site</div>

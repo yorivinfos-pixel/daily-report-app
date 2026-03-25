@@ -544,7 +544,8 @@ const PHASES_CONFIG = {
     'Guardhouse': { min: 5, max: 10, deps: ['Tower Erection'], weight: 9 },
     'Fence': { min: 5, max: 10, deps: ['Tower Erection'], weight: 9 },
     'Nivellement & Épandage': { min: 1, max: 2, deps: ['Guardhouse', 'Fence'], weight: 6 },
-    'Cleaning Site': { min: 1, max: 1, deps: ['Power Installation', 'Nivellement & Épandage'], weight: 7 }
+    'Cleaning Site': { min: 1, max: 1, deps: ['Power Installation', 'Nivellement & Épandage'], weight: 7 },
+    'Autres': { min: 1, max: 999, deps: [], weight: 0 }
 };
 
 function buildEstimatedLabel(min, max) {
@@ -610,6 +611,57 @@ function isSiteRfiReady(siteReports) {
     );
     return RFI_REQUIRED_PHASES.every(p => closed.has(p));
 }
+
+app.get('/api/phases-config', (req, res) => {
+    res.json({ success: true, phases: PHASES_CONFIG });
+});
+
+app.get('/api/sites/:siteId/phases-status', authMiddleware, async (req, res) => {
+    try {
+        const siteReports = await Report.find({ site_id: req.params.siteId }).sort({ created_at: -1 });
+        const latestByPhase = new Map();
+        siteReports.forEach(r => {
+            if (!r.phase_name) return;
+            if (!latestByPhase.has(r.phase_name)) latestByPhase.set(r.phase_name, r);
+        });
+
+        const phases = Object.entries(PHASES_CONFIG).map(([name, cfg]) => {
+            const report = latestByPhase.get(name);
+            let status = 'pending';
+            let actual_days = 0;
+            let color = 'gray';
+
+            if (report) {
+                actual_days = Number(report.phase_actual_days || 0);
+                if (report.phase_status === 'closed') {
+                    const delay = computeDelayDays(actual_days, cfg.max);
+                    status = 'closed';
+                    color = delay > 0 ? 'red' : 'green';
+                } else {
+                    status = 'in_progress';
+                    if (actual_days <= cfg.min) color = 'green';
+                    else if (actual_days <= cfg.max) color = 'orange';
+                    else color = 'red';
+                }
+            }
+
+            return {
+                name,
+                min: cfg.min,
+                max: cfg.max,
+                weight: cfg.weight,
+                status,
+                actual_days,
+                color
+            };
+        });
+
+        res.json({ success: true, phases });
+    } catch (err) {
+        console.error('Erreur phases-status:', err);
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
 
 app.get('/pm', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'pm.html'));
