@@ -215,6 +215,7 @@ class PMDashboard {
         safe('setupImageModal',    () => this.setupImageModal());
         safe('loadPMName',         () => this.loadPMName());
         safe('loadPMZone',         () => this.loadPMZone());
+        safe('setupPhotosGallery', () => this.setupPhotosGallery());
 
         this.loadReports();
         this.setupZoneChat();
@@ -511,6 +512,79 @@ class PMDashboard {
         });
     }
 
+    setupPhotosGallery() {
+        const card = document.getElementById('stat-card-photos');
+        const modal = document.getElementById('photos-gallery-modal');
+        const closeBtn = document.getElementById('close-photos-gallery');
+        const filterSelect = document.getElementById('photos-filter-supervisor');
+        if (!card || !modal) return;
+
+        card.addEventListener('click', () => {
+            this.populatePhotosSupervisorFilter();
+            this.renderPhotosGallery();
+            modal.style.display = 'flex';
+        });
+
+        if (closeBtn) closeBtn.addEventListener('click', () => { modal.style.display = 'none'; });
+        modal.addEventListener('click', (e) => { if (e.target === modal) modal.style.display = 'none'; });
+
+        if (filterSelect) {
+            filterSelect.addEventListener('change', () => this.renderPhotosGallery());
+        }
+    }
+
+    populatePhotosSupervisorFilter() {
+        const select = document.getElementById('photos-filter-supervisor');
+        if (!select) return;
+        const supervisors = new Set();
+        this.reports.forEach(r => { if (r.supervisor_name) supervisors.add(r.supervisor_name); });
+        const current = select.value;
+        select.innerHTML = '<option value="">Tous les superviseurs</option>';
+        [...supervisors].sort().forEach(name => {
+            select.innerHTML += `<option value="${this.escapeHtml(name)}">${this.escapeHtml(name)}</option>`;
+        });
+        select.value = current;
+    }
+
+    renderPhotosGallery() {
+        const grid = document.getElementById('photos-gallery-grid');
+        const empty = document.getElementById('photos-gallery-empty');
+        const filterSupervisor = document.getElementById('photos-filter-supervisor')?.value || '';
+        if (!grid) return;
+
+        const photos = [];
+        this.reports.forEach(r => {
+            if (filterSupervisor && r.supervisor_name !== filterSupervisor) return;
+            if (!r.images || !r.images.length) return;
+            r.images.forEach(img => {
+                const url = img.url?.startsWith('http') ? img.url : `${this.serverUrl}${img.url}`;
+                photos.push({
+                    url,
+                    site: r.site_name || r.site_id || '—',
+                    supervisor: r.supervisor_name || '—',
+                    date: r.created_at
+                });
+            });
+        });
+
+        if (!photos.length) {
+            grid.innerHTML = '';
+            if (empty) empty.style.display = '';
+            return;
+        }
+        if (empty) empty.style.display = 'none';
+
+        grid.innerHTML = photos.map(p => `
+            <div style="border-radius:10px;overflow:hidden;background:#1e293b;border:1px solid #334155;cursor:pointer;" onclick="window.open('${p.url}','_blank')">
+                <img src="${p.url}" alt="Photo" style="width:100%;height:140px;object-fit:cover;display:block;" loading="lazy" onerror="this.style.display='none'">
+                <div style="padding:0.5rem;font-size:0.78rem;">
+                    <div style="color:#f1f5f9;font-weight:600;">${this.escapeHtml(p.site)}</div>
+                    <div style="color:#94a3b8;">${this.escapeHtml(p.supervisor)} • ${this.formatDate(p.date)}</div>
+                </div>
+            </div>
+        `).join('');
+    }
+
     setupZoneChat() {
         const form = document.getElementById('pm-zone-chat-form');
         if (!form) return;
@@ -518,8 +592,23 @@ class PMDashboard {
             e.preventDefault();
             await this.sendZoneChatMessage();
         });
+        const chatInput = document.getElementById('pm-zone-chat-input');
+        if (chatInput) {
+            chatInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    this.sendZoneChatMessage();
+                }
+            });
+        }
         this.loadZoneChatMessages();
         this.updateZoneBadge();
+    }
+
+    escapeHtml(str) {
+        const d = document.createElement('div');
+        d.textContent = str || '';
+        return d.innerHTML;
     }
 
     getCurrentPmZone() {
@@ -561,10 +650,10 @@ class PMDashboard {
         list.innerHTML = messages.map(m => `
             <div class="feedback-item">
                 <div class="feedback-header">
-                    <span class="feedback-pm">${m.sender_name} (${m.sender_role})</span>
+                    <span class="feedback-pm">${this.escapeHtml(m.sender_name)} (${m.sender_role})</span>
                     <span class="feedback-date">${this.formatDate(m.created_at)}</span>
                 </div>
-                <div class="feedback-text">${m.message}</div>
+                <div class="feedback-text">${this.escapeHtml(m.message).replace(/\n/g, '<br>')}</div>
             </div>
         `).join('');
         list.scrollTop = list.scrollHeight;
@@ -642,23 +731,94 @@ class PMDashboard {
     
     // ================== Export Functions ==================
     
+    getExportFilteredReports() {
+        let filtered = this.getFilteredReports();
+        const supervisorFilter = document.getElementById('export-supervisor-filter')?.value;
+        const periodFilter = document.getElementById('export-period-filter')?.value;
+
+        if (supervisorFilter) {
+            filtered = filtered.filter(r => r.supervisor_name === supervisorFilter);
+        }
+
+        if (periodFilter) {
+            const now = new Date();
+            let start, end;
+            if (periodFilter === 'week') {
+                const day = now.getDay() || 7;
+                start = new Date(now); start.setDate(now.getDate() - day + 1); start.setHours(0,0,0,0);
+                end = new Date(now); end.setHours(23,59,59,999);
+            } else if (periodFilter === 'month') {
+                start = new Date(now.getFullYear(), now.getMonth(), 1);
+                end = new Date(now); end.setHours(23,59,59,999);
+            } else if (periodFilter === 'last-month') {
+                start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+                end = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
+            }
+            if (start && end) {
+                filtered = filtered.filter(r => {
+                    const d = new Date(r.created_at);
+                    return d >= start && d <= end;
+                });
+            }
+        }
+        return filtered;
+    }
+
+    populateExportSupervisorFilter() {
+        const select = document.getElementById('export-supervisor-filter');
+        if (!select) return;
+        const supervisors = new Set();
+        this.reports.forEach(r => { if (r.supervisor_name) supervisors.add(r.supervisor_name); });
+        const current = select.value;
+        select.innerHTML = '<option value="">Tous superviseurs</option>';
+        [...supervisors].sort().forEach(name => {
+            select.innerHTML += `<option value="${this.escapeHtml(name)}">${this.escapeHtml(name)}</option>`;
+        });
+        select.value = current;
+    }
+
     exportExcel() {
-        const region = document.getElementById('region-filter').value;
-        const date = document.getElementById('date-filter').value;
-        const pmZone = document.getElementById('pm-zone-filter')?.value;
-        const showOtherZones = document.getElementById('show-other-zones')?.checked;
-        
-        let url = '/api/export/excel?';
-        if (region) url += `region=${encodeURIComponent(region)}&`;
-        if (pmZone && !showOtherZones) url += `zone=${encodeURIComponent(pmZone)}&`;
-        if (date) url += `date=${encodeURIComponent(date)}`;
-        
-        window.location.href = url;
-        this.showToast('Export Excel en cours...', 'info');
+        const filtered = this.getExportFilteredReports();
+        if (!filtered.length) {
+            this.showToast(this.t('Aucun rapport à exporter', 'No reports to export'), 'warning');
+            return;
+        }
+
+        const headers = ['Site ID', 'Nom du Site', 'Région', 'Zone', 'Superviseur', 'Phase', 'Statut Phase',
+            'Durée réelle (j)', 'Retard (j)', 'Activités', 'Commentaires', 'Statut', 'Date', 'Nb Photos'];
+        const rows = filtered.map(r => [
+            r.site_id,
+            r.site_name,
+            r.region || 'N/A',
+            r.zone || this.getReportZone(r),
+            r.supervisor_name || 'N/A',
+            r.phase_name || '',
+            r.phase_status || '',
+            r.phase_actual_days || '',
+            r.phase_variance_days || 0,
+            `"${(r.activities || '').replace(/"/g, '""')}"`,
+            `"${(r.comments || '').replace(/"/g, '""')}"`,
+            r.status === 'reviewed' ? 'Examiné' : 'En attente',
+            new Date(r.created_at).toLocaleString('fr-FR'),
+            r.images?.length || 0
+        ]);
+
+        const BOM = '\uFEFF';
+        const csv = BOM + headers.join(';') + '\n' + rows.map(r => r.join(';')).join('\n');
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        const supervisorTag = document.getElementById('export-supervisor-filter')?.value || 'tous';
+        const periodTag = document.getElementById('export-period-filter')?.value || 'tout';
+        a.href = url;
+        a.download = `YST1-rapports-${supervisorTag}-${periodTag}-${new Date().toISOString().split('T')[0]}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+        this.showToast(`${filtered.length} rapport(s) exporté(s) en Excel`, 'success');
     }
     
     exportPDF() {
-        const filtered = this.getFilteredReports();
+        const filtered = this.getExportFilteredReports();
         
         if (filtered.length === 0) {
             this.showToast('Aucun rapport à exporter', 'warning');
@@ -807,6 +967,7 @@ class PMDashboard {
             this.reports = result.reports || [];
             this.updateStats();
             this.renderReports();
+            this.populateExportSupervisorFilter();
             
         } catch (error) {
             console.error('Erreur chargement rapports:', error);
@@ -1153,6 +1314,16 @@ class PMDashboard {
         document.getElementById('send-report-chat-btn').addEventListener('click', () => {
             this.sendReportChatMessage();
         });
+
+        const reportChatInput = document.getElementById('pm-report-chat-text');
+        if (reportChatInput) {
+            reportChatInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    this.sendReportChatMessage();
+                }
+            });
+        }
         
         // Event listener pour supprimer le rapport
         document.getElementById('delete-report-btn').addEventListener('click', () => {
