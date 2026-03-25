@@ -13,7 +13,33 @@
     <link rel="stylesheet" href="/css/pm-dashboard.css">
 </head>
 <body class="pm-body">
-    <div id="app">
+    <!-- Écran de connexion PM -->
+    <div id="login-screen" class="login-screen">
+        <div class="login-card">
+            <div class="login-logo">
+                <span class="logo-icon">🏗️</span>
+                <h1>YoRiv - Dashboard PM</h1>
+                <p>Connexion Project Manager</p>
+            </div>
+            <form id="login-form" class="login-form">
+                <div class="login-field">
+                    <label for="login-username">Identifiant</label>
+                    <input type="text" id="login-username" placeholder="ex: pm1" autocomplete="username" required>
+                </div>
+                <div class="login-field">
+                    <label for="login-password">Mot de passe</label>
+                    <input type="password" id="login-password" placeholder="••••••••" autocomplete="current-password" required>
+                </div>
+                <div id="login-error" class="login-error" style="display:none;"></div>
+                <button type="submit" class="login-btn" id="login-btn">Se connecter</button>
+            </form>
+        </div>
+        <footer class="login-footer">
+            <p>Conçu par <strong>Jean-Baptiste MBUYI</strong> — 0850145419</p>
+        </footer>
+    </div>
+
+    <div id="app" style="display:none;">
         <!-- Sidebar -->
         <aside class="sidebar">
             <div class="sidebar-header">
@@ -44,8 +70,8 @@
 
             <div class="sidebar-footer">
                 <div class="pm-info">
-                    <input type="text" id="pm-name-input" class="pm-name-input" 
-                           placeholder="Votre nom (PM)" value="Project Manager">
+                    <span id="pm-name-display" style="color:#cbd5e1;font-weight:600;font-size:0.9rem;">Project Manager</span>
+                    <input type="hidden" id="pm-name-input" value="Project Manager">
                 </div>
                 <div class="connection-info">
                     <span id="connection-status" class="status-dot offline"></span>
@@ -55,6 +81,9 @@
                         <option value="en">EN</option>
                     </select>
                 </div>
+                <button id="logout-btn" class="logout-btn" style="margin-top:8px;width:100%;">
+                    ⏻ Déconnexion
+                </button>
             </div>
         </aside>
 

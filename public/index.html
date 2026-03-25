@@ -13,7 +13,33 @@
     <link rel="stylesheet" href="/css/styles.css">
 </head>
 <body>
-    <div id="app">
+    <!-- Écran de connexion -->
+    <div id="login-screen" class="login-screen">
+        <div class="login-card">
+            <div class="login-logo">
+                <span class="logo-icon">🏗️</span>
+                <h1>YoRiv Daily Reports</h1>
+                <p>Connexion Superviseur</p>
+            </div>
+            <form id="login-form" class="login-form">
+                <div class="login-field">
+                    <label for="login-username">Identifiant</label>
+                    <input type="text" id="login-username" placeholder="ex: evariste.famba" autocomplete="username" required>
+                </div>
+                <div class="login-field">
+                    <label for="login-password">Mot de passe</label>
+                    <input type="password" id="login-password" placeholder="••••••••" autocomplete="current-password" required>
+                </div>
+                <div id="login-error" class="login-error" style="display:none;"></div>
+                <button type="submit" class="login-btn" id="login-btn">Se connecter</button>
+            </form>
+        </div>
+        <footer class="login-footer">
+            <p>Conçu par <strong>Jean-Baptiste MBUYI</strong> — 0850145419</p>
+        </footer>
+    </div>
+
+    <div id="app" style="display:none;">
         <!-- Header -->
         <header class="header">
             <div class="header-content">
@@ -29,6 +55,7 @@
                         <option value="fr">FR</option>
                         <option value="en">EN</option>
                     </select>
+                    <button id="logout-btn" class="logout-btn" title="Déconnexion">⏻</button>
                 </div>
             </div>
         </header>
