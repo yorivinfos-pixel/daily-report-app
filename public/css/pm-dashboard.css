@@ -1264,3 +1264,24 @@
 .pm-body .detail-content .empty-state {
     color: #64748b;
 }
+
+/* ============================================
+   Texte saisi bien visible (blanc) sur fond sombre
+   ============================================ */
+
+.pm-body input,
+.pm-body select,
+.pm-body textarea {
+    color: #ffffff !important;
+}
+
+.pm-body input::placeholder,
+.pm-body textarea::placeholder {
+    color: #94a3b8 !important;
+}
+
+.pm-body input:focus,
+.pm-body select:focus,
+.pm-body textarea:focus {
+    color: #ffffff !important;
+}
