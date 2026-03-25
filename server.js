@@ -195,7 +195,11 @@ const io = new Server(server, {
     }
 });
 
-app.use(cors());
+app.use(cors({
+    origin: '*',
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
+}));
 app.use(express.json());
 app.use(express.static('public'));
 app.use('/uploads', express.static('uploads'));
@@ -719,7 +723,11 @@ app.get('/api/reports', authMiddleware, async (req, res) => {
 
 app.get('/api/reports/:id', authMiddleware, async (req, res) => {
     try {
-        const report = await Report.findById(req.params.id);
+        const id = String(req.params.id || '').trim();
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ success: false, error: 'Identifiant de rapport invalide' });
+        }
+        const report = await Report.findById(id);
         if (!report) return res.status(404).json({ success: false, error: 'Rapport introuvable' });
         res.json({ success: true, report });
     } catch (err) {
@@ -925,7 +933,8 @@ app.post('/api/reports/:reportId/feedback', authMiddleware, requireRole('admin',
             { new: true }
         );
         if (!report) return res.status(404).json({ success: false, error: 'Rapport introuvable' });
-        io.emit('new-feedback', { reportId, feedback: feedbackData });
+        const feedbackPayload = { reportId, feedback: feedbackData };
+        io.to('supervisor').emit('new-feedback', feedbackPayload);
         io.emit('report-status-updated', { reportId, status: report.status, reviewed_at: report.reviewed_at });
         res.json({ success: true, feedback: feedbackData });
     } catch (error) {

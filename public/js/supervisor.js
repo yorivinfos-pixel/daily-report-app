@@ -13,8 +13,12 @@ function safeJsonParse(value, fallback) {
 /** ID MongoDB fiable (certaines réponses n'exposent que _id) */
 function getReportId(report) {
     if (!report) return '';
-    const v = report.id != null ? report.id : report._id;
-    return v != null ? String(v) : '';
+    let v = report.id != null ? report.id : report._id;
+    if (v && typeof v === 'object') {
+        if (v.$oid) v = v.$oid;
+        else if (typeof v.toString === 'function') v = v.toString();
+    }
+    return v != null ? String(v).trim() : '';
 }
 
 class SupervisorApp {
@@ -37,7 +41,15 @@ class SupervisorApp {
         }
     }
 
+    /** Toujours aligner la mémoire sur localStorage (évite « Token manquant » si l’instance a perdu authToken). */
+    syncAuthTokenFromStorage() {
+        const t = localStorage.getItem('authToken');
+        if (t) this.authToken = t;
+        return this.authToken;
+    }
+
     getAuthHeaders() {
+        this.syncAuthTokenFromStorage();
         const headers = { 'Content-Type': 'application/json' };
         if (this.authToken) headers['Authorization'] = `Bearer ${this.authToken}`;
         return headers;
@@ -163,10 +175,12 @@ class SupervisorApp {
     }
 
     async warmUpServer() {
-        try { await fetch(`${this.serverUrl}/api/reports?limit=1`, {
-            method: 'GET',
-            headers: this.getAuthHeaders()
-        }); } catch (_) {}
+        try {
+            await fetch(`${this.serverUrl}/api/reports?limit=1`, {
+                method: 'GET',
+                headers: this.getAuthHeaders()
+            });
+        } catch (_) {}
     }
 
     setupLanguage() {
@@ -200,11 +214,12 @@ class SupervisorApp {
         for (let i = 0; i < retryDelays.length; i++) {
             if (retryDelays[i] > 0) await this.wait(retryDelays[i]);
             try {
-                if (!options.headers) options.headers = {};
-                if (this.authToken && !options.headers['Authorization']) {
-                    options.headers['Authorization'] = `Bearer ${this.authToken}`;
+                this.syncAuthTokenFromStorage();
+                const opts = { ...options, headers: { ...(options.headers || {}) } };
+                if (this.authToken && !opts.headers['Authorization']) {
+                    opts.headers['Authorization'] = `Bearer ${this.authToken}`;
                 }
-                const response = await fetch(url, options);
+                const response = await fetch(url, opts);
                 const rawText = await response.text();
                 let json = null;
                 try {
@@ -430,9 +445,9 @@ class SupervisorApp {
         }
 
         try {
-            const response = await fetch(`${this.serverUrl}/api/sites?supervisor_name=${encodeURIComponent(supervisorName)}`);
-            const result = await response.json();
-            if (!result.success) throw new Error(result.error || 'Erreur chargement sites');
+            const result = await this.apiFetchJson(
+                `${this.serverUrl}/api/sites?supervisor_name=${encodeURIComponent(supervisorName)}`
+            );
             this.assignedSites = result.sites || [];
             this.renderAssignedSites();
         } catch (error) {
@@ -511,9 +526,9 @@ class SupervisorApp {
         }
 
         try {
-            const response = await fetch(`${this.serverUrl}/api/chat/messages?scope_type=zone&scope_id=${encodeURIComponent(zone)}&limit=120`);
-            const result = await response.json();
-            if (!result.success) throw new Error(result.error || 'Erreur chat');
+            const result = await this.apiFetchJson(
+                `${this.serverUrl}/api/chat/messages?scope_type=zone&scope_id=${encodeURIComponent(zone)}&limit=120`
+            );
             this.zoneChatMessages = result.messages || [];
             this.renderZoneChatMessages();
             this.unreadZoneCount = 0;
@@ -560,7 +575,7 @@ class SupervisorApp {
         if (!text) return;
 
         try {
-            const response = await fetch(`${this.serverUrl}/api/chat/messages`, {
+            await this.apiFetchJson(`${this.serverUrl}/api/chat/messages`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -571,10 +586,6 @@ class SupervisorApp {
                     message: text
                 })
             });
-            const result = await response.json();
-            if (!response.ok || !result.success) {
-                throw new Error(result?.error || `HTTP ${response.status}`);
-            }
             input.value = '';
         } catch (error) {
             console.error('Erreur envoi chat zone:', error);
@@ -599,9 +610,9 @@ class SupervisorApp {
         const list = document.getElementById('supervisor-report-chat-list');
         if (!list || !reportId) return;
         try {
-            const response = await fetch(`${this.serverUrl}/api/chat/messages?scope_type=report&scope_id=${encodeURIComponent(reportId)}&limit=120`);
-            const result = await response.json();
-            if (!result.success) throw new Error(result.error || 'Erreur chargement chat rapport');
+            const result = await this.apiFetchJson(
+                `${this.serverUrl}/api/chat/messages?scope_type=report&scope_id=${encodeURIComponent(reportId)}&limit=120`
+            );
             const messages = result.messages || [];
             if (!messages.length) {
                 list.innerHTML = '<div class="empty-state"><p>Aucun message pour ce rapport</p></div>';
@@ -630,7 +641,7 @@ class SupervisorApp {
         if (!reportId || !supervisorName || !text) return;
 
         try {
-            const response = await fetch(`${this.serverUrl}/api/chat/messages`, {
+            await this.apiFetchJson(`${this.serverUrl}/api/chat/messages`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -641,10 +652,6 @@ class SupervisorApp {
                     message: text
                 })
             });
-            const result = await response.json();
-            if (!response.ok || !result.success) {
-                throw new Error(result?.error || `HTTP ${response.status}`);
-            }
             input.value = '';
         } catch (error) {
             console.error('Erreur envoi chat rapport superviseur:', error);
@@ -1004,45 +1011,57 @@ class SupervisorApp {
     }
     
     async showReportDetails(reportId) {
+        if (!this.syncAuthTokenFromStorage()) {
+            this.showToast(
+                this.t('Session expirée ou déconnecté. Reconnectez-vous.', 'Session expired. Please log in again.'),
+                'error'
+            );
+            this.logout();
+            return;
+        }
         const modal = document.getElementById('report-modal');
         const modalBody = document.getElementById('modal-body');
-        if (this.socket) this.socket.emit('join-report', reportId);
+        const rawId = (reportId != null ? String(reportId) : '').trim();
+        if (!rawId) {
+            this.showToast(this.t('Rapport invalide (identifiant manquant).', 'Invalid report (missing id).'), 'error');
+            return;
+        }
+        if (this.socket) this.socket.emit('join-report', rawId);
         
         try {
-            const response = await fetch(`${this.serverUrl}/api/reports/${reportId}`);
-            const result = await response.json();
-            
-            if (!result.success) {
-                throw new Error(result.error);
-            }
-            
+            const result = await this.apiFetchJson(
+                `${this.serverUrl}/api/reports/${encodeURIComponent(rawId)}`
+            );
             const report = result.report;
+            if (!report) {
+                throw new Error(this.t('Rapport introuvable.', 'Report not found.'));
+            }
             
             modalBody.innerHTML = `
                 <div class="detail-section">
                     <div class="detail-section-title">Site</div>
                     <div class="detail-section-content">
-                        <strong>${report.site_id}</strong> - ${report.site_name}
+                        <strong>${this.escapeHtml(String(report.site_id || ''))}</strong> - ${this.escapeHtml(String(report.site_name || ''))}
                     </div>
                 </div>
                 
                 <div class="detail-section">
                     <div class="detail-section-title">Superviseur</div>
-                    <div class="detail-section-content">${report.supervisor_name || 'Non spécifié'}</div>
+                    <div class="detail-section-content">${this.escapeHtml(String(report.supervisor_name || 'Non spécifié'))}</div>
                 </div>
                 
                 <div class="detail-section">
                     <div class="detail-section-title">Activités</div>
-                    <div class="detail-section-content">${report.activities}</div>
+                    <div class="detail-section-content">${this.escapeHtml(String(report.activities || '')).replace(/\n/g, '<br>')}</div>
                 </div>
 
                 <div class="detail-section">
                     <div class="detail-section-title">Jalon & Planning</div>
                     <div class="detail-section-content">
-                        <strong>Phase:</strong> ${report.phase_name || report.milestone_category || 'N/A'}<br>
-                        <strong>Statut:</strong> ${report.phase_status || 'on track'}<br>
-                        <strong>Durée estimée:</strong> ${report.phase_estimated_label || 'N/A'} jours<br>
-                        <strong>Jours réels phase:</strong> ${report.phase_actual_days || 0} jours<br>
+                        <strong>Phase:</strong> ${this.escapeHtml(String(report.phase_name || report.milestone_category || 'N/A'))}<br>
+                        <strong>Statut:</strong> ${this.escapeHtml(String(report.phase_status || 'on track'))}<br>
+                        <strong>Durée estimée:</strong> ${this.escapeHtml(String(report.phase_estimated_label || 'N/A'))} jours<br>
+                        <strong>Jours réels phase:</strong> ${Number(report.phase_actual_days) || 0} jours<br>
                         <strong>Retard phase:</strong> ${report.phase_variance_days ?? 0} jours<br>
                         <strong>Durée réalisée site:</strong> ${report.actual_duration_days || 0} jours
                     </div>
@@ -1051,7 +1070,7 @@ class SupervisorApp {
                 ${report.comments ? `
                     <div class="detail-section">
                         <div class="detail-section-title">Commentaires</div>
-                        <div class="detail-section-content">${report.comments}</div>
+                        <div class="detail-section-content">${this.escapeHtml(String(report.comments)).replace(/\n/g, '<br>')}</div>
                     </div>
                 ` : ''}
                 
@@ -1060,7 +1079,7 @@ class SupervisorApp {
                         <div class="detail-section-title">Photos (${report.images.length})</div>
                         <div class="detail-images-grid">
                             ${report.images.map(img => `
-                                <img src="${img.url}" class="detail-image" alt="Photo du site">
+                                <img src="${this.escapeHtml(String(img.url || ''))}" class="detail-image" alt="Photo du site">
                             `).join('')}
                         </div>
                     </div>
@@ -1072,10 +1091,10 @@ class SupervisorApp {
                         ${report.feedbacks.map(fb => `
                             <div class="feedback-item">
                                 <div class="feedback-header">
-                                    <span class="feedback-pm">${fb.pm_name || 'PM'}</span>
+                                    <span class="feedback-pm">${this.escapeHtml(String(fb.pm_name || 'PM'))}</span>
                                     <span class="feedback-date">${this.formatDate(fb.created_at)}</span>
                                 </div>
-                                <div class="feedback-text">${fb.feedback}</div>
+                                <div class="feedback-text">${this.escapeHtml(String(fb.feedback || '')).replace(/\n/g, '<br>')}</div>
                             </div>
                         `).join('')}
                     </div>
@@ -1097,8 +1116,8 @@ class SupervisorApp {
                     <div class="detail-section">
                         <div class="detail-section-title">Document acceptance</div>
                         <div class="detail-section-content">
-                            <a href="${report.acceptance_document.url}" target="_blank">📎 Voir le document</a><br>
-                            ${report.supervisor_score !== undefined ? `<strong>Côte superviseur:</strong> ${report.supervisor_score}` : ''}<br>
+                            <a href="${this.escapeHtml(String(report.acceptance_document.url))}" target="_blank" rel="noopener noreferrer">📎 Voir le document</a><br>
+                            ${report.supervisor_score !== undefined ? `<strong>Côte superviseur:</strong> ${this.escapeHtml(String(report.supervisor_score))}` : ''}<br>
                             <strong>Milestone RFI:</strong> ${report.is_rfi_ready ? 'READY' : 'Non atteint'}
                         </div>
                     </div>
@@ -1109,14 +1128,14 @@ class SupervisorApp {
                         <div class="detail-section-title">Côtes par phase clôturée</div>
                         <div class="detail-section-content">
                             ${report.score_breakdown.phase_points
-                                .map(p => `- ${p.phase_name}: ${p.points > 0 ? '+' : ''}${p.points} ${p.delay_days > 0 ? `(retard ${p.delay_days}j)` : '(à temps)'}`)
+                                .map(p => `- ${this.escapeHtml(String(p.phase_name || ''))}: ${p.points > 0 ? '+' : ''}${p.points} ${p.delay_days > 0 ? `(retard ${p.delay_days}j)` : '(à temps)'}`)
                                 .join('<br>')}
                         </div>
                     </div>
                 ` : ''}
                 
                 <div class="detail-actions">
-                    <button class="btn-delete" id="delete-report-btn" data-id="${getReportId(report)}">
+                    <button class="btn-delete" id="delete-report-btn" data-id="${this.escapeHtml(getReportId(report))}">
                         🗑️ Supprimer ce rapport
                     </button>
                 </div>
@@ -1133,11 +1152,16 @@ class SupervisorApp {
             document.getElementById('supervisor-report-chat-send').addEventListener('click', () => {
                 this.sendReportChatMessage(rid);
             });
-            this.loadReportChatMessages(rid);
+            try {
+                await this.loadReportChatMessages(rid);
+            } catch (chatErr) {
+                console.warn('Chat rapport (non bloquant):', chatErr);
+            }
             
         } catch (error) {
             console.error('Erreur:', error);
-            this.showToast('Erreur lors du chargement du rapport', 'error');
+            const detail = error?.message ? `: ${error.message}` : '';
+            this.showToast(`${this.t('Erreur lors du chargement du rapport', 'Error loading report')}${detail}`, 'error');
         }
     }
     
@@ -1153,16 +1177,7 @@ class SupervisorApp {
         }
         
         try {
-            const response = await fetch(`${this.serverUrl}/api/reports/${reportId}`, {
-                method: 'DELETE'
-            });
-            
-            const result = await response.json();
-            
-            if (!result.success) {
-                throw new Error(result.error || 'Erreur lors de la suppression');
-            }
-            
+            await this.apiFetchJson(`${this.serverUrl}/api/reports/${reportId}`, { method: 'DELETE' });
             this.showToast('Rapport supprimé avec succès', 'success');
             this.closeModal();
             this.loadMyReports();
@@ -1177,14 +1192,15 @@ class SupervisorApp {
     
     handleNewFeedback(data) {
         this.playNotificationSound('default');
-        this.showToast('Nouvel avis reçu du PM!', 'info');
+        this.showToast(this.t('Nouvel avis reçu du PM !', 'New feedback from PM!'), 'info');
         
-        // Recharger les rapports
+        // Recharger les rapports (inclut le statut « Examiné »)
         this.loadMyReports();
         
         // Afficher dans la section feedback
         const feedbackSection = document.getElementById('feedback-section');
         const feedbackList = document.getElementById('feedback-list');
+        if (!feedbackSection || !feedbackList) return;
         
         feedbackSection.style.display = 'block';
         
