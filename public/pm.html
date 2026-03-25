@@ -159,6 +159,17 @@
                             <span>📊</span> Excel
                         </button>
                     </div>
+                    <div style="display:flex;align-items:center;gap:0.4rem;flex-wrap:wrap;">
+                        <select id="export-supervisor-filter" style="padding:4px 8px;background:#1e293b;color:#fff;border:1px solid #475569;border-radius:6px;font-size:0.8rem;">
+                            <option value="">Tous superviseurs</option>
+                        </select>
+                        <select id="export-period-filter" style="padding:4px 8px;background:#1e293b;color:#fff;border:1px solid #475569;border-radius:6px;font-size:0.8rem;">
+                            <option value="">Toute période</option>
+                            <option value="week">Cette semaine</option>
+                            <option value="month">Ce mois</option>
+                            <option value="last-month">Mois dernier</option>
+                        </select>
+                    </div>
                 </div>
             </header>
 
@@ -185,7 +196,7 @@
                         <span class="stat-label">Examinés</span>
                     </div>
                 </div>
-                <div class="stat-card">
+                <div class="stat-card" id="stat-card-photos" style="cursor:pointer;" title="Cliquez pour voir les photos">
                     <div class="stat-icon purple">📷</div>
                     <div class="stat-info">
                         <span class="stat-value" id="stat-images">0</span>
@@ -259,7 +270,7 @@
                 </h2>
                 <div id="pm-zone-chat-list" class="reports-list" style="max-height: 240px; overflow-y: auto;"></div>
                 <form id="pm-zone-chat-form" class="site-assignment-form" style="margin-top: 8px;">
-                    <input type="text" id="pm-zone-chat-input" placeholder="Écrire un message à la zone..." required style="grid-column: span 5;">
+                    <textarea id="pm-zone-chat-input" placeholder="Écrire un message à la zone..." rows="2" required style="grid-column: span 5; resize:vertical; min-height:40px;"></textarea>
                     <button type="submit" class="export-btn pdf">Envoyer</button>
                 </form>
             </section>
@@ -285,6 +296,21 @@
 
         <!-- Toast Notifications -->
         <div id="toast-container" class="toast-container"></div>
+
+        <!-- Photos Gallery Modal -->
+        <div id="photos-gallery-modal" class="image-modal" style="display:none;">
+            <div style="background:#0f172a;width:95%;max-width:1100px;max-height:90vh;border-radius:16px;padding:1.5rem;overflow-y:auto;position:relative;">
+                <button id="close-photos-gallery" style="position:absolute;top:12px;right:16px;background:none;border:none;color:#fff;font-size:2rem;cursor:pointer;">&times;</button>
+                <h2 style="color:#fff;margin:0 0 1rem;">📷 Galerie Photos</h2>
+                <div id="photos-gallery-filters" style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:1rem;">
+                    <select id="photos-filter-supervisor" style="padding:0.5rem;background:#1e293b;color:#fff;border:1px solid #475569;border-radius:8px;">
+                        <option value="">Tous les superviseurs</option>
+                    </select>
+                </div>
+                <div id="photos-gallery-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:0.75rem;"></div>
+                <div id="photos-gallery-empty" style="color:#94a3b8;text-align:center;padding:2rem;display:none;">Aucune photo trouvée</div>
+            </div>
+        </div>
 
         <!-- Image Viewer Modal -->
         <div id="image-modal" class="image-modal">

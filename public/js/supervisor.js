@@ -488,6 +488,15 @@ class SupervisorApp {
             e.preventDefault();
             await this.sendZoneChatMessage();
         });
+        const chatInput = document.getElementById('supervisor-zone-chat-input');
+        if (chatInput) {
+            chatInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    this.sendZoneChatMessage();
+                }
+            });
+        }
         this.loadZoneChatMessages();
         this.updateZoneBadge();
     }
@@ -526,10 +535,10 @@ class SupervisorApp {
         list.innerHTML = this.zoneChatMessages.map(m => `
             <div class="feedback-item">
                 <div class="feedback-header">
-                    <span class="feedback-pm">${m.sender_name} (${m.sender_role})</span>
+                    <span class="feedback-pm">${this.escapeHtml(m.sender_name)} (${m.sender_role})</span>
                     <span class="feedback-date">${this.formatDate(m.created_at)}</span>
                 </div>
-                <div class="feedback-text">${m.message}</div>
+                <div class="feedback-text">${this.escapeHtml(m.message).replace(/\n/g, '<br>')}</div>
             </div>
         `).join('');
         list.scrollTop = list.scrollHeight;
@@ -1249,6 +1258,12 @@ class SupervisorApp {
             info: '📢'
         };
         return icons[type] || icons.info;
+    }
+
+    escapeHtml(str) {
+        const d = document.createElement('div');
+        d.textContent = str || '';
+        return d.innerHTML;
     }
 
     formatDate(dateString) {
