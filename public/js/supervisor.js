@@ -1,5 +1,5 @@
 // ============================================
-// Daily Report Site Supervisor - Supervisor JS
+// YoRivSiteTrack-YST1 - Supervisor JS
 // ============================================
 
 function safeJsonParse(value, fallback) {
@@ -229,7 +229,7 @@ class SupervisorApp {
 
     applyLanguage() {
         const mappings = [
-            ['.logo-subtitle', this.t('Daily Report', 'Daily Report')],
+            ['.logo-subtitle', this.t('SiteTrack', 'SiteTrack')],
             ['.report-form-section .section-title', this.t('Nouveau Rapport Journalier', 'New Daily Report')],
             ['#submit-btn .btn-text', this.t('Envoyer le Rapport', 'Submit Report')],
             ['#supervisor-zone-chat-input', this.t('Écrire un message à votre zone...', 'Write a message to your zone...'), 'placeholder'],

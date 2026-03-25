@@ -1,5 +1,5 @@
 // ============================================
-// Daily Report Site Supervisor - PM Dashboard JS
+// YoRivSiteTrack-YST1 - PM Dashboard JS
 // ============================================
 
 function safeJsonParse(value, fallback) {
@@ -674,7 +674,7 @@ class PMDashboard {
             <!DOCTYPE html>
             <html>
             <head>
-                <title>YoRiv Daily Reports</title>
+                <title>YoRivSiteTrack-YST1</title>
                 <style>
                     body { font-family: Arial, sans-serif; padding: 20px; }
                     .header { text-align: center; border-bottom: 2px solid #2563eb; padding-bottom: 20px; margin-bottom: 20px; }
@@ -729,7 +729,7 @@ class PMDashboard {
                     </div>
                 `).join('')}
                 <div class="footer">
-                    <p>YoRiv - Document généré le ${new Date().toLocaleString('fr-FR')}</p>
+                    <p>YoRivSiteTrack-YST1 - Document généré le ${new Date().toLocaleString('fr-FR')}</p>
                 </div>
             </body>
             </html>

@@ -1,6 +1,6 @@
 {
-    "name": "Daily Report PSS",
-    "short_name": "Daily Report",
+    "name": "YoRivSiteTrack-YST1",
+    "short_name": "YST1",
     "description": "Application de rapports journaliers pour superviseurs de site",
     "start_url": "/",
     "display": "standalone",
