@@ -240,7 +240,9 @@
     flex: 1;
     max-width: none;
     padding: 0;
+    padding-bottom: 3.5rem;
     min-height: 100vh;
+    box-sizing: border-box;
 }
 
 .pm-header {
@@ -1023,8 +1025,18 @@
     right: 0;
     z-index: 50;
     margin-top: 0;
-    padding: var(--spacing-md);
+    padding: 0.35rem 0.75rem;
     background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+}
+
+.pm-footer.app-footer .footer-content {
+    max-width: none;
+}
+
+.pm-footer.app-footer .footer-content p {
+    margin: 0.05rem 0;
+    font-size: 0.72rem;
+    line-height: 1.35;
 }
 
 @media (max-width: 1024px) {
