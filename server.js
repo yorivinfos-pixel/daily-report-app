@@ -2,9 +2,12 @@ try { require('dotenv').config(); } catch (e) { console.log('Mode production: do
 
 // ======= MongoDB Atlas (Mongoose) =======
 const mongoose = require('mongoose');
-const mongoUri = process.env.MONGODB_URI || 'mongodb+srv://mon_admin:6q4Qz.n-nFe.Xz4@cluster0.e0ovj8t.mongodb.net/?retryWrites=true&w=majority';
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 
-// Connexion à MongoDB avec la variable mongoUri
+const mongoUri = process.env.MONGODB_URI || 'mongodb+srv://mon_admin:6q4Qz.n-nFe.Xz4@cluster0.e0ovj8t.mongodb.net/?retryWrites=true&w=majority';
+const JWT_SECRET = process.env.JWT_SECRET || 'yoriv-site-track-secret-key-2026';
+
 mongoose.connect(mongoUri)
     .then(() => console.log("✅ Connecté à MongoDB avec succès sur Cluster0 !"))
     .catch(err => {
@@ -13,6 +16,19 @@ mongoose.connect(mongoUri)
             console.warn("⚠️ Attention: L'ancienne chaîne de connexion replicaSet est détectée. Passage automatique à SRV...");
         }
     });
+
+// ======= Modèle User =======
+const userSchema = new mongoose.Schema({
+    full_name: { type: String, required: true },
+    username: { type: String, required: true, unique: true },
+    password_hash: { type: String, required: true },
+    role: { type: String, enum: ['admin', 'group_pm', 'pm', 'supervisor'], required: true },
+    zone: { type: String, default: '' },
+    is_active: { type: Boolean, default: true },
+    created_at: { type: Date, default: Date.now },
+    last_login: Date
+});
+const User = mongoose.model('User', userSchema);
 
 const reportSchema = new mongoose.Schema({
     site_id: String,
@@ -183,6 +199,224 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
 app.use('/uploads', express.static('uploads'));
+
+// ======= Middleware JWT =======
+function generateToken(user) {
+    return jwt.sign(
+        { id: user._id, username: user.username, role: user.role, full_name: user.full_name, zone: user.zone },
+        JWT_SECRET,
+        { expiresIn: '7d' }
+    );
+}
+
+function authMiddleware(req, res, next) {
+    const header = req.headers.authorization;
+    if (!header || !header.startsWith('Bearer ')) {
+        return res.status(401).json({ success: false, error: 'Token manquant' });
+    }
+    try {
+        const decoded = jwt.verify(header.split(' ')[1], JWT_SECRET);
+        req.user = decoded;
+        next();
+    } catch (err) {
+        return res.status(401).json({ success: false, error: 'Token invalide ou expiré' });
+    }
+}
+
+function requireRole(...roles) {
+    return (req, res, next) => {
+        if (!req.user || !roles.includes(req.user.role)) {
+            return res.status(403).json({ success: false, error: 'Accès refusé' });
+        }
+        next();
+    };
+}
+
+// ======= Routes AUTH (publiques) =======
+app.post('/api/auth/login', async (req, res) => {
+    try {
+        const { username, password } = req.body;
+        if (!username || !password) {
+            return res.status(400).json({ success: false, error: 'Identifiant et mot de passe requis' });
+        }
+        const user = await User.findOne({ username: username.trim().toLowerCase() });
+        if (!user) {
+            return res.status(401).json({ success: false, error: 'Identifiant ou mot de passe incorrect' });
+        }
+        if (!user.is_active) {
+            return res.status(403).json({ success: false, error: 'Compte désactivé. Contactez l\'administrateur.' });
+        }
+        const valid = await bcrypt.compare(password, user.password_hash);
+        if (!valid) {
+            return res.status(401).json({ success: false, error: 'Identifiant ou mot de passe incorrect' });
+        }
+        user.last_login = new Date();
+        await user.save();
+        const token = generateToken(user);
+        res.json({
+            success: true,
+            token,
+            user: {
+                id: user._id,
+                full_name: user.full_name,
+                username: user.username,
+                role: user.role,
+                zone: user.zone
+            }
+        });
+    } catch (err) {
+        console.error('Erreur login:', err);
+        res.status(500).json({ success: false, error: 'Erreur serveur' });
+    }
+});
+
+app.get('/api/auth/me', authMiddleware, async (req, res) => {
+    try {
+        const user = await User.findById(req.user.id).select('-password_hash');
+        if (!user) return res.status(404).json({ success: false, error: 'Utilisateur introuvable' });
+        res.json({ success: true, user });
+    } catch (err) {
+        res.status(500).json({ success: false, error: 'Erreur serveur' });
+    }
+});
+
+// ======= Routes ADMIN (gestion des comptes) =======
+app.get('/api/admin/users', authMiddleware, requireRole('admin'), async (req, res) => {
+    try {
+        const users = await User.find().select('-password_hash').sort({ role: 1, full_name: 1 });
+        res.json({ success: true, users });
+    } catch (err) {
+        res.status(500).json({ success: false, error: 'Erreur chargement utilisateurs' });
+    }
+});
+
+app.post('/api/admin/users', authMiddleware, requireRole('admin'), async (req, res) => {
+    try {
+        const { full_name, username, password, role, zone } = req.body;
+        if (!full_name || !username || !password || !role) {
+            return res.status(400).json({ success: false, error: 'Champs requis: full_name, username, password, role' });
+        }
+        if (!['admin', 'group_pm', 'pm', 'supervisor'].includes(role)) {
+            return res.status(400).json({ success: false, error: 'Rôle invalide' });
+        }
+        const existing = await User.findOne({ username: username.trim().toLowerCase() });
+        if (existing) {
+            return res.status(409).json({ success: false, error: 'Ce nom d\'utilisateur existe déjà' });
+        }
+        const password_hash = await bcrypt.hash(password, 10);
+        const user = new User({
+            full_name: full_name.trim(),
+            username: username.trim().toLowerCase(),
+            password_hash,
+            role,
+            zone: zone || ''
+        });
+        await user.save();
+        const safeUser = user.toObject();
+        delete safeUser.password_hash;
+        res.json({ success: true, user: safeUser });
+    } catch (err) {
+        console.error('Erreur création utilisateur:', err);
+        res.status(500).json({ success: false, error: 'Erreur création utilisateur' });
+    }
+});
+
+app.put('/api/admin/users/:id', authMiddleware, requireRole('admin'), async (req, res) => {
+    try {
+        const { full_name, username, password, role, zone, is_active } = req.body;
+        const user = await User.findById(req.params.id);
+        if (!user) return res.status(404).json({ success: false, error: 'Utilisateur introuvable' });
+
+        if (full_name) user.full_name = full_name.trim();
+        if (username) user.username = username.trim().toLowerCase();
+        if (password) user.password_hash = await bcrypt.hash(password, 10);
+        if (role && ['admin', 'group_pm', 'pm', 'supervisor'].includes(role)) user.role = role;
+        if (zone !== undefined) user.zone = zone;
+        if (is_active !== undefined) user.is_active = is_active;
+
+        await user.save();
+        const safeUser = user.toObject();
+        delete safeUser.password_hash;
+        res.json({ success: true, user: safeUser });
+    } catch (err) {
+        console.error('Erreur modification utilisateur:', err);
+        res.status(500).json({ success: false, error: 'Erreur modification utilisateur' });
+    }
+});
+
+app.delete('/api/admin/users/:id', authMiddleware, requireRole('admin'), async (req, res) => {
+    try {
+        const user = await User.findById(req.params.id);
+        if (!user) return res.status(404).json({ success: false, error: 'Utilisateur introuvable' });
+        if (user.role === 'admin') {
+            const adminCount = await User.countDocuments({ role: 'admin', is_active: true });
+            if (adminCount <= 1) {
+                return res.status(400).json({ success: false, error: 'Impossible de supprimer le dernier admin' });
+            }
+        }
+        await User.findByIdAndDelete(req.params.id);
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ success: false, error: 'Erreur suppression utilisateur' });
+    }
+});
+
+// Endpoint pour lister les superviseurs (utilisé par les dropdowns)
+app.get('/api/users/supervisors', authMiddleware, async (req, res) => {
+    try {
+        const supervisors = await User.find({ role: 'supervisor', is_active: true })
+            .select('full_name username zone').sort({ full_name: 1 });
+        res.json({ success: true, supervisors });
+    } catch (err) {
+        res.status(500).json({ success: false, error: 'Erreur chargement superviseurs' });
+    }
+});
+
+// ======= Seed initial : créer l'admin si aucun user =======
+async function seedInitialUsers() {
+    try {
+        const count = await User.countDocuments();
+        if (count > 0) return;
+        console.log('🌱 Création des comptes initiaux...');
+
+        const users = [
+            { full_name: 'Administrateur', username: 'admin', password: 'PASSWORD_REDACTED', role: 'admin', zone: '' },
+            { full_name: 'Sunil (Group PM)', username: 'sunil', password: 'PASSWORD_REDACTED', role: 'group_pm', zone: '' },
+            { full_name: 'PM Zone 1', username: 'pm1', password: 'PASSWORD_REDACTED', role: 'pm', zone: 'Zone 1' },
+            { full_name: 'PM Zone 2', username: 'pm2', password: 'PASSWORD_REDACTED', role: 'pm', zone: 'Zone 2' },
+            { full_name: 'PM Zone 3', username: 'pm3', password: 'PASSWORD_REDACTED', role: 'pm', zone: 'Zone 3' },
+            { full_name: 'PM Zone 4', username: 'pm4', password: 'PASSWORD_REDACTED', role: 'pm', zone: 'Zone 4' },
+            { full_name: 'Evariste FAMBA', username: 'evariste.famba', password: 'PASSWORD_REDACTED', role: 'supervisor', zone: '' },
+            { full_name: 'Gaston MUTSHIPULE', username: 'gaston.mutshipule', password: 'PASSWORD_REDACTED', role: 'supervisor', zone: '' },
+            { full_name: 'Patou KIESELO', username: 'patou.kieselo', password: 'PASSWORD_REDACTED', role: 'supervisor', zone: '' },
+            { full_name: 'Denis ILUNGA', username: 'denis.ilunga', password: 'PASSWORD_REDACTED', role: 'supervisor', zone: '' },
+            { full_name: 'Grace NGOMBA', username: 'grace.ngomba', password: 'PASSWORD_REDACTED', role: 'supervisor', zone: '' },
+            { full_name: 'Don MAFINGE', username: 'don.mafinge', password: 'PASSWORD_REDACTED', role: 'supervisor', zone: '' },
+            { full_name: 'Vincent KAPAJIKA', username: 'vincent.kapajika', password: 'PASSWORD_REDACTED', role: 'supervisor', zone: '' },
+            { full_name: 'Patient KYAVIRO', username: 'patient.kyaviro', password: 'PASSWORD_REDACTED', role: 'supervisor', zone: '' },
+            { full_name: 'Baudoin TSHIMBUNDU', username: 'baudoin.tshimbundu', password: 'PASSWORD_REDACTED', role: 'supervisor', zone: '' },
+            { full_name: 'Pacifique KABASODA', username: 'pacifique.kabasoda', password: 'PASSWORD_REDACTED', role: 'supervisor', zone: '' },
+        ];
+
+        for (const u of users) {
+            const password_hash = await bcrypt.hash(u.password, 10);
+            await User.create({
+                full_name: u.full_name,
+                username: u.username,
+                password_hash,
+                role: u.role,
+                zone: u.zone
+            });
+        }
+        console.log(`✅ ${users.length} comptes créés (admin, group_pm, 4 PM, 10 superviseurs)`);
+    } catch (err) {
+        console.warn('⚠️ Erreur seed utilisateurs:', err.message);
+    }
+}
+
+setTimeout(() => {
+    seedInitialUsers();
+}, 3000);
 
 const hasCloudinaryCreds = Boolean(
     process.env.CLOUDINARY_CLOUD_NAME &&
@@ -381,14 +615,18 @@ app.get('/pm', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'pm.html'));
 });
 
-// ================== API ROUTES (MongoDB Only) ==================
+app.get('/admin', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'admin.html'));
+});
+
+// ================== API ROUTES (protégées par JWT) ==================
 
 function escapeRegex(str) {
     return String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 // GET tous les rapports
-app.get('/api/reports', async (req, res) => {
+app.get('/api/reports', authMiddleware, async (req, res) => {
     try {
         const query = {};
         if (req.query.supervisor_name) {
@@ -406,8 +644,7 @@ app.get('/api/reports', async (req, res) => {
     }
 });
 
-// GET un rapport par ID
-app.get('/api/reports/:id', async (req, res) => {
+app.get('/api/reports/:id', authMiddleware, async (req, res) => {
     try {
         const report = await Report.findById(req.params.id);
         if (!report) return res.status(404).json({ success: false, error: 'Rapport introuvable' });
@@ -418,8 +655,7 @@ app.get('/api/reports/:id', async (req, res) => {
     }
 });
 
-// POST créer un rapport
-app.post('/api/reports', async (req, res) => {
+app.post('/api/reports', authMiddleware, async (req, res) => {
     try {
         const reportData = { ...req.body };
         if (!reportData.report_date) reportData.report_date = new Date().toISOString().split('T')[0];
@@ -500,8 +736,7 @@ app.post('/api/reports', async (req, res) => {
     }
 });
 
-// Uploader des images pour un rapport
-app.post('/api/reports/:reportId/images', (req, res, next) => {
+app.post('/api/reports/:reportId/images', authMiddleware, (req, res, next) => {
     upload.array('images', 10)(req, res, (err) => {
         if (!err) return next();
         console.error('Erreur middleware upload images:', err);
@@ -537,8 +772,7 @@ app.post('/api/reports/:reportId/images', (req, res, next) => {
     }
 });
 
-// Uploader document final d'acceptance et clôturer le site
-app.post('/api/reports/:reportId/acceptance-document', acceptanceUpload.single('acceptance_document'), async (req, res) => {
+app.post('/api/reports/:reportId/acceptance-document', authMiddleware, acceptanceUpload.single('acceptance_document'), async (req, res) => {
     try {
         const { reportId } = req.params;
         const report = await Report.findById(reportId);
@@ -586,8 +820,7 @@ app.post('/api/reports/:reportId/acceptance-document', acceptanceUpload.single('
     }
 });
 
-// DELETE un rapport
-app.delete('/api/reports/:id', async (req, res) => {
+app.delete('/api/reports/:id', authMiddleware, requireRole('admin', 'group_pm', 'pm'), async (req, res) => {
     try {
         const result = await Report.findByIdAndDelete(req.params.id);
         if (!result) return res.status(404).json({ success: false, error: 'Rapport introuvable' });
@@ -598,8 +831,7 @@ app.delete('/api/reports/:id', async (req, res) => {
     }
 });
 
-// PM envoie un feedback
-app.post('/api/reports/:reportId/feedback', async (req, res) => {
+app.post('/api/reports/:reportId/feedback', authMiddleware, requireRole('admin', 'group_pm', 'pm'), async (req, res) => {
     try {
         const { feedback, pm_name } = req.body;
         const reportId = req.params.reportId;
@@ -627,8 +859,7 @@ app.post('/api/reports/:reportId/feedback', async (req, res) => {
     }
 });
 
-// Récupérer les feedbacks d'un rapport
-app.get('/api/reports/:id/feedbacks', async (req, res) => {
+app.get('/api/reports/:id/feedbacks', authMiddleware, async (req, res) => {
     try {
         const report = await Report.findById(req.params.id);
         if (!report) return res.status(404).json({ success: false, error: 'Rapport introuvable' });
@@ -640,7 +871,7 @@ app.get('/api/reports/:id/feedbacks', async (req, res) => {
 });
 
 // SITES API
-app.post('/api/sites', async (req, res) => {
+app.post('/api/sites', authMiddleware, requireRole('admin', 'group_pm', 'pm'), async (req, res) => {
     try {
         const { id, name, location, region, assigned_supervisor, assigned_by_pm } = req.body;
         if (!id || !name || !region || !assigned_supervisor) {
@@ -689,7 +920,7 @@ app.post('/api/sites', async (req, res) => {
     }
 });
 
-app.get('/api/sites', async (req, res) => {
+app.get('/api/sites', authMiddleware, async (req, res) => {
     try {
         const { supervisor_name, zone, region } = req.query;
         const query = {};
@@ -707,7 +938,7 @@ app.get('/api/sites', async (req, res) => {
 });
 
 // CHAT API
-app.get('/api/chat/messages', async (req, res) => {
+app.get('/api/chat/messages', authMiddleware, async (req, res) => {
     try {
         const { scope_type, scope_id, limit } = req.query;
         if (!scope_type || !scope_id) {
@@ -726,7 +957,7 @@ app.get('/api/chat/messages', async (req, res) => {
     }
 });
 
-app.post('/api/chat/messages', async (req, res) => {
+app.post('/api/chat/messages', authMiddleware, async (req, res) => {
     try {
         const { scope_type, scope_id, sender_role, sender_name, message } = req.body;
         if (!scope_type || !scope_id || !sender_role || !sender_name || !message) {
@@ -758,7 +989,7 @@ app.post('/api/chat/messages', async (req, res) => {
 
 // ================== EXPORT API ==================
 
-app.get('/api/export/excel', async (req, res) => {
+app.get('/api/export/excel', authMiddleware, requireRole('admin', 'group_pm', 'pm'), async (req, res) => {
     try {
         const { region, zone, date } = req.query;
         let query = {};
@@ -804,7 +1035,7 @@ app.get('/api/export/excel', async (req, res) => {
     }
 });
 
-app.get('/api/export/report/:id', async (req, res) => {
+app.get('/api/export/report/:id', authMiddleware, async (req, res) => {
     try {
         const report = await Report.findById(req.params.id);
         if (!report) {

@@ -28,8 +28,94 @@ class SupervisorApp {
         this.unreadZoneCount = parseInt(localStorage.getItem('supervisorUnreadZoneCount') || '0', 10);
         this.serverUrl = 'https://daily-report-app-fanv.onrender.com';
         this.language = localStorage.getItem('appLanguage') || 'fr';
+        this.authToken = localStorage.getItem('authToken') || null;
+        this.currentUser = safeJsonParse(localStorage.getItem('currentUser'), null);
         
+        this.setupLogin();
+        if (this.authToken && this.currentUser) {
+            this.showApp();
+        }
+    }
+
+    getAuthHeaders() {
+        const headers = { 'Content-Type': 'application/json' };
+        if (this.authToken) headers['Authorization'] = `Bearer ${this.authToken}`;
+        return headers;
+    }
+
+    setupLogin() {
+        const form = document.getElementById('login-form');
+        if (!form) return;
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const username = document.getElementById('login-username').value.trim();
+            const password = document.getElementById('login-password').value;
+            const errorDiv = document.getElementById('login-error');
+            const btn = document.getElementById('login-btn');
+
+            if (!username || !password) {
+                errorDiv.textContent = this.t('Veuillez remplir tous les champs', 'Please fill all fields');
+                errorDiv.style.display = 'block';
+                return;
+            }
+
+            btn.disabled = true;
+            btn.textContent = this.t('Connexion...', 'Logging in...');
+            errorDiv.style.display = 'none';
+
+            try {
+                const res = await fetch(`${this.serverUrl}/api/auth/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: username.toLowerCase(), password })
+                });
+                const data = await res.json();
+                if (!data.success) {
+                    throw new Error(data.error || 'Erreur de connexion');
+                }
+                if (data.user.role !== 'supervisor') {
+                    throw new Error(this.t(
+                        'Ce compte n\'est pas un compte superviseur. Utilisez l\'application PM.',
+                        'This account is not a supervisor account. Use the PM app.'
+                    ));
+                }
+                this.authToken = data.token;
+                this.currentUser = data.user;
+                localStorage.setItem('authToken', data.token);
+                localStorage.setItem('currentUser', JSON.stringify(data.user));
+                this.showApp();
+            } catch (err) {
+                errorDiv.textContent = err.message;
+                errorDiv.style.display = 'block';
+            } finally {
+                btn.disabled = false;
+                btn.textContent = this.t('Se connecter', 'Log in');
+            }
+        });
+
+        const logoutBtn = document.getElementById('logout-btn');
+        if (logoutBtn) {
+            logoutBtn.addEventListener('click', () => this.logout());
+        }
+    }
+
+    showApp() {
+        const loginScreen = document.getElementById('login-screen');
+        const appDiv = document.getElementById('app');
+        if (loginScreen) loginScreen.style.display = 'none';
+        if (appDiv) appDiv.style.display = '';
         this.init();
+    }
+
+    logout() {
+        this.authToken = null;
+        this.currentUser = null;
+        localStorage.removeItem('authToken');
+        localStorage.removeItem('currentUser');
+        const loginScreen = document.getElementById('login-screen');
+        const appDiv = document.getElementById('app');
+        if (loginScreen) loginScreen.style.display = '';
+        if (appDiv) appDiv.style.display = 'none';
     }
 
     persistUnreadState() {
@@ -54,7 +140,7 @@ class SupervisorApp {
         safe('setupForm',      () => this.setupForm());
         safe('setupImageUpload', () => this.setupImageUpload());
         safe('setupModal',     () => this.setupModal());
-        safe('loadSavedName',  () => this.loadSavedSupervisorName());
+        safe('applyUser',      () => this.applyCurrentUser());
         safe('setupZoneChat',  () => this.setupZoneChat());
         safe('setDefaultDate', () => this.setDefaultDate());
 
@@ -64,8 +150,23 @@ class SupervisorApp {
         this.warmUpServer();
     }
 
+    applyCurrentUser() {
+        if (!this.currentUser) return;
+        const nameEl = document.getElementById('user-name');
+        if (nameEl) nameEl.textContent = this.currentUser.full_name;
+
+        const supervisorSelect = document.getElementById('supervisor-name');
+        if (supervisorSelect) {
+            supervisorSelect.value = this.currentUser.full_name;
+            supervisorSelect.disabled = true;
+        }
+    }
+
     async warmUpServer() {
-        try { await fetch(`${this.serverUrl}/api/reports?limit=1`, { method: 'GET' }); } catch (_) {}
+        try { await fetch(`${this.serverUrl}/api/reports?limit=1`, {
+            method: 'GET',
+            headers: this.getAuthHeaders()
+        }); } catch (_) {}
     }
 
     setupLanguage() {
@@ -99,6 +200,10 @@ class SupervisorApp {
         for (let i = 0; i < retryDelays.length; i++) {
             if (retryDelays[i] > 0) await this.wait(retryDelays[i]);
             try {
+                if (!options.headers) options.headers = {};
+                if (this.authToken && !options.headers['Authorization']) {
+                    options.headers['Authorization'] = `Bearer ${this.authToken}`;
+                }
                 const response = await fetch(url, options);
                 const rawText = await response.text();
                 let json = null;

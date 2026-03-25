@@ -66,8 +66,111 @@ class PMDashboard {
         this.currentImageIndex = 0;
         this.serverUrl = this.getServerUrl();
         this.language = localStorage.getItem('pmLanguage') || 'fr';
+        this.authToken = localStorage.getItem('pmAuthToken') || null;
+        this.currentUser = safeJsonParse(localStorage.getItem('pmCurrentUser'), null);
         
+        this.setupLogin();
+        if (this.authToken && this.currentUser) {
+            this.showApp();
+        }
+    }
+
+    getAuthHeaders() {
+        const headers = { 'Content-Type': 'application/json' };
+        if (this.authToken) headers['Authorization'] = `Bearer ${this.authToken}`;
+        return headers;
+    }
+
+    setupLogin() {
+        const form = document.getElementById('login-form');
+        if (!form) return;
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const username = document.getElementById('login-username').value.trim();
+            const password = document.getElementById('login-password').value;
+            const errorDiv = document.getElementById('login-error');
+            const btn = document.getElementById('login-btn');
+
+            if (!username || !password) {
+                errorDiv.textContent = 'Veuillez remplir tous les champs';
+                errorDiv.style.display = 'block';
+                return;
+            }
+
+            btn.disabled = true;
+            btn.textContent = 'Connexion...';
+            errorDiv.style.display = 'none';
+
+            try {
+                const res = await fetch(`${this.serverUrl}/api/auth/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: username.toLowerCase(), password })
+                });
+                const data = await res.json();
+                if (!data.success) {
+                    throw new Error(data.error || 'Erreur de connexion');
+                }
+                if (!['pm', 'group_pm', 'admin'].includes(data.user.role)) {
+                    throw new Error('Ce compte n\'a pas accès au Dashboard PM. Utilisez l\'application Superviseur.');
+                }
+                this.authToken = data.token;
+                this.currentUser = data.user;
+                localStorage.setItem('pmAuthToken', data.token);
+                localStorage.setItem('pmCurrentUser', JSON.stringify(data.user));
+                this.showApp();
+            } catch (err) {
+                errorDiv.textContent = err.message;
+                errorDiv.style.display = 'block';
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Se connecter';
+            }
+        });
+
+        const logoutBtn = document.getElementById('logout-btn');
+        if (logoutBtn) {
+            logoutBtn.addEventListener('click', () => this.logout());
+        }
+    }
+
+    showApp() {
+        const loginScreen = document.getElementById('login-screen');
+        const appDiv = document.getElementById('app');
+        if (loginScreen) loginScreen.style.display = 'none';
+        if (appDiv) appDiv.style.display = '';
+        this.applyCurrentUser();
         this.init();
+    }
+
+    applyCurrentUser() {
+        if (!this.currentUser) return;
+        const nameDisplay = document.getElementById('pm-name-display');
+        const nameInput = document.getElementById('pm-name-input');
+        if (nameDisplay) nameDisplay.textContent = this.currentUser.full_name;
+        if (nameInput) nameInput.value = this.currentUser.full_name;
+
+        if (this.currentUser.zone && this.currentUser.role === 'pm') {
+            const zoneSelect = document.getElementById('pm-zone-filter');
+            if (zoneSelect) zoneSelect.value = this.currentUser.zone;
+        }
+    }
+
+    logout() {
+        this.authToken = null;
+        this.currentUser = null;
+        localStorage.removeItem('pmAuthToken');
+        localStorage.removeItem('pmCurrentUser');
+        const loginScreen = document.getElementById('login-screen');
+        const appDiv = document.getElementById('app');
+        if (loginScreen) loginScreen.style.display = '';
+        if (appDiv) appDiv.style.display = 'none';
+    }
+
+    authFetch(url, options = {}) {
+        if (!options.headers) options.headers = {};
+        if (this.authToken) options.headers['Authorization'] = `Bearer ${this.authToken}`;
+        return fetch(url, options);
     }
 
     persistUnreadState() {
@@ -434,7 +537,7 @@ class PMDashboard {
         if (!list) return;
 
         try {
-            const response = await fetch(this.getApiUrl(`/api/chat/messages?scope_type=zone&scope_id=${encodeURIComponent(zone)}&limit=120`));
+            const response = await this.authFetch(this.getApiUrl(`/api/chat/messages?scope_type=zone&scope_id=${encodeURIComponent(zone)}&limit=120`));
             const result = await response.json();
             if (!result.success) throw new Error(result.error || 'Erreur chat');
             this.renderZoneChatMessages(result.messages || []);
@@ -475,7 +578,7 @@ class PMDashboard {
 
         const zone = this.getCurrentPmZone();
         try {
-            const response = await fetch(this.getApiUrl('/api/chat/messages'), {
+            const response = await this.authFetch(this.getApiUrl('/api/chat/messages'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -519,7 +622,7 @@ class PMDashboard {
         };
 
         try {
-            const response = await fetch(this.getApiUrl('/api/sites'), {
+            const response = await this.authFetch(this.getApiUrl('/api/sites'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
@@ -688,7 +791,7 @@ class PMDashboard {
         const grid = document.getElementById('reports-grid');
         
         try {
-            const response = await fetch(this.getApiUrl('/api/reports'));
+            const response = await this.authFetch(this.getApiUrl('/api/reports'));
             const raw = await response.text();
             let result = null;
             try {
@@ -871,7 +974,7 @@ class PMDashboard {
         });
         
         try {
-            const response = await fetch(this.getApiUrl(`/api/reports/${reportId}`));
+            const response = await this.authFetch(this.getApiUrl(`/api/reports/${reportId}`));
             const result = await response.json();
             
             if (!result.success) {
@@ -1067,7 +1170,7 @@ class PMDashboard {
         if (!confirmed) return;
         
         try {
-            const response = await fetch(this.getApiUrl(`/api/reports/${getReportId(this.selectedReport)}`), {
+            const response = await this.authFetch(this.getApiUrl(`/api/reports/${getReportId(this.selectedReport)}`), {
                 method: 'DELETE'
             });
             
@@ -1097,7 +1200,7 @@ class PMDashboard {
         }
         
         try {
-            const response = await fetch(this.getApiUrl(`/api/reports/${getReportId(this.selectedReport)}/feedback`), {
+            const response = await this.authFetch(this.getApiUrl(`/api/reports/${getReportId(this.selectedReport)}/feedback`), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -1130,7 +1233,7 @@ class PMDashboard {
         if (!list) return;
 
         try {
-            const response = await fetch(this.getApiUrl(`/api/chat/messages?scope_type=report&scope_id=${encodeURIComponent(getReportId(this.selectedReport))}&limit=120`));
+            const response = await this.authFetch(this.getApiUrl(`/api/chat/messages?scope_type=report&scope_id=${encodeURIComponent(getReportId(this.selectedReport))}&limit=120`));
             const result = await response.json();
             if (!result.success) throw new Error(result.error || 'Erreur chargement chat');
             const messages = result.messages || [];
@@ -1163,7 +1266,7 @@ class PMDashboard {
         if (!text) return;
 
         try {
-            const response = await fetch(this.getApiUrl('/api/chat/messages'), {
+            const response = await this.authFetch(this.getApiUrl('/api/chat/messages'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
