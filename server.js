@@ -200,6 +200,13 @@ app.use(express.json());
 app.use(express.static('public'));
 app.use('/uploads', express.static('uploads'));
 
+app.use('/uploads', (req, res) => {
+    res.status(404).json({
+        success: false,
+        error: 'Fichier introuvable. Ce fichier a été perdu car il était stocké en local sur un serveur éphémère. Configurez Cloudinary pour éviter ce problème.'
+    });
+});
+
 // ======= Middleware JWT =======
 function generateToken(user) {
     return jwt.sign(
@@ -472,7 +479,12 @@ const upload = multer({
 });
 
 if (!hasCloudinaryCreds) {
-    console.warn('⚠️ Cloudinary non configuré: upload images en stockage local /uploads/images');
+    console.error('╔══════════════════════════════════════════════════════════════╗');
+    console.error('║  ❌ CLOUDINARY NON CONFIGURÉ                                ║');
+    console.error('║  Les images seront stockées en local et PERDUES sur Render! ║');
+    console.error('║  Ajoutez CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY et       ║');
+    console.error('║  CLOUDINARY_API_SECRET dans vos variables d\'environnement.  ║');
+    console.error('╚══════════════════════════════════════════════════════════════╝');
 }
 
 const acceptanceUploadDir = path.join(__dirname, 'uploads', 'acceptance');
@@ -480,7 +492,7 @@ if (!fs.existsSync(acceptanceUploadDir)) {
     fs.mkdirSync(acceptanceUploadDir, { recursive: true });
 }
 
-const acceptanceStorage = multer.diskStorage({
+const acceptanceLocalStorage = multer.diskStorage({
     destination: (req, file, cb) => cb(null, acceptanceUploadDir),
     filename: (req, file, cb) => {
         const ext = path.extname(file.originalname || '');
@@ -488,8 +500,17 @@ const acceptanceStorage = multer.diskStorage({
     }
 });
 
+const acceptanceCloudinaryStorage = new CloudinaryStorage({
+    cloudinary: cloudinary,
+    params: async (req, file) => ({
+        folder: 'daily-report-acceptance',
+        public_id: `${Date.now()}-${uuidv4()}`,
+        resource_type: /pdf/.test(file.mimetype) ? 'raw' : 'image',
+    }),
+});
+
 const acceptanceUpload = multer({
-    storage: acceptanceStorage,
+    storage: hasCloudinaryCreds ? acceptanceCloudinaryStorage : acceptanceLocalStorage,
     limits: { fileSize: 20 * 1024 * 1024 },
     fileFilter: (req, file, cb) => {
         const allowed = /pdf|jpeg|jpg|png|webp/;
@@ -831,7 +852,9 @@ app.post('/api/reports/:reportId/acceptance-document', authMiddleware, acceptanc
         if (!report) return res.status(404).json({ success: false, error: 'Rapport non trouvé' });
         if (!req.file) return res.status(400).json({ success: false, error: 'Document acceptance requis' });
 
-        const fileUrl = `/uploads/acceptance/${req.file.filename}`;
+        const fileUrl = hasCloudinaryCreds
+            ? (req.file.path || req.file.secure_url)
+            : `/uploads/acceptance/${req.file.filename}`;
         report.acceptance_document = {
             filename: req.file.filename,
             original_name: req.file.originalname,
