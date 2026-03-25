@@ -241,7 +241,7 @@ class PMDashboard {
 
     applyLanguage() {
         const mappings = [
-            ['.logo-subtitle', this.t('SiteTrack PM', 'SiteTrack PM')],
+            ['.logo-subtitle', this.t('DASHBOARD PM', 'DASHBOARD PM')],
             ['.header-subtitle', this.t('Rapports journaliers des superviseurs', 'Daily supervisor reports')],
             ['#search-input', this.t('Rechercher par site, superviseur...', 'Search by site, supervisor...'), 'placeholder'],
             ['#pm-zone-chat-input', this.t('Écrire un message à la zone...', 'Write a message to the zone...'), 'placeholder'],
