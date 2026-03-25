@@ -2,7 +2,7 @@
 // YoRivSiteTrack-YST1 - Service Worker
 // ============================================
 
-const CACHE_NAME = 'daily-report-v15';
+const CACHE_NAME = 'daily-report-v17';
 const STATIC_ASSETS = [
     '/',
     '/pm',
