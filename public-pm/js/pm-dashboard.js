@@ -1,5 +1,5 @@
 // ============================================
-// Daily Report Site Supervisor - PM Dashboard JS
+// YoRivSiteTrack-YST1 - PM Dashboard JS
 // ============================================
 
 function normalizeProvince(str = '') {
@@ -287,7 +287,7 @@ class PMDashboard {
             <!DOCTYPE html>
             <html>
             <head>
-                <title>YoRiv Daily Reports</title>
+                <title>YoRivSiteTrack-YST1</title>
                 <style>
                     body { font-family: Arial, sans-serif; padding: 20px; }
                     .header { text-align: center; border-bottom: 2px solid #2563eb; padding-bottom: 20px; margin-bottom: 20px; }

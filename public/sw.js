@@ -1,8 +1,8 @@
 // ============================================
-// Daily Report Site Supervisor - Service Worker
+// YoRivSiteTrack-YST1 - Service Worker
 // ============================================
 
-const CACHE_NAME = 'daily-report-v12';
+const CACHE_NAME = 'daily-report-v13';
 const STATIC_ASSETS = [
     '/',
     '/pm',
@@ -186,7 +186,7 @@ self.addEventListener('push', event => {
     };
     
     event.waitUntil(
-        self.registration.showNotification(data.title || 'Daily Report', options)
+        self.registration.showNotification(data.title || 'YoRivSiteTrack-YST1', options)
     );
 });
 

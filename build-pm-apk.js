@@ -40,7 +40,7 @@ const backups = {};
 // Configuration PM
 const PM_CONFIG = {
     appId: 'com.yoriv.pm',
-    appName: 'YoRiv - Dashboard PM'
+    appName: 'YoRivSiteTrack-YST1 PM'
 };
 
 function backup(filePath) {
@@ -161,7 +161,7 @@ const restoreOnly = process.argv.includes('--restore');
 
 async function main() {
     console.log('╔════════════════════════════════════════════════════════════╗');
-    console.log('║        🏗️  Build PM APK - YoRiv - Dashboard PM          ║');
+    console.log('║        🏗️  Build PM APK - YoRivSiteTrack-YST1 PM        ║');
     console.log('╚════════════════════════════════════════════════════════════╝\n');
 
     if (restoreOnly) {

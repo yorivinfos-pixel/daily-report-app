@@ -1,5 +1,5 @@
 // ============================================
-// Daily Report Site Supervisor - Supervisor JS
+// YoRivSiteTrack-YST1 - Supervisor JS
 // ============================================
 
 class SupervisorApp {

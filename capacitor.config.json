@@ -1,6 +1,6 @@
 {
   "appId": "com.yoriv.dailyreport",
-  "appName": "YoRiv Daily Reports",
+  "appName": "YoRivSiteTrack-YST1",
   "webDir": "public",
   "android": {
     "allowMixedContent": true

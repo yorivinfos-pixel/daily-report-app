@@ -1,7 +1,7 @@
 {
-    "name": "YoRiv - Dashboard PM",
-    "short_name": "YoRiv PM",
-    "description": "Dashboard Project Manager - YoRiv Daily Reports",
+    "name": "YoRivSiteTrack-YST1 | PM",
+    "short_name": "YST1 PM",
+    "description": "Dashboard Project Manager - YoRivSiteTrack-YST1",
     "start_url": "/pm",
     "display": "standalone",
     "background_color": "#ffffff",

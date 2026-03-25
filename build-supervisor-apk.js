@@ -30,7 +30,7 @@ function forceSupervisorConfig() {
     const stringsXmlPath = path.join(__dirname, 'android', 'app', 'src', 'main', 'res', 'values', 'strings.xml');
 
     const supervisorAppId = 'com.yoriv.dailyreport';
-    const supervisorAppName = 'YoRiv Daily Reports';
+    const supervisorAppName = 'YoRivSiteTrack-YST1';
 
     const config = JSON.parse(fs.readFileSync(capacitorConfigPath, 'utf8'));
     config.appId = supervisorAppId;
@@ -51,7 +51,7 @@ function forceSupervisorConfig() {
 
 async function main() {
     console.log('╔════════════════════════════════════════════════════════════╗');
-    console.log('║      🏗️  Build Supervisor APK - YoRiv Daily Reports        ║');
+    console.log('║      🏗️  Build Supervisor APK - YoRivSiteTrack-YST1         ║');
     console.log('╚════════════════════════════════════════════════════════════╝\n');
 
     try {
