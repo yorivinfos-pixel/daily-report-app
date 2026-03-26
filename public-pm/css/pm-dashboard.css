@@ -1044,3 +1044,117 @@
         margin-left: 0;
     }
 }
+
+/* ============================================
+   Supervisor Accordion (PM Dashboard)
+   ============================================ */
+
+.supervisor-accordion {
+    grid-column: 1 / -1;
+    background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+    border-radius: var(--radius-lg);
+    border: 1px solid #334155;
+    overflow: hidden;
+    margin-bottom: 4px;
+}
+
+.supervisor-accordion-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 20px;
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.2s;
+    border-left: 4px solid #3b82f6;
+}
+
+.supervisor-accordion-header:hover {
+    background: rgba(59, 130, 246, 0.08);
+}
+
+.supervisor-accordion-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.supervisor-accordion-icon {
+    font-size: 1.3rem;
+}
+
+.supervisor-accordion-name {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: #f1f5f9;
+}
+
+.supervisor-accordion-count {
+    font-size: 0.82rem;
+    color: #94a3b8;
+    font-weight: 500;
+}
+
+.supervisor-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 10px;
+    border-radius: 9999px;
+    font-size: 0.72rem;
+    font-weight: 600;
+}
+
+.supervisor-badge.pending {
+    background: rgba(245, 158, 11, 0.18);
+    color: #fbbf24;
+    border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.supervisor-badge.reviewed {
+    background: rgba(16, 185, 129, 0.18);
+    color: #34d399;
+    border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.supervisor-accordion-chevron {
+    font-size: 0.85rem;
+    color: #64748b;
+    transition: transform 0.3s ease;
+    flex-shrink: 0;
+}
+
+.supervisor-accordion-chevron.open {
+    transform: rotate(180deg);
+}
+
+.supervisor-accordion-body {
+    max-height: 3000px;
+    overflow: hidden;
+    transition: max-height 0.4s ease, padding 0.3s ease;
+    padding: 0 12px 12px;
+}
+
+.supervisor-accordion-body.collapsed {
+    max-height: 0;
+    padding: 0 12px;
+}
+
+.supervisor-reports-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    gap: var(--spacing-md);
+    padding-top: 8px;
+}
+
+@media (max-width: 768px) {
+    .supervisor-reports-grid {
+        grid-template-columns: 1fr;
+    }
+    .supervisor-accordion-header {
+        padding: 12px 14px;
+    }
+    .supervisor-accordion-name {
+        font-size: 0.95rem;
+    }
+}

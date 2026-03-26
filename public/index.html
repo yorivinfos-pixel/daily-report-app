@@ -336,12 +336,16 @@
 
             <!-- Historique des rapports -->
             <section class="reports-history-section">
-                <h2 class="section-title">
+                <h2 class="section-title reports-toggle" id="toggle-my-reports">
                     <span class="title-icon">📚</span>
                     Mes Rapports Récents
+                    <span id="my-reports-count" class="reports-count-badge">0</span>
+                    <span class="toggle-chevron" id="my-reports-chevron">▼</span>
                 </h2>
-                <div id="my-reports" class="reports-list">
-                    <div class="loading-spinner">Chargement...</div>
+                <div id="my-reports-wrapper" class="reports-collapsible collapsed">
+                    <div id="my-reports" class="reports-list">
+                        <div class="loading-spinner">Chargement...</div>
+                    </div>
                 </div>
             </section>
 

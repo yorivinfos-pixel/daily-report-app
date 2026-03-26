@@ -1171,3 +1171,74 @@ textarea {
 .phase-auto-days-display.loading .auto-days-value {
     animation: pulseFade 1.2s ease-in-out infinite;
 }
+
+/* ============================================
+   Collapsible Reports List (Supervisor)
+   ============================================ */
+
+.reports-toggle {
+    cursor: pointer;
+    user-select: none;
+    transition: color var(--transition-fast);
+}
+
+.reports-toggle:hover {
+    color: var(--primary);
+}
+
+.reports-count-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 26px;
+    height: 26px;
+    padding: 0 8px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: white;
+    background: var(--primary);
+    border-radius: var(--radius-full);
+    margin-left: auto;
+}
+
+.toggle-chevron {
+    font-size: 0.9rem;
+    color: var(--gray-400);
+    transition: transform 0.3s ease;
+    margin-left: 8px;
+}
+
+.toggle-chevron.open {
+    transform: rotate(180deg);
+}
+
+.reports-collapsible {
+    max-height: 2000px;
+    overflow: hidden;
+    transition: max-height 0.4s ease;
+}
+
+.reports-collapsible.collapsed {
+    max-height: 0;
+}
+
+.reports-collapsible .reports-list {
+    max-height: 480px;
+    overflow-y: auto;
+    padding-right: 4px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--gray-300) transparent;
+}
+
+.reports-collapsible .reports-list::-webkit-scrollbar {
+    width: 6px;
+}
+
+.reports-collapsible .reports-list::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.reports-collapsible .reports-list::-webkit-scrollbar-thumb {
+    background: var(--gray-300);
+    border-radius: var(--radius-full);
+}

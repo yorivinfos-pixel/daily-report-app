@@ -155,6 +155,7 @@ class SupervisorApp {
         safe('applyUser',      () => this.applyCurrentUser());
         safe('setupZoneChat',  () => this.setupZoneChat());
         safe('setDefaultDate', () => this.setDefaultDate());
+        safe('setupReportsToggle', () => this.setupReportsToggle());
 
         this.loadMyReports();
         this.loadAssignedSites();
@@ -278,6 +279,25 @@ class SupervisorApp {
             const today = new Date().toISOString().split('T')[0];
             dateInput.value = today;
         }
+    }
+
+    setupReportsToggle() {
+        const toggle = document.getElementById('toggle-my-reports');
+        const wrapper = document.getElementById('my-reports-wrapper');
+        const chevron = document.getElementById('my-reports-chevron');
+        if (!toggle || !wrapper) return;
+
+        const wasOpen = localStorage.getItem('myReportsOpen') !== 'false';
+        if (wasOpen) {
+            wrapper.classList.remove('collapsed');
+            if (chevron) chevron.classList.add('open');
+        }
+
+        toggle.addEventListener('click', () => {
+            const isCollapsed = wrapper.classList.toggle('collapsed');
+            if (chevron) chevron.classList.toggle('open', !isCollapsed);
+            localStorage.setItem('myReportsOpen', !isCollapsed);
+        });
     }
     
     // ================== Socket.IO Setup ==================
@@ -1275,6 +1295,8 @@ class SupervisorApp {
     
     renderMyReports() {
         const container = document.getElementById('my-reports');
+        const countBadge = document.getElementById('my-reports-count');
+        if (countBadge) countBadge.textContent = this.myReports.length;
         
         if (this.myReports.length === 0) {
             container.innerHTML = `
