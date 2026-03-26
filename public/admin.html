@@ -111,6 +111,7 @@
             <div>
                 <a href="/" style="color:#93c5fd;margin-right:1rem;text-decoration:none;font-size:0.85rem;">📱 App Superviseur</a>
                 <a href="/pm.html" style="color:#c4b5fd;margin-right:1rem;text-decoration:none;font-size:0.85rem;">💻 Dashboard PM</a>
+                <button type="button" id="admin-change-password-btn" style="background:rgba(59,130,246,0.25);color:#93c5fd;border:1px solid rgba(59,130,246,0.4);padding:0.4rem 1rem;border-radius:8px;cursor:pointer;font-size:0.85rem;margin-right:0.5rem;">🔑 Mon mot de passe</button>
                 <button id="admin-logout-btn">⏻ Déconnexion</button>
             </div>
         </header>
@@ -241,6 +242,25 @@
         });
 
         document.getElementById('admin-logout-btn').addEventListener('click', logout);
+
+        document.getElementById('admin-change-password-btn').addEventListener('click', async () => {
+            const cur = prompt('Mot de passe actuel :');
+            if (cur === null || cur === '') return;
+            const neu = prompt('Nouveau mot de passe (min. 6 caractères) :');
+            if (neu === null || neu === '') return;
+            try {
+                const res = await fetch(`${SERVER}/api/auth/change-password`, {
+                    method: 'POST',
+                    headers: authHeaders(),
+                    body: JSON.stringify({ current_password: cur, new_password: neu })
+                });
+                const data = await res.json();
+                if (!data.success) throw new Error(data.error);
+                showToast('Mot de passe administrateur mis à jour');
+            } catch (err) {
+                showToast(err.message, 'error');
+            }
+        });
 
         // Load users
         async function loadUsers() {
