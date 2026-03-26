@@ -158,7 +158,6 @@ class SupervisorApp {
         safe('setupReportsToggle', () => this.setupReportsToggle());
 
         this.loadMyReports();
-        this.loadAssignedSites();
 
         this.warmUpServer();
     }
@@ -791,7 +790,13 @@ class SupervisorApp {
             const result = await this.apiFetchJson(
                 `${this.serverUrl}/api/sites?supervisor_name=${encodeURIComponent(supervisorName)}`
             );
-            this.assignedSites = result.sites || [];
+            const allSites = result.sites || [];
+            const reportedSiteIds = new Set(
+                this.myReports.map(r => (r.site_id || '').trim().toLowerCase())
+            );
+            this.assignedSites = allSites.filter(
+                site => !reportedSiteIds.has((site.id || '').trim().toLowerCase())
+            );
             this.renderAssignedSites();
         } catch (error) {
             console.error('Erreur chargement sites attribués:', error);
@@ -1203,7 +1208,8 @@ class SupervisorApp {
             this.playNotificationSound('success');
             this.showToast('Rapport envoyé avec succès!', 'success');
             this.resetForm();
-            this.loadMyReports();
+            await this.loadMyReports();
+            this.loadAssignedSites();
             
         } catch (error) {
             console.error('Erreur:', error);
@@ -1289,6 +1295,7 @@ class SupervisorApp {
             }
             this.myReports = list;
             this.renderMyReports();
+            this.loadAssignedSites();
             
         } catch (error) {
             console.error('Erreur chargement rapports:', error);
