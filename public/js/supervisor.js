@@ -172,6 +172,7 @@ class SupervisorApp {
         if (supervisorSelect) {
             supervisorSelect.value = this.currentUser.full_name;
             supervisorSelect.disabled = true;
+            localStorage.setItem('supervisorName', this.currentUser.full_name);
         }
     }
 
@@ -1246,6 +1247,7 @@ class SupervisorApp {
         document.getElementById('image-preview').innerHTML = '';
         this.selectedImages = [];
         
+        this.applyCurrentUser();
         this.loadSavedSupervisorName();
         this.setDefaultDate();
         this.resetPhaseDisplay();
@@ -1311,6 +1313,34 @@ class SupervisorApp {
         container.innerHTML = this.myReports.map(report => {
             const rid = getReportId(report);
             const unreadCount = this.unreadReportCounts[rid] || 0;
+
+            let phaseColor = '#94a3b8';
+            let phaseBg = 'rgba(100,116,139,0.08)';
+            let phaseIcon = '⬜';
+            const actualDays = Number(report.phase_actual_days || 0);
+            const maxDays = Number(report.phase_estimated_max_days || 0);
+            const minDays = Number(report.phase_estimated_min_days || 0);
+            const phaseStatus = report.phase_status || 'on track';
+
+            if (report.phase_name && report.phase_name !== 'Autres') {
+                if (phaseStatus === 'closed') {
+                    const delay = maxDays > 0 ? actualDays - maxDays : 0;
+                    if (delay > 0) { phaseColor = '#dc2626'; phaseBg = 'rgba(220,38,38,0.1)'; phaseIcon = '🔴'; }
+                    else { phaseColor = '#059669'; phaseBg = 'rgba(5,150,105,0.1)'; phaseIcon = '✅'; }
+                } else if (actualDays > 0 && maxDays > 0) {
+                    if (actualDays <= minDays) { phaseColor = '#059669'; phaseBg = 'rgba(5,150,105,0.1)'; phaseIcon = '🟢'; }
+                    else if (actualDays <= maxDays) { phaseColor = '#d97706'; phaseBg = 'rgba(217,119,6,0.1)'; phaseIcon = '🟡'; }
+                    else { phaseColor = '#dc2626'; phaseBg = 'rgba(220,38,38,0.1)'; phaseIcon = '🔴'; }
+                } else if (phaseStatus === 'start') {
+                    phaseColor = '#2563eb'; phaseBg = 'rgba(37,99,235,0.08)'; phaseIcon = '🔵';
+                }
+            }
+
+            const phaseLabel = report.phase_name || report.milestone_category || this.t('Jalon N/A', 'Milestone N/A');
+            const phaseDaysInfo = actualDays > 0 && maxDays > 0
+                ? ` — ${actualDays}j/${maxDays}j`
+                : actualDays > 0 ? ` — ${actualDays}j` : '';
+
             return `
             <div class="report-card ${report.status}" data-id="${rid}">
                 <div class="report-card-header">
@@ -1319,14 +1349,31 @@ class SupervisorApp {
                         <div class="report-site-name">${this.escapeHtml(report.site_name)}</div>
                     </div>
                     <span class="report-status ${report.status}">
-                        ${report.status === 'pending' ? '⏳ En attente' : '✅ Examiné'}
+                        ${report.status === 'pending' ? '⏳ ' + this.t('En attente', 'Pending') : '✅ ' + this.t('Examiné', 'Reviewed')}
                     </span>
+                </div>
+                <div class="report-phase-indicator" style="display:flex;align-items:center;gap:6px;padding:6px 10px;margin:4px 0 8px;background:${phaseBg};border-left:3px solid ${phaseColor};border-radius:6px;font-size:0.82rem;">
+                    <span>${phaseIcon}</span>
+                    <span style="color:${phaseColor};font-weight:600;">${phaseLabel}</span>
+                    <span style="color:${phaseColor};font-size:0.75rem;margin-left:auto;">${phaseStatus}${phaseDaysInfo}</span>
                 </div>
                 <div class="report-card-body">
                     ${this.escapeHtml(this.truncateText(report.activities, 100))}
                 </div>
+                ${report.images?.length > 0 ? `
+                <div class="report-card-images" style="display:flex;gap:4px;margin-bottom:8px;">
+                    ${report.images.slice(0, 3).map(img => `<img src="${this.escapeHtml(img.url || '')}" style="width:50px;height:50px;border-radius:6px;object-fit:cover;" alt="Photo">`).join('')}
+                    ${report.images.length > 3 ? `<div style="width:50px;height:50px;border-radius:6px;background:var(--gray-200);display:flex;align-items:center;justify-content:center;font-size:0.8rem;font-weight:600;color:var(--gray-600);">+${report.images.length - 3}</div>` : ''}
+                </div>` : ''}
+                ${report.supervisor_score !== undefined && report.supervisor_score !== null ? `
+                <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;font-size:0.8rem;">
+                    <span>🏆</span>
+                    <span style="font-weight:700;color:${report.supervisor_score >= 80 ? '#10b981' : report.supervisor_score >= 50 ? '#d97706' : '#ef4444'};">
+                        Score: ${report.supervisor_score}%
+                    </span>
+                </div>` : ''}
                 <div class="report-card-footer">
-                    <span class="report-date">${this.formatDate(report.created_at)} • ${report.phase_name || report.milestone_category || 'Jalon N/A'} (${report.phase_status || 'on track'})</span>
+                    <span class="report-date">📅 ${this.formatDate(report.created_at)}</span>
                     <span class="report-images-count">
                         📷 ${report.images?.length || 0} photos ${unreadCount > 0 ? `<span class="report-chat-badge">${unreadCount}</span>` : ''}
                     </span>
