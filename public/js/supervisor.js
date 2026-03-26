@@ -812,18 +812,20 @@ class SupervisorApp {
             <div class="report-card">
                 <div class="report-card-header">
                     <div class="report-site-info">
-                        <span class="report-site-id">${site.id}</span>
-                        <div class="report-site-name">${site.name}</div>
+                        <span class="report-site-id">${this.escapeHtml(site.id)}</span>
+                        <div class="report-site-name">${this.escapeHtml(site.name)}</div>
                     </div>
-                    <span class="report-status pending">🧭 ${site.zone || 'N/A'}</span>
+                    <span class="report-status pending">🧭 ${this.escapeHtml(site.zone || 'N/A')}</span>
                 </div>
-                <div class="report-card-body">
-                    <strong>Province:</strong> ${site.region || 'N/A'}<br>
-                    <strong>Localisation:</strong> ${site.location || 'N/A'}
+                <div class="report-card-body" style="display:grid;gap:4px;font-size:0.875rem;">
+                    <div>🌍 <strong>${this.t('Province', 'Province')}:</strong> ${this.escapeHtml(site.region || 'N/A')}</div>
+                    <div>📍 <strong>${this.t('Localisation', 'Location')}:</strong> ${this.escapeHtml(site.location || 'N/A')}</div>
+                    <div>🏢 <strong>${this.t('Vendor B2S', 'B2S Vendor')}:</strong> ${this.escapeHtml(site.b2s_vendor || 'N/A')}</div>
+                    <div>🎯 <strong>${this.t('Target RFI', 'Target RFI')}:</strong> ${this.escapeHtml(site.target_rfi || 'N/A')}</div>
+                    <div>👤 <strong>${this.t('Attribué par', 'Assigned by')}:</strong> ${this.escapeHtml(site.assigned_by_pm || 'PM')}</div>
                 </div>
                 <div class="report-card-footer">
-                    <span class="report-date">Affecté le: ${site.assigned_at ? this.formatDate(site.assigned_at) : 'N/A'}</span>
-                    <span class="report-images-count">PM: ${site.assigned_by_pm || 'PM'}</span>
+                    <span class="report-date">📅 ${this.t('Affecté le', 'Assigned on')}: ${site.assigned_at ? this.formatDate(site.assigned_at) : 'N/A'}</span>
                 </div>
             </div>
         `).join('');
