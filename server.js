@@ -672,20 +672,22 @@ function computePhaseWeightedScore(siteReports) {
         }
 
         const delayDays = computeDelayDays(actual, cfg.max);
-        let phaseScore = cfg.weight;
-        if (delayDays > 0) {
-            phaseScore = -(cfg.weight * delayDays);
-        }
-        phaseScore = Math.round(phaseScore * 10) / 10;
-        score += phaseScore;
+        // 100% = à temps, -10% par jour de retard, minimum 0%
+        let phasePct = 100;
+        if (delayDays > 0) phasePct = Math.max(0, 100 - (delayDays * 10));
+        phasePct = Math.round(phasePct);
+
+        score += phasePct;
         phasePoints.push({
             phase_name: phaseName,
-            points: phaseScore,
+            points: phasePct,
             delay_days: delayDays
         });
     });
+
+    const totalPct = phasePoints.length > 0 ? Math.round(score / phasePoints.length) : 0;
     return {
-        total: Math.round(score * 10) / 10,
+        total: totalPct,
         phasePoints
     };
 }

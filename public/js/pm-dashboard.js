@@ -1108,8 +1108,8 @@ class PMDashboard {
                 ${report.supervisor_score !== undefined && report.supervisor_score !== null ? `
                 <div style="display:flex;align-items:center;gap:6px;padding:4px 10px;font-size:0.8rem;">
                     <span>🏆</span>
-                    <span style="font-weight:700;color:${report.supervisor_score >= 0 ? '#10b981' : '#ef4444'};">
-                        Score: ${report.supervisor_score >= 0 ? '+' : ''}${report.supervisor_score} pts
+                    <span style="font-weight:700;color:${report.supervisor_score >= 80 ? '#10b981' : report.supervisor_score >= 50 ? '#d97706' : '#ef4444'};">
+                        Score: ${report.supervisor_score}%
                     </span>
                 </div>` : ''}
                 <div class="pm-card-footer">
@@ -1270,11 +1270,14 @@ class PMDashboard {
                 }).join('');
 
             const siteScore = data.site_score;
-            const scoreSummary = siteScore ? `
-                <div style="margin-top:8px;padding:10px;background:${siteScore.total >= 0 ? 'rgba(5,150,105,0.12)' : 'rgba(239,68,68,0.12)'};border:1px solid ${siteScore.total >= 0 ? '#059669' : '#ef4444'};border-radius:8px;text-align:center;">
+            const scoreColor = siteScore?.total >= 80 ? '#10b981' : siteScore?.total >= 50 ? '#d97706' : '#ef4444';
+            const scoreBg = siteScore?.total >= 80 ? 'rgba(5,150,105,0.12)' : siteScore?.total >= 50 ? 'rgba(217,119,6,0.12)' : 'rgba(239,68,68,0.12)';
+            const scoreBorder = siteScore?.total >= 80 ? '#059669' : siteScore?.total >= 50 ? '#d97706' : '#ef4444';
+            const scoreSummary = siteScore && siteScore.closed_count > 0 ? `
+                <div style="margin-top:8px;padding:10px;background:${scoreBg};border:1px solid ${scoreBorder};border-radius:8px;text-align:center;">
                     <div style="font-size:0.75rem;color:#94a3b8;">🏆 ${this.t('Score cumulé site', 'Site cumulative score')}</div>
-                    <div style="font-size:1.6rem;font-weight:700;color:${siteScore.total >= 0 ? '#10b981' : '#ef4444'};">
-                        ${siteScore.total >= 0 ? '+' : ''}${siteScore.total} pts
+                    <div style="font-size:1.6rem;font-weight:700;color:${scoreColor};">
+                        ${siteScore.total}%
                     </div>
                     <div style="font-size:0.72rem;color:#94a3b8;margin-top:2px;">${siteScore.closed_count || 0} ${this.t('phase(s) clôturée(s)', 'phase(s) closed')}</div>
                 </div>` : '';
@@ -1337,16 +1340,16 @@ class PMDashboard {
             <div class="detail-section">
                 <div class="detail-section-title">🏆 Score superviseur (cumulé site)</div>
                 <div class="detail-section-content" style="text-align:center;padding:12px;">
-                    <div style="font-size:2rem;font-weight:700;color:${report.supervisor_score >= 0 ? '#10b981' : '#ef4444'};">
-                        ${report.supervisor_score >= 0 ? '+' : ''}${report.supervisor_score} pts
+                    <div style="font-size:2rem;font-weight:700;color:${report.supervisor_score >= 80 ? '#10b981' : report.supervisor_score >= 50 ? '#d97706' : '#ef4444'};">
+                        ${report.supervisor_score}%
                     </div>
                     ${report.score_breakdown?.phase_points?.length ? `
                         <div style="margin-top:8px;text-align:left;font-size:0.82rem;">
                             ${report.score_breakdown.phase_points.map(p =>
                                 `<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid rgba(255,255,255,0.05);">
                                     <span>${this.escapeHtml(p.phase_name)}</span>
-                                    <span style="font-weight:600;color:${p.points >= 0 ? '#10b981' : '#ef4444'};">
-                                        ${p.points >= 0 ? '+' : ''}${p.points} ${p.delay_days > 0 ? `(+${p.delay_days}j)` : '✅'}
+                                    <span style="font-weight:600;color:${p.points >= 80 ? '#10b981' : p.points >= 50 ? '#d97706' : '#ef4444'};">
+                                        ${p.points}% ${p.delay_days > 0 ? `(+${p.delay_days}j retard)` : '✅'}
                                     </span>
                                 </div>`
                             ).join('')}
