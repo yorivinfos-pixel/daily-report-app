@@ -225,22 +225,20 @@ textarea,
 select {
     width: 100%;
     padding: var(--spacing-md);
-    border: 2px solid var(--gray-200);
+    border: 2px solid #334155;
     border-radius: var(--radius-lg);
     font-size: 1rem;
     font-family: inherit;
     transition: all var(--transition-fast);
-    background: var(--gray-50) !important;
-    color: #0f172a !important;
-    -webkit-text-fill-color: #0f172a !important;
-    color-scheme: light;
+    background: #1e293b !important;
+    color: #ffffff !important;
+    -webkit-text-fill-color: #ffffff !important;
 }
 
 input[type="text"]::placeholder,
 input[type="email"]::placeholder,
 input[type="number"]::placeholder,
-textarea::placeholder,
-select::placeholder {
+textarea::placeholder {
     color: #94a3b8 !important;
     -webkit-text-fill-color: #94a3b8 !important;
 }
@@ -253,15 +251,15 @@ textarea:focus,
 select:focus {
     outline: none;
     border-color: var(--primary);
-    background: #ffffff !important;
-    color: #0f172a !important;
-    -webkit-text-fill-color: #0f172a !important;
-    box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.1);
+    background: #0f172a !important;
+    color: #ffffff !important;
+    -webkit-text-fill-color: #ffffff !important;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.3);
 }
 
 select option {
-    background: #ffffff;
-    color: #0f172a;
+    background: #1e293b;
+    color: #ffffff;
 }
 
 textarea {
