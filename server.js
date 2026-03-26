@@ -523,6 +523,70 @@ app.post('/api/admin/setup-zones', authMiddleware, requireRole('admin'), async (
     }
 });
 
+// Affectation des noms officiels des PM par zone + superviseur Bravo Béton (Est)
+app.post('/api/admin/sync-pm-names', authMiddleware, requireRole('admin'), async (req, res) => {
+    try {
+        const results = [];
+        const seedPwd = process.env.SEED_DEFAULT_PASSWORD || 'PASSWORD_REDACTED';
+
+        let pm3 = await User.findOne({ username: 'pm3', role: 'pm' });
+        if (!pm3) pm3 = await User.findOne({ role: 'pm', zone: 'Zone 3' });
+        if (pm3) {
+            pm3.full_name = 'Jean-Baptiste MBUYI';
+            pm3.zone = 'Zone 3';
+            await pm3.save();
+            results.push('Zone 3 (Kasaï) → Jean-Baptiste MBUYI');
+        } else {
+            results.push('⚠️ PM Zone 3 introuvable (compte pm3 ou rôle pm + Zone 3)');
+        }
+
+        let pm4 = await User.findOne({ username: 'pm4', role: 'pm' });
+        if (!pm4) pm4 = await User.findOne({ role: 'pm', zone: 'Zone 4' });
+        if (pm4) {
+            pm4.full_name = 'Jean-Claude MULAND';
+            pm4.zone = 'Zone 4';
+            await pm4.save();
+            results.push('Zone 4 (Haut-Katanga) → Jean-Claude MULAND');
+        } else {
+            results.push('⚠️ PM Zone 4 introuvable (compte pm4 ou rôle pm + Zone 4)');
+        }
+
+        let bravoUser = await User.findOne({ username: 'bravo.supervisor' });
+        if (!bravoUser) bravoUser = await User.findOne({ username: 'bravo.beton', role: 'supervisor' });
+        if (!bravoUser) {
+            bravoUser = await User.findOne({
+                role: 'supervisor',
+                $or: [{ full_name: /bravo/i }, { username: /bravo/i }]
+            });
+        }
+        if (bravoUser) {
+            bravoUser.full_name = 'Bravo Béton';
+            bravoUser.zone = 'Zone 2';
+            if (bravoUser.username === 'bravo.supervisor') {
+                const taken = await User.findOne({ username: 'bravo.beton' });
+                if (!taken) bravoUser.username = 'bravo.beton';
+            }
+            await bravoUser.save();
+            results.push('Superviseur Est → Bravo Béton (Zone 2)');
+        } else {
+            const password_hash = await bcrypt.hash(seedPwd, 10);
+            await User.create({
+                full_name: 'Bravo Béton',
+                username: 'bravo.beton',
+                password_hash,
+                role: 'supervisor',
+                zone: 'Zone 2'
+            });
+            results.push('Bravo Béton créé (superviseur, Zone 2 — Est)');
+        }
+
+        res.json({ success: true, results });
+    } catch (err) {
+        console.error('Erreur sync-pm-names:', err);
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
 // ======= Seed initial : créer l'admin si aucun user =======
 async function seedInitialUsers() {
     try {
@@ -542,8 +606,8 @@ async function seedInitialUsers() {
             { full_name: 'Sunil (Group PM)', username: 'sunil', role: 'group_pm', zone: '' },
             { full_name: 'PM Zone 1', username: 'pm1', role: 'pm', zone: 'Zone 1' },
             { full_name: 'PM Zone 2', username: 'pm2', role: 'pm', zone: 'Zone 2' },
-            { full_name: 'PM Zone 3', username: 'pm3', role: 'pm', zone: 'Zone 3' },
-            { full_name: 'PM Zone 4', username: 'pm4', role: 'pm', zone: 'Zone 4' },
+            { full_name: 'Jean-Baptiste MBUYI', username: 'pm3', role: 'pm', zone: 'Zone 3' },
+            { full_name: 'Jean-Claude MULAND', username: 'pm4', role: 'pm', zone: 'Zone 4' },
             { full_name: 'Evariste FAMBA', username: 'evariste.famba', role: 'supervisor', zone: '' },
             { full_name: 'Gaston MUTSHIPULE', username: 'gaston.mutshipule', role: 'supervisor', zone: '' },
             { full_name: 'Patou KIESELO', username: 'patou.kieselo', role: 'supervisor', zone: '' },
