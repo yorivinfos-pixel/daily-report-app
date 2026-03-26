@@ -49,6 +49,8 @@ const reportSchema = new mongoose.Schema({
     zone: String,
     phase_name: String,
     phase_status: String,
+    phase_start_date: String,
+    phase_end_date: String,
     phase_estimated_label: String,
     phase_estimated_min_days: Number,
     phase_estimated_max_days: Number,
@@ -629,24 +631,47 @@ const RFI_REQUIRED_PHASES = [
 
 function computePhaseWeightedScore(siteReports) {
     const closedByPhase = new Map();
+    const startByPhase = new Map();
+
     siteReports.forEach(r => {
-        if (!r.phase_name || r.phase_status !== 'closed') return;
-        const prev = closedByPhase.get(r.phase_name);
-        if (!prev || new Date(r.created_at) > new Date(prev.created_at)) closedByPhase.set(r.phase_name, r);
+        if (!r.phase_name) return;
+        if (!startByPhase.has(r.phase_name)) {
+            startByPhase.set(r.phase_name, r);
+        }
+        if (r.phase_status === 'closed') {
+            const prev = closedByPhase.get(r.phase_name);
+            if (!prev || new Date(r.created_at) > new Date(prev.created_at)) {
+                closedByPhase.set(r.phase_name, r);
+            }
+        }
     });
 
     let score = 0;
     const phasePoints = [];
     Object.entries(PHASES_CONFIG).forEach(([phaseName, cfg]) => {
-        const report = closedByPhase.get(phaseName);
-        if (!report) return;
-        const actual = Number(report.phase_actual_days || 0);
-        const delayDays = computeDelayDays(actual, cfg.max);
+        const closedReport = closedByPhase.get(phaseName);
+        if (!closedReport) return;
+        const startReport = startByPhase.get(phaseName);
 
-        // 1 phase = 1 cote.
-        // A temps (<= max): points positifs (poids de phase).
-        // En retard (> max): points negatifs proportionnels au retard.
-        // Ex: poids 6, retard 2j => -12 points.
+        let actual = Number(closedReport.phase_actual_days || 0);
+
+        if (closedReport.phase_start_date && closedReport.phase_end_date) {
+            const s = new Date(closedReport.phase_start_date);
+            const e = new Date(closedReport.phase_end_date);
+            if (!isNaN(s) && !isNaN(e) && e >= s) {
+                actual = Math.round((e - s) / (1000 * 60 * 60 * 24)) + 1;
+            }
+        } else if (startReport && closedReport) {
+            const sDate = startReport.phase_start_date || startReport.report_date || startReport.created_at;
+            const eDate = closedReport.phase_end_date || closedReport.report_date || closedReport.created_at;
+            const s = new Date(sDate);
+            const e = new Date(eDate);
+            if (!isNaN(s) && !isNaN(e) && e >= s) {
+                actual = Math.round((e - s) / (1000 * 60 * 60 * 24)) + 1;
+            }
+        }
+
+        const delayDays = computeDelayDays(actual, cfg.max);
         let phaseScore = cfg.weight;
         if (delayDays > 0) {
             phaseScore = -(cfg.weight * delayDays);
@@ -698,24 +723,25 @@ app.get('/api/sites/:siteId/phases-status', authMiddleware, async (req, res) => 
 
             if (phaseReports.length > 0) {
                 const firstReport = phaseReports[0];
-                const startDateRaw = firstReport.report_date || firstReport.created_at;
-                start_date = startDateRaw;
+                start_date = firstReport.phase_start_date || firstReport.report_date || firstReport.created_at;
 
-                // Check if closed
                 const closedReport = phaseReports.find(r => r.phase_status === 'closed');
                 if (closedReport) {
-                    const endDateRaw = closedReport.report_date || closedReport.created_at;
-                    closed_date = endDateRaw;
-                    const diffMs = new Date(endDateRaw).getTime() - new Date(startDateRaw).getTime();
-                    actual_days = Math.max(1, Math.floor(diffMs / (1000 * 60 * 60 * 24)) + 1);
+                    closed_date = closedReport.phase_end_date || closedReport.report_date || closedReport.created_at;
+                    const s = new Date(start_date);
+                    const e = new Date(closed_date);
+                    if (!isNaN(s) && !isNaN(e)) {
+                        actual_days = Math.max(1, Math.round((e - s) / (1000 * 60 * 60 * 24)) + 1);
+                    }
                     status = 'closed';
                     const delay = computeDelayDays(actual_days, cfg.max);
                     color = delay > 0 ? 'red' : 'green';
                 } else {
-                    // In progress - calculate from start to today
                     const today = new Date();
-                    const diffMs = today.getTime() - new Date(startDateRaw).getTime();
-                    actual_days = Math.max(1, Math.floor(diffMs / (1000 * 60 * 60 * 24)) + 1);
+                    const s = new Date(start_date);
+                    if (!isNaN(s)) {
+                        actual_days = Math.max(1, Math.round((today - s) / (1000 * 60 * 60 * 24)) + 1);
+                    }
                     status = 'in_progress';
                     if (actual_days <= cfg.min) color = 'green';
                     else if (actual_days <= cfg.max) color = 'orange';
@@ -736,7 +762,14 @@ app.get('/api/sites/:siteId/phases-status', authMiddleware, async (req, res) => 
             };
         });
 
-        res.json({ success: true, phases });
+        const scoreResult = computePhaseWeightedScore(siteReports);
+        const siteScore = {
+            total: scoreResult.total,
+            closed_count: scoreResult.phasePoints.length,
+            phase_points: scoreResult.phasePoints
+        };
+
+        res.json({ success: true, phases, site_score: siteScore });
     } catch (err) {
         console.error('Erreur phases-status:', err);
         res.status(500).json({ success: false, error: 'Erreur serveur' });
@@ -875,10 +908,24 @@ app.post('/api/reports', authMiddleware, async (req, res) => {
         if (reportData.planned_duration_days !== undefined) {
             reportData.planned_duration_days = Number(reportData.planned_duration_days) || 0;
         }
+        if (!reportData.phase_status) reportData.phase_status = 'on track';
+
+        if (reportData.phase_start_date && reportData.phase_end_date) {
+            const start = new Date(reportData.phase_start_date);
+            const end = new Date(reportData.phase_end_date);
+            if (!isNaN(start) && !isNaN(end) && end >= start) {
+                reportData.phase_actual_days = Math.round((end - start) / (1000 * 60 * 60 * 24)) + 1;
+            }
+        } else if (reportData.phase_start_date && reportData.phase_status !== 'closed') {
+            const start = new Date(reportData.phase_start_date);
+            const today = new Date(reportData.report_date || Date.now());
+            if (!isNaN(start) && !isNaN(today) && today >= start) {
+                reportData.phase_actual_days = Math.round((today - start) / (1000 * 60 * 60 * 24)) + 1;
+            }
+        }
         if (reportData.phase_actual_days !== undefined) {
             reportData.phase_actual_days = Number(reportData.phase_actual_days) || 0;
         }
-        if (!reportData.phase_status) reportData.phase_status = 'on track';
 
         const phaseCfg = PHASES_CONFIG[reportData.phase_name];
         if (phaseCfg) {
@@ -886,8 +933,6 @@ app.post('/api/reports', authMiddleware, async (req, res) => {
             reportData.phase_estimated_max_days = phaseCfg.max;
             reportData.phase_estimated_label = buildEstimatedLabel(phaseCfg.min, phaseCfg.max);
             if (reportData.phase_actual_days > 0) {
-                // Retard basé sur la borne MAX:
-                // ex: tâche 5j -> 1..5 = OK, alerte à partir de 6.
                 reportData.phase_variance_days = computeDelayDays(reportData.phase_actual_days, phaseCfg.max);
             }
         }
@@ -925,6 +970,18 @@ app.post('/api/reports', authMiddleware, async (req, res) => {
                 report.actual_duration_days = computeActualDurationDays(firstReport.created_at, report.created_at);
                 await report.save();
             }
+            // Recalculer le score quand une phase est clôturée
+            if (report.phase_status === 'closed' && report.phase_name) {
+                const scoreResult = computePhaseWeightedScore(siteReports);
+                report.supervisor_score = scoreResult.total;
+                report.score_breakdown = {
+                    schedule_score: scoreResult.total,
+                    quality_score: 0,
+                    phase_points: scoreResult.phasePoints
+                };
+                await report.save();
+            }
+
             const rfiReady = isSiteRfiReady(siteReports);
             if (rfiReady && !report.is_rfi_ready) {
                 report.is_rfi_ready = true;
