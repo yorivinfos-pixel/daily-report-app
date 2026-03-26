@@ -1,7 +1,8 @@
 node_modules/
 uploads/
 android/
-electron-pm/
+electron-pm/node_modules/
+electron-pm/dist/
 .env
 *.log
 test_mongo.js

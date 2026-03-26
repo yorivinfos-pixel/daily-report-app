@@ -1,0 +1,37 @@
+{
+  "name": "yoriv-pm-dashboard",
+  "version": "1.0.0",
+  "description": "YoRiv PM Dashboard - Application de gestion de rapports",
+  "main": "main.js",
+  "author": "YoRiv",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder --win portable",
+    "build-dir": "electron-builder --win dir"
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.0.0",
+    "png-to-ico": "^3.0.1"
+  },
+  "build": {
+    "appId": "com.yoriv.pm-dashboard",
+    "productName": "YoRiv Dashboard PM",
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": [
+        "portable"
+      ],
+      "icon": "build/icon.ico",
+      "signDlls": false,
+      "sign": null
+    },
+    "portable": {
+      "artifactName": "YoRiv-Dashboard-PM.exe"
+    },
+    "forceCodeSigning": false
+  }
+}
