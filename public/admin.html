@@ -46,6 +46,7 @@
         .role-badge { display: inline-block; padding: 0.15rem 0.6rem; border-radius: 12px; font-size: 0.75rem; font-weight: 600; }
         .role-admin { background: rgba(220,38,38,0.2); color: #fca5a5; }
         .role-group_pm { background: rgba(168,85,247,0.2); color: #d8b4fe; }
+        .role-program_manager { background: rgba(245,158,11,0.2); color: #fcd34d; }
         .role-pm { background: rgba(59,130,246,0.2); color: #93c5fd; }
         .role-supervisor { background: rgba(5,150,105,0.2); color: #6ee7b7; }
         .status-active { color: #6ee7b7; }
@@ -137,6 +138,7 @@
                             <option value="">Choisir un rôle</option>
                             <option value="supervisor">Superviseur</option>
                             <option value="pm">Project Manager (PM)</option>
+                            <option value="program_manager">Program Manager</option>
                             <option value="group_pm">Group PM</option>
                             <option value="admin">Administrateur</option>
                         </select>
@@ -274,7 +276,7 @@
         }
 
         function formatRole(r) {
-            return { admin: 'Admin', group_pm: 'Group PM', pm: 'PM', supervisor: 'Superviseur' }[r] || r;
+            return { admin: 'Admin', group_pm: 'Group PM', program_manager: 'Program Manager', pm: 'PM', supervisor: 'Superviseur' }[r] || r;
         }
 
         // Create user

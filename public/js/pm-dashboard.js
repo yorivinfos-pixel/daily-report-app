@@ -111,7 +111,7 @@ class PMDashboard {
                 if (!data.success) {
                     throw new Error(data.error || 'Erreur de connexion');
                 }
-                if (!['pm', 'group_pm', 'admin'].includes(data.user.role)) {
+                if (!['pm', 'group_pm', 'program_manager', 'admin'].includes(data.user.role)) {
                     throw new Error('Ce compte n\'a pas accès au Dashboard PM. Utilisez l\'application Superviseur.');
                 }
                 this.authToken = data.token;
@@ -147,13 +147,61 @@ class PMDashboard {
         if (!this.currentUser) return;
         const nameDisplay = document.getElementById('pm-name-display');
         const nameInput = document.getElementById('pm-name-input');
+        const roleDisplay = document.getElementById('pm-role-display');
+        const avatarEl = document.getElementById('pm-avatar');
+        
         if (nameDisplay) nameDisplay.textContent = this.currentUser.full_name;
         if (nameInput) nameInput.value = this.currentUser.full_name;
+        if (roleDisplay) {
+            const roleLabels = { pm: 'Project Manager', program_manager: 'Program Manager', group_pm: 'Group PM', admin: 'Administrateur' };
+            roleDisplay.textContent = roleLabels[this.currentUser.role] || this.currentUser.role;
+        }
+
+        if (avatarEl) {
+            if (this.currentUser.profile_photo) {
+                avatarEl.innerHTML = `<img src="${this.escapeHtml(this.currentUser.profile_photo)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
+            } else {
+                const initials = this.currentUser.full_name.split(' ').map(w => w[0]).join('').substring(0, 2).toUpperCase();
+                avatarEl.textContent = initials;
+            }
+            avatarEl.style.cursor = 'pointer';
+            avatarEl.title = 'Cliquer pour changer la photo de profil';
+            avatarEl.onclick = () => this.uploadProfilePhoto();
+        }
 
         if (this.currentUser.zone && this.currentUser.role === 'pm') {
             const zoneSelect = document.getElementById('pm-zone-filter');
             if (zoneSelect) zoneSelect.value = this.currentUser.zone;
         }
+    }
+
+    async uploadProfilePhoto() {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = 'image/*';
+        input.onchange = async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const formData = new FormData();
+            formData.append('photo', file);
+            try {
+                const resp = await fetch(this.getApiUrl('/api/users/profile-photo'), {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${this.authToken}` },
+                    body: formData
+                });
+                const data = await resp.json();
+                if (data.success) {
+                    this.currentUser.profile_photo = data.profile_photo;
+                    localStorage.setItem('pmCurrentUser', JSON.stringify(this.currentUser));
+                    this.applyCurrentUser();
+                    this.showToast('Photo de profil mise à jour !', 'success');
+                }
+            } catch (err) {
+                this.showToast('Erreur upload photo', 'error');
+            }
+        };
+        input.click();
     }
 
     logout() {
@@ -223,6 +271,7 @@ class PMDashboard {
         safe('loadPMZone',         () => this.loadPMZone());
         safe('setupPhotosGallery', () => this.setupPhotosGallery());
 
+        this.loadUserProfiles();
         this.loadReports();
         this.setupZoneChat();
     }
@@ -963,6 +1012,42 @@ class PMDashboard {
         return filtered;
     }
     
+    // ================== User Profiles (photos) ==================
+
+    async loadUserProfiles() {
+        try {
+            const response = await this.authFetch(this.getApiUrl('/api/users/profiles'));
+            if (!response.ok) return;
+            const data = await response.json();
+            this._userProfiles = {};
+            if (data.users) {
+                data.users.forEach(u => {
+                    this._userProfiles[u.full_name] = u;
+                });
+            }
+        } catch (e) {
+            console.warn('Could not load user profiles:', e);
+            this._userProfiles = {};
+        }
+    }
+
+    getSupervisorPhoto(name) {
+        if (!this._userProfiles) return '';
+        const user = this._userProfiles[name];
+        return user && user.profile_photo ? user.profile_photo : '';
+    }
+
+    renderProfileAvatar(name, size = 40) {
+        const photo = this.getSupervisorPhoto(name);
+        if (photo) {
+            return `<img src="${this.escapeHtml(photo)}" alt="${this.escapeHtml(name)}" class="profile-avatar" style="width:${size}px;height:${size}px;border-radius:50%;object-fit:cover;">`;
+        }
+        const initials = name.split(' ').map(w => w[0]).join('').substring(0, 2).toUpperCase();
+        const colors = ['#2563eb','#059669','#d97706','#dc2626','#7c3aed','#0891b2','#be185d','#65a30d'];
+        const color = colors[name.split('').reduce((a, c) => a + c.charCodeAt(0), 0) % colors.length];
+        return `<div class="profile-avatar-initials" style="width:${size}px;height:${size}px;border-radius:50%;background:${color};display:flex;align-items:center;justify-content:center;color:white;font-weight:700;font-size:${Math.round(size*0.4)}px;">${initials}</div>`;
+    }
+
     // ================== Load & Render Reports ==================
     
     async loadReports() {
@@ -1045,7 +1130,7 @@ class PMDashboard {
                 <div class="supervisor-accordion">
                     <div class="supervisor-accordion-header" data-supervisor="${this.escapeHtml(name)}">
                         <div class="supervisor-accordion-info">
-                            <span class="supervisor-accordion-icon">👷</span>
+                            ${this.renderProfileAvatar(name, 36)}
                             <span class="supervisor-accordion-name">${this.escapeHtml(name)}</span>
                             <span class="supervisor-accordion-count">${reports.length} ${this.t('rapport(s)', 'report(s)')}</span>
                             ${pendingCount > 0 ? `<span class="supervisor-badge pending">${pendingCount} ${this.t('en attente', 'pending')}</span>` : ''}

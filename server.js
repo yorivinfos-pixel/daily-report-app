@@ -31,8 +31,9 @@ const userSchema = new mongoose.Schema({
     full_name: { type: String, required: true },
     username: { type: String, required: true, unique: true },
     password_hash: { type: String, required: true },
-    role: { type: String, enum: ['admin', 'group_pm', 'pm', 'supervisor'], required: true },
+    role: { type: String, enum: ['admin', 'group_pm', 'program_manager', 'pm', 'supervisor'], required: true },
     zone: { type: String, default: '' },
+    profile_photo: { type: String, default: '' },
     is_active: { type: Boolean, default: true },
     created_at: { type: Date, default: Date.now },
     last_login: Date
@@ -302,7 +303,8 @@ app.post('/api/auth/login', loginLimiter, async (req, res) => {
                 full_name: user.full_name,
                 username: user.username,
                 role: user.role,
-                zone: user.zone
+                zone: user.zone,
+                profile_photo: user.profile_photo || ''
             }
         });
     } catch (err) {
@@ -337,7 +339,7 @@ app.post('/api/admin/users', authMiddleware, requireRole('admin'), async (req, r
         if (!full_name || !username || !password || !role) {
             return res.status(400).json({ success: false, error: 'Champs requis: full_name, username, password, role' });
         }
-        if (!['admin', 'group_pm', 'pm', 'supervisor'].includes(role)) {
+        if (!['admin', 'group_pm', 'program_manager', 'pm', 'supervisor'].includes(role)) {
             return res.status(400).json({ success: false, error: 'Rôle invalide' });
         }
         const existing = await User.findOne({ username: username.trim().toLowerCase() });
@@ -371,7 +373,7 @@ app.put('/api/admin/users/:id', authMiddleware, requireRole('admin'), async (req
         if (full_name) user.full_name = full_name.trim();
         if (username) user.username = username.trim().toLowerCase();
         if (password) user.password_hash = await bcrypt.hash(password, 10);
-        if (role && ['admin', 'group_pm', 'pm', 'supervisor'].includes(role)) user.role = role;
+        if (role && ['admin', 'group_pm', 'program_manager', 'pm', 'supervisor'].includes(role)) user.role = role;
         if (zone !== undefined) user.zone = zone;
         if (is_active !== undefined) user.is_active = is_active;
 
@@ -406,10 +408,118 @@ app.delete('/api/admin/users/:id', authMiddleware, requireRole('admin'), async (
 app.get('/api/users/supervisors', authMiddleware, async (req, res) => {
     try {
         const supervisors = await User.find({ role: 'supervisor', is_active: true })
-            .select('full_name username zone').sort({ full_name: 1 });
+            .select('full_name username zone profile_photo').sort({ full_name: 1 });
         res.json({ success: true, supervisors });
     } catch (err) {
         res.status(500).json({ success: false, error: 'Erreur chargement superviseurs' });
+    }
+});
+
+// Upload photo de profil
+app.post('/api/users/profile-photo', authMiddleware, (req, res, next) => {
+    upload.single('photo')(req, res, (err) => {
+        if (!err) return next();
+        return res.status(400).json({ success: false, error: 'Upload photo invalide' });
+    });
+}, async (req, res) => {
+    try {
+        if (!req.file) return res.status(400).json({ success: false, error: 'Aucune photo fournie' });
+        const photoUrl = req.file.path || req.file.url || `/uploads/images/${req.file.filename}`;
+        await User.findByIdAndUpdate(req.user.id, { profile_photo: photoUrl });
+        res.json({ success: true, profile_photo: photoUrl });
+    } catch (err) {
+        console.error('Erreur upload photo profil:', err);
+        res.status(500).json({ success: false, error: 'Erreur upload photo profil' });
+    }
+});
+
+// Récupérer les infos utilisateurs avec photos (pour le PM dashboard)
+app.get('/api/users/profiles', authMiddleware, async (req, res) => {
+    try {
+        const users = await User.find({ is_active: true })
+            .select('full_name username role zone profile_photo').sort({ full_name: 1 });
+        res.json({ success: true, users });
+    } catch (err) {
+        res.status(500).json({ success: false, error: 'Erreur chargement profils' });
+    }
+});
+
+// ======= Migration : configurer les zones et nouveaux rôles =======
+app.post('/api/admin/setup-zones', authMiddleware, requireRole('admin'), async (req, res) => {
+    try {
+        const results = [];
+
+        // 1. Supprimer le compte Sunil (group_pm)
+        const sunil = await User.findOne({ username: 'sunil' });
+        if (sunil) {
+            sunil.is_active = false;
+            await sunil.save();
+            results.push('Sunil désactivé');
+        }
+
+        // 2. Créer les Program Managers s'ils n'existent pas
+        const programManagers = [
+            { full_name: 'Prince BEDESIRE', username: 'prince.bedesire', role: 'program_manager', zone: '' },
+            { full_name: 'Josian DOLA', username: 'josian.dola', role: 'program_manager', zone: '' }
+        ];
+        for (const pm of programManagers) {
+            const exists = await User.findOne({ username: pm.username });
+            if (!exists) {
+                const bcrypt = require('bcryptjs');
+                const hash = await bcrypt.hash(process.env.SEED_DEFAULT_PASSWORD || 'PASSWORD_REDACTED', 10);
+                await User.create({ ...pm, password_hash: hash });
+                results.push(`${pm.full_name} créé (program_manager)`);
+            } else {
+                exists.role = 'program_manager';
+                await exists.save();
+                results.push(`${pm.full_name} mis à jour (program_manager)`);
+            }
+        }
+
+        // 3. Affecter PM Jean-Baptiste à Zone Kasaï
+        const pmJB = await User.findOne({ full_name: /jean.baptiste/i });
+        if (pmJB) { pmJB.zone = 'Zone 3'; await pmJB.save(); results.push(`PM ${pmJB.full_name} → Zone 3 (Kasaï)`); }
+
+        // 4. Affecter les superviseurs aux zones
+        const zoneAssignments = [
+            { names: ['baudoin', 'denis'], zone: 'Zone 3' },
+            { names: ['patient', 'pacifique', 'bravo', 'evariste'], zone: 'Zone 2' },
+            { names: ['gaston', 'patou'], zone: 'Zone 4' },
+            { names: ['grace', 'vincent', 'don'], zone: 'Zone 1' }
+        ];
+
+        for (const assignment of zoneAssignments) {
+            for (const name of assignment.names) {
+                const user = await User.findOne({
+                    role: 'supervisor',
+                    $or: [
+                        { full_name: new RegExp(name, 'i') },
+                        { username: new RegExp(name, 'i') }
+                    ]
+                });
+                if (user) {
+                    user.zone = assignment.zone;
+                    await user.save();
+                    results.push(`${user.full_name} → ${assignment.zone}`);
+                } else {
+                    results.push(`⚠️ Superviseur "${name}" non trouvé`);
+                }
+            }
+        }
+
+        // 5. Créer le superviseur Bravo s'il n'existe pas
+        const bravo = await User.findOne({ full_name: /bravo/i });
+        if (!bravo) {
+            const bcrypt = require('bcryptjs');
+            const hash = await bcrypt.hash(process.env.SEED_DEFAULT_PASSWORD || 'PASSWORD_REDACTED', 10);
+            await User.create({ full_name: 'Bravo SUPERVISOR', username: 'bravo.supervisor', password_hash: hash, role: 'supervisor', zone: 'Zone 2' });
+            results.push('Bravo créé (superviseur, Zone 2)');
+        }
+
+        res.json({ success: true, results });
+    } catch (err) {
+        console.error('Erreur setup-zones:', err);
+        res.status(500).json({ success: false, error: err.message });
     }
 });
 
@@ -1091,7 +1201,7 @@ app.post('/api/reports/:reportId/acceptance-document', authMiddleware, acceptanc
     }
 });
 
-app.delete('/api/reports/:id', authMiddleware, requireRole('admin', 'group_pm', 'pm'), async (req, res) => {
+app.delete('/api/reports/:id', authMiddleware, requireRole('admin', 'group_pm', 'program_manager', 'pm'), async (req, res) => {
     try {
         const result = await Report.findByIdAndDelete(req.params.id);
         if (!result) return res.status(404).json({ success: false, error: 'Rapport introuvable' });
@@ -1102,7 +1212,7 @@ app.delete('/api/reports/:id', authMiddleware, requireRole('admin', 'group_pm', 
     }
 });
 
-app.post('/api/reports/:reportId/feedback', authMiddleware, requireRole('admin', 'group_pm', 'pm'), async (req, res) => {
+app.post('/api/reports/:reportId/feedback', authMiddleware, requireRole('admin', 'group_pm', 'program_manager', 'pm'), async (req, res) => {
     try {
         const { feedback, pm_name } = req.body;
         const reportId = req.params.reportId;
@@ -1143,7 +1253,7 @@ app.get('/api/reports/:id/feedbacks', authMiddleware, async (req, res) => {
 });
 
 // SITES API
-app.post('/api/sites', authMiddleware, requireRole('admin', 'group_pm', 'pm'), async (req, res) => {
+app.post('/api/sites', authMiddleware, requireRole('admin', 'group_pm', 'program_manager', 'pm'), async (req, res) => {
     try {
         const { id, name, location, region, assigned_supervisor, assigned_by_pm, b2s_vendor, target_rfi } = req.body;
         if (!id || !name || !region || !assigned_supervisor) {
@@ -1273,7 +1383,7 @@ app.post('/api/chat/messages', authMiddleware, async (req, res) => {
 
 // ================== EXPORT API ==================
 
-app.get('/api/export/excel', authMiddleware, requireRole('admin', 'group_pm', 'pm'), async (req, res) => {
+app.get('/api/export/excel', authMiddleware, requireRole('admin', 'group_pm', 'program_manager', 'pm'), async (req, res) => {
     try {
         const { region, zone, date } = req.query;
         let query = {};
@@ -1319,7 +1429,7 @@ app.get('/api/export/excel', authMiddleware, requireRole('admin', 'group_pm', 'p
     }
 });
 
-app.get('/api/export/site-tracking', authMiddleware, requireRole('admin', 'group_pm', 'pm'), async (req, res) => {
+app.get('/api/export/site-tracking', authMiddleware, requireRole('admin', 'group_pm', 'program_manager', 'pm'), async (req, res) => {
     try {
         const { zone, region } = req.query;
         const siteQuery = {};

@@ -167,12 +167,52 @@ class SupervisorApp {
         const nameEl = document.getElementById('user-name');
         if (nameEl) nameEl.textContent = this.currentUser.full_name;
 
+        const avatarEl = document.getElementById('user-avatar');
+        if (avatarEl) {
+            if (this.currentUser.profile_photo) {
+                avatarEl.innerHTML = `<img src="${this.escapeHtml(this.currentUser.profile_photo)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
+            } else {
+                const initials = this.currentUser.full_name.split(' ').map(w => w[0]).join('').substring(0, 2).toUpperCase();
+                avatarEl.textContent = initials;
+            }
+            avatarEl.onclick = () => this.uploadProfilePhoto();
+        }
+
         const supervisorSelect = document.getElementById('supervisor-name');
         if (supervisorSelect) {
             supervisorSelect.value = this.currentUser.full_name;
             supervisorSelect.disabled = true;
             localStorage.setItem('supervisorName', this.currentUser.full_name);
         }
+    }
+
+    async uploadProfilePhoto() {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = 'image/*';
+        input.onchange = async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const formData = new FormData();
+            formData.append('photo', file);
+            try {
+                const resp = await fetch(`${this.serverUrl}/api/users/profile-photo`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${this.authToken}` },
+                    body: formData
+                });
+                const data = await resp.json();
+                if (data.success) {
+                    this.currentUser.profile_photo = data.profile_photo;
+                    localStorage.setItem('currentUser', JSON.stringify(this.currentUser));
+                    this.applyCurrentUser();
+                    this.showToast(this.t('Photo de profil mise à jour !', 'Profile photo updated!'), 'success');
+                }
+            } catch (err) {
+                this.showToast(this.t('Erreur upload photo', 'Photo upload error'), 'error');
+            }
+        };
+        input.click();
     }
 
     async warmUpServer() {
