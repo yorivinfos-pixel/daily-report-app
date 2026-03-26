@@ -483,6 +483,41 @@ class PMDashboard {
     createReportCard(report) {
         const isNew = this.isNewReport(report);
         const imagesHtml = this.createImagesPreview(report.images);
+
+        // Phase color logic
+        let phaseColor = '#94a3b8';
+        let phaseBg = 'rgba(100,116,139,0.1)';
+        let phaseIcon = '⬜';
+        const actualDays = Number(report.phase_actual_days || 0);
+        const maxDays = Number(report.phase_estimated_max_days || 0);
+        const minDays = Number(report.phase_estimated_min_days || 0);
+        const phaseStatus = report.phase_status || 'on track';
+
+        if (report.phase_name && report.phase_name !== 'Autres') {
+            if (phaseStatus === 'closed') {
+                const delay = maxDays > 0 ? actualDays - maxDays : 0;
+                if (delay > 0) {
+                    phaseColor = '#dc2626'; phaseBg = 'rgba(220,38,38,0.12)'; phaseIcon = '🔴';
+                } else {
+                    phaseColor = '#059669'; phaseBg = 'rgba(5,150,105,0.12)'; phaseIcon = '✅';
+                }
+            } else if (actualDays > 0 && maxDays > 0) {
+                if (actualDays <= minDays) {
+                    phaseColor = '#059669'; phaseBg = 'rgba(5,150,105,0.12)'; phaseIcon = '🟢';
+                } else if (actualDays <= maxDays) {
+                    phaseColor = '#d97706'; phaseBg = 'rgba(217,119,6,0.12)'; phaseIcon = '🟡';
+                } else {
+                    phaseColor = '#dc2626'; phaseBg = 'rgba(220,38,38,0.12)'; phaseIcon = '🔴';
+                }
+            } else if (phaseStatus === 'start') {
+                phaseColor = '#2563eb'; phaseBg = 'rgba(37,99,235,0.1)'; phaseIcon = '🔵';
+            }
+        }
+
+        const phaseLabel = report.phase_name || report.milestone_category || 'Jalon N/A';
+        const phaseDaysInfo = actualDays > 0 && maxDays > 0
+            ? ` — ${actualDays}j/${maxDays}j`
+            : actualDays > 0 ? ` — ${actualDays}j` : '';
         
         return `
             <div class="pm-report-card ${isNew ? 'new' : ''} ${this.selectedReport?.id === report.id ? 'selected' : ''}" 
@@ -499,6 +534,11 @@ class PMDashboard {
                     <span class="pm-status-badge ${report.status}">
                         ${report.status === 'pending' ? '⏳ En attente' : '✅ Examiné'}
                     </span>
+                </div>
+                <div style="display:flex;align-items:center;gap:6px;padding:6px 10px;margin:6px 0;background:${phaseBg};border-left:3px solid ${phaseColor};border-radius:6px;font-size:0.82rem;">
+                    <span>${phaseIcon}</span>
+                    <span style="color:${phaseColor};font-weight:600;">${phaseLabel}</span>
+                    <span style="color:${phaseColor};font-size:0.75rem;margin-left:auto;">${phaseStatus}${phaseDaysInfo}</span>
                 </div>
                 <div class="pm-card-content">${report.activities}</div>
                 ${imagesHtml}

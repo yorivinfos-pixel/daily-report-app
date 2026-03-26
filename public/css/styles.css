@@ -1025,3 +1025,149 @@ textarea {
     background: rgba(220, 38, 38, 0.3);
     color: #ffffff;
 }
+
+/* ============================================
+   Phase Auto-Days Display
+   ============================================ */
+
+.phase-auto-days-display {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+    background: linear-gradient(135deg, var(--gray-50) 0%, #f0f4ff 100%);
+    border: 2px solid var(--gray-200);
+    border-radius: var(--radius-lg);
+    min-height: 52px;
+    transition: all var(--transition-fast);
+}
+
+.phase-auto-days-display.loading {
+    border-color: var(--primary-light);
+    background: linear-gradient(135deg, #eff6ff, #dbeafe);
+}
+
+.phase-auto-days-display.has-data {
+    border-color: var(--primary);
+    background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+}
+
+.phase-auto-days-display.on-track {
+    border-color: var(--success);
+    background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+}
+
+.phase-auto-days-display.warning {
+    border-color: var(--warning);
+    background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+}
+
+.phase-auto-days-display.danger {
+    border-color: var(--danger);
+    background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
+}
+
+.auto-days-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--primary-dark);
+    line-height: 1;
+    min-width: 30px;
+    text-align: center;
+}
+
+.phase-auto-days-display.on-track .auto-days-value {
+    color: var(--success);
+}
+
+.phase-auto-days-display.warning .auto-days-value {
+    color: var(--warning);
+}
+
+.phase-auto-days-display.danger .auto-days-value {
+    color: var(--danger);
+}
+
+.auto-days-label {
+    font-size: 0.85rem;
+    color: var(--gray-500);
+    font-weight: 500;
+}
+
+.auto-days-badge {
+    margin-left: auto;
+    font-size: 0.65rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 0.2rem 0.5rem;
+    border-radius: var(--radius-full);
+    background: rgba(37, 99, 235, 0.1);
+    color: var(--primary);
+}
+
+.phase-auto-days-display.on-track .auto-days-badge {
+    background: rgba(5, 150, 105, 0.1);
+    color: var(--success);
+}
+
+.phase-auto-days-display.warning .auto-days-badge {
+    background: rgba(217, 119, 6, 0.1);
+    color: var(--warning);
+}
+
+.phase-auto-days-display.danger .auto-days-badge {
+    background: rgba(220, 38, 38, 0.1);
+    color: var(--danger);
+}
+
+/* Phase Estimate Box */
+.phase-estimate-box {
+    padding: 0.75rem 1rem;
+    background: var(--gray-50);
+    border: 2px solid var(--gray-200);
+    border-radius: var(--radius-lg);
+    min-height: 52px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 0.4rem;
+}
+
+.phase-estimate-text {
+    font-size: 0.82rem;
+    color: var(--gray-600);
+    font-weight: 500;
+}
+
+.phase-progress-bar {
+    width: 100%;
+    height: 6px;
+    background: var(--gray-200);
+    border-radius: var(--radius-full);
+    overflow: hidden;
+}
+
+.phase-progress-fill {
+    height: 100%;
+    border-radius: var(--radius-full);
+    transition: width 0.5s ease, background 0.3s ease;
+    background: var(--success);
+}
+
+.phase-progress-fill.warning {
+    background: var(--warning);
+}
+
+.phase-progress-fill.danger {
+    background: var(--danger);
+}
+
+@keyframes pulseFade {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+.phase-auto-days-display.loading .auto-days-value {
+    animation: pulseFade 1.2s ease-in-out infinite;
+}
