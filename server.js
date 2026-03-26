@@ -1202,10 +1202,18 @@ app.get('/api/sites', authMiddleware, async (req, res) => {
         const query = {};
 
         if (supervisor_name) query.assigned_supervisor = supervisor_name;
-        if (zone) query.zone = zone;
         if (region) query.region = region;
 
-        const sites = await Site.find(query).sort({ assigned_at: -1, created_at: -1 });
+        let sites = await Site.find(query).sort({ assigned_at: -1, created_at: -1 });
+
+        sites.forEach(s => {
+            if (!s.zone && s.region) s.zone = getZoneFromRegion(s.region);
+        });
+
+        if (zone) {
+            sites = sites.filter(s => s.zone === zone);
+        }
+
         res.json({ success: true, sites });
     } catch (error) {
         console.error('Erreur chargement sites:', error);
@@ -1315,10 +1323,18 @@ app.get('/api/export/site-tracking', authMiddleware, requireRole('admin', 'group
     try {
         const { zone, region } = req.query;
         const siteQuery = {};
-        if (zone) siteQuery.zone = zone;
         if (region) siteQuery.region = region;
 
-        const sites = await Site.find(siteQuery).sort({ id: 1 });
+        let sites = await Site.find(siteQuery).sort({ id: 1 });
+
+        // Backfill zone for sites that don't have it stored
+        sites.forEach(s => {
+            if (!s.zone && s.region) s.zone = getZoneFromRegion(s.region);
+        });
+
+        if (zone) {
+            sites = sites.filter(s => s.zone === zone);
+        }
         const allReports = await Report.find({}).sort({ created_at: -1 });
 
         const reportsBySite = {};
