@@ -5,8 +5,17 @@ const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
-const mongoUri = process.env.MONGODB_URI || 'mongodb+srv://mon_admin:6q4Qz.n-nFe.Xz4@cluster0.e0ovj8t.mongodb.net/?retryWrites=true&w=majority';
-const JWT_SECRET = process.env.JWT_SECRET || 'yoriv-site-track-secret-key-2026';
+const mongoUri = process.env.MONGODB_URI;
+const JWT_SECRET = process.env.JWT_SECRET;
+
+if (!mongoUri) {
+    console.error('❌ FATAL: Variable d\'environnement MONGODB_URI manquante. Le serveur ne peut pas démarrer.');
+    process.exit(1);
+}
+if (!JWT_SECRET) {
+    console.error('❌ FATAL: Variable d\'environnement JWT_SECRET manquante. Le serveur ne peut pas démarrer.');
+    process.exit(1);
+}
 
 mongoose.connect(mongoUri)
     .then(() => console.log("✅ Connecté à MongoDB avec succès sur Cluster0 !"))
@@ -187,6 +196,9 @@ const path = require('path');
 const fs = require('fs');
 const cors = require('cors');
 const { v4: uuidv4 } = require('uuid');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
+const mongoSanitize = require('express-mongo-sanitize');
 
 const app = express();
 const server = http.createServer(app);
@@ -197,12 +209,18 @@ const io = new Server(server, {
     }
 });
 
+app.use(helmet({
+    contentSecurityPolicy: false,
+    crossOriginEmbedderPolicy: false
+}));
+
 app.use(cors({
     origin: '*',
     allowedHeaders: ['Content-Type', 'Authorization'],
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
 }));
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
+app.use(mongoSanitize());
 app.use(express.static('public'));
 app.use('/uploads', express.static('uploads'));
 
@@ -246,7 +264,15 @@ function requireRole(...roles) {
 }
 
 // ======= Routes AUTH (publiques) =======
-app.post('/api/auth/login', async (req, res) => {
+const loginLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 10,
+    message: { success: false, error: 'Trop de tentatives de connexion. Réessayez dans 15 minutes.' },
+    standardHeaders: true,
+    legacyHeaders: false
+});
+
+app.post('/api/auth/login', loginLimiter, async (req, res) => {
     try {
         const { username, password } = req.body;
         if (!username || !password) {
@@ -390,29 +416,36 @@ async function seedInitialUsers() {
     try {
         const count = await User.countDocuments();
         if (count > 0) return;
+
+        const seedPassword = process.env.SEED_DEFAULT_PASSWORD;
+        if (!seedPassword) {
+            console.warn('⚠️ Seed ignoré: variable SEED_DEFAULT_PASSWORD non définie. Créez les comptes via l\'admin.');
+            return;
+        }
+
         console.log('🌱 Création des comptes initiaux...');
 
         const users = [
-            { full_name: 'Administrateur', username: 'admin', password: 'PASSWORD_REDACTED', role: 'admin', zone: '' },
-            { full_name: 'Sunil (Group PM)', username: 'sunil', password: 'PASSWORD_REDACTED', role: 'group_pm', zone: '' },
-            { full_name: 'PM Zone 1', username: 'pm1', password: 'PASSWORD_REDACTED', role: 'pm', zone: 'Zone 1' },
-            { full_name: 'PM Zone 2', username: 'pm2', password: 'PASSWORD_REDACTED', role: 'pm', zone: 'Zone 2' },
-            { full_name: 'PM Zone 3', username: 'pm3', password: 'PASSWORD_REDACTED', role: 'pm', zone: 'Zone 3' },
-            { full_name: 'PM Zone 4', username: 'pm4', password: 'PASSWORD_REDACTED', role: 'pm', zone: 'Zone 4' },
-            { full_name: 'Evariste FAMBA', username: 'evariste.famba', password: 'PASSWORD_REDACTED', role: 'supervisor', zone: '' },
-            { full_name: 'Gaston MUTSHIPULE', username: 'gaston.mutshipule', password: 'PASSWORD_REDACTED', role: 'supervisor', zone: '' },
-            { full_name: 'Patou KIESELO', username: 'patou.kieselo', password: 'PASSWORD_REDACTED', role: 'supervisor', zone: '' },
-            { full_name: 'Denis ILUNGA', username: 'denis.ilunga', password: 'PASSWORD_REDACTED', role: 'supervisor', zone: '' },
-            { full_name: 'Grace NGOMBA', username: 'grace.ngomba', password: 'PASSWORD_REDACTED', role: 'supervisor', zone: '' },
-            { full_name: 'Don MAFINGE', username: 'don.mafinge', password: 'PASSWORD_REDACTED', role: 'supervisor', zone: '' },
-            { full_name: 'Vincent KAPAJIKA', username: 'vincent.kapajika', password: 'PASSWORD_REDACTED', role: 'supervisor', zone: '' },
-            { full_name: 'Patient KYAVIRO', username: 'patient.kyaviro', password: 'PASSWORD_REDACTED', role: 'supervisor', zone: '' },
-            { full_name: 'Baudoin TSHIMBUNDU', username: 'baudoin.tshimbundu', password: 'PASSWORD_REDACTED', role: 'supervisor', zone: '' },
-            { full_name: 'Pacifique KABASODA', username: 'pacifique.kabasoda', password: 'PASSWORD_REDACTED', role: 'supervisor', zone: '' },
+            { full_name: 'Administrateur', username: 'admin', role: 'admin', zone: '' },
+            { full_name: 'Sunil (Group PM)', username: 'sunil', role: 'group_pm', zone: '' },
+            { full_name: 'PM Zone 1', username: 'pm1', role: 'pm', zone: 'Zone 1' },
+            { full_name: 'PM Zone 2', username: 'pm2', role: 'pm', zone: 'Zone 2' },
+            { full_name: 'PM Zone 3', username: 'pm3', role: 'pm', zone: 'Zone 3' },
+            { full_name: 'PM Zone 4', username: 'pm4', role: 'pm', zone: 'Zone 4' },
+            { full_name: 'Evariste FAMBA', username: 'evariste.famba', role: 'supervisor', zone: '' },
+            { full_name: 'Gaston MUTSHIPULE', username: 'gaston.mutshipule', role: 'supervisor', zone: '' },
+            { full_name: 'Patou KIESELO', username: 'patou.kieselo', role: 'supervisor', zone: '' },
+            { full_name: 'Denis ILUNGA', username: 'denis.ilunga', role: 'supervisor', zone: '' },
+            { full_name: 'Grace NGOMBA', username: 'grace.ngomba', role: 'supervisor', zone: '' },
+            { full_name: 'Don MAFINGE', username: 'don.mafinge', role: 'supervisor', zone: '' },
+            { full_name: 'Vincent KAPAJIKA', username: 'vincent.kapajika', role: 'supervisor', zone: '' },
+            { full_name: 'Patient KYAVIRO', username: 'patient.kyaviro', role: 'supervisor', zone: '' },
+            { full_name: 'Baudoin TSHIMBUNDU', username: 'baudoin.tshimbundu', role: 'supervisor', zone: '' },
+            { full_name: 'Pacifique KABASODA', username: 'pacifique.kabasoda', role: 'supervisor', zone: '' },
         ];
 
         for (const u of users) {
-            const password_hash = await bcrypt.hash(u.password, 10);
+            const password_hash = await bcrypt.hash(seedPassword, 10);
             await User.create({
                 full_name: u.full_name,
                 username: u.username,
@@ -706,7 +739,7 @@ app.get('/api/sites/:siteId/phases-status', authMiddleware, async (req, res) => 
         res.json({ success: true, phases });
     } catch (err) {
         console.error('Erreur phases-status:', err);
-        res.status(500).json({ success: false, error: err.message });
+        res.status(500).json({ success: false, error: 'Erreur serveur' });
     }
 });
 
@@ -780,7 +813,7 @@ app.get('/api/sites/:siteId/phase-auto-days', authMiddleware, async (req, res) =
         });
     } catch (err) {
         console.error('Erreur phase-auto-days:', err);
-        res.status(500).json({ success: false, error: err.message });
+        res.status(500).json({ success: false, error: 'Erreur serveur' });
     }
 });
 
@@ -917,7 +950,7 @@ app.post('/api/reports/:reportId/images', authMiddleware, (req, res, next) => {
     upload.array('images', 10)(req, res, (err) => {
         if (!err) return next();
         console.error('Erreur middleware upload images:', err);
-        return res.status(400).json({ success: false, error: err.message || 'Upload images invalide' });
+        return res.status(400).json({ success: false, error: 'Upload images invalide' });
     });
 }, async (req, res) => {
     try {
@@ -1315,7 +1348,7 @@ app.get('/api/export/site-tracking', authMiddleware, requireRole('admin', 'group
         res.json({ success: true, rows });
     } catch (err) {
         console.error('Erreur export site-tracking:', err);
-        res.status(500).json({ success: false, error: err.message });
+        res.status(500).json({ success: false, error: 'Erreur serveur' });
     }
 });
 
@@ -1337,14 +1370,27 @@ app.get('/api/export/report/:id', authMiddleware, async (req, res) => {
     }
 });
 
-// ================== SOCKET.IO ==================
+// ================== SOCKET.IO (avec auth JWT) ==================
+
+io.use((socket, next) => {
+    const token = socket.handshake.auth?.token || socket.handshake.query?.token;
+    if (!token) {
+        return next(new Error('Authentification requise'));
+    }
+    try {
+        const decoded = jwt.verify(token, JWT_SECRET);
+        socket.user = decoded;
+        next();
+    } catch (err) {
+        return next(new Error('Token invalide'));
+    }
+});
 
 io.on('connection', (socket) => {
-    console.log('Client connecté:', socket.id);
+    console.log(`Client connecté: ${socket.id} (${socket.user?.username || 'inconnu'})`);
 
     socket.on('join-role', (role) => {
         socket.join(role);
-        console.log(`Client ${socket.id} rejoint le rôle: ${role}`);
     });
 
     socket.on('join-report', (reportId) => {
@@ -1362,7 +1408,7 @@ io.on('connection', (socket) => {
     });
 
     socket.on('disconnect', () => {
-        console.log('Client déconnecté:', socket.id);
+        console.log(`Client déconnecté: ${socket.id}`);
     });
 });
 
