@@ -5,7 +5,7 @@
       <stop offset="100%" style="stop-color:#1d4ed8"/>
     </linearGradient>
   </defs>
-  <rect width="192" height="192" rx="40" fill="url(#bg)"/>
+  <rect width="192" height="192" fill="url(#bg)"/>
   <g fill="white">
     <!-- Clipboard -->
     <rect x="50" y="30" width="92" height="130" rx="8" fill="white" opacity="0.95"/>
