@@ -109,6 +109,29 @@ class SupervisorApp {
         if (logoutBtn) {
             logoutBtn.addEventListener('click', () => this.logout());
         }
+        const changePwBtn = document.getElementById('change-password-btn');
+        if (changePwBtn) {
+            changePwBtn.addEventListener('click', () => this.changePassword());
+        }
+    }
+
+    async changePassword() {
+        const cur = prompt(this.t('Mot de passe actuel :', 'Current password:'));
+        if (cur === null || cur === '') return;
+        const neu = prompt(this.t('Nouveau mot de passe (min. 6 caractères) :', 'New password (min 6 characters):'));
+        if (neu === null || neu === '') return;
+        try {
+            const r = await fetch(`${this.serverUrl}/api/auth/change-password`, {
+                method: 'POST',
+                headers: this.getAuthHeaders(),
+                body: JSON.stringify({ current_password: cur, new_password: neu })
+            });
+            const d = await r.json();
+            if (!d.success) throw new Error(d.error || 'Erreur');
+            this.showToast(this.t('Mot de passe mis à jour', 'Password updated'), 'success');
+        } catch (e) {
+            this.showToast(e.message || this.t('Erreur', 'Error'), 'error');
+        }
     }
 
     showApp() {

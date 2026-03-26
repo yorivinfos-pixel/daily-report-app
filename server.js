@@ -131,7 +131,7 @@ function normalizeProvince(str = '') {
 }
 
 const PROVINCE_TO_ZONE = {
-    // Zone 1
+    // Zone 1 — Ouest / Grand Bandundu / Grand Équateur
     [normalizeProvince('Kinshasa')]: 'Zone 1',
     [normalizeProvince('Kongo-Central')]: 'Zone 1',
     [normalizeProvince('Bandundu')]: 'Zone 1',
@@ -144,23 +144,32 @@ const PROVINCE_TO_ZONE = {
     [normalizeProvince('Nord-Ubangi')]: 'Zone 1',
     [normalizeProvince('Sud-Ubangi')]: 'Zone 1',
 
-    // Zone 2
-    [normalizeProvince('Haut-Katanga')]: 'Zone 2',
-    [normalizeProvince('Lualaba')]: 'Zone 2',
+    // Zone 2 — Est (Kivu, Maniema, etc.) — pas le copper belt
+    [normalizeProvince('Maniema')]: 'Zone 2',
+    [normalizeProvince('Nord-Kivu')]: 'Zone 2',
+    [normalizeProvince('Sud-Kivu')]: 'Zone 2',
+    [normalizeProvince('Nord Kivu')]: 'Zone 2',
+    [normalizeProvince('Sud Kivu')]: 'Zone 2',
+    [normalizeProvince('Ituri')]: 'Zone 2',
+    [normalizeProvince('Tshopo')]: 'Zone 2',
+    [normalizeProvince('Bas-Uele')]: 'Zone 2',
+    [normalizeProvince('Haut-Uele')]: 'Zone 2',
     [normalizeProvince('Lomami')]: 'Zone 2',
     [normalizeProvince('Haut-Lomami')]: 'Zone 2',
     [normalizeProvince('Tanganyika')]: 'Zone 2',
 
-    // Zone 3
+    // Zone 3 — Grand Kasaï
     [normalizeProvince('Kasai-Central')]: 'Zone 3',
     [normalizeProvince('Kasai-Oriental')]: 'Zone 3',
-    // UI uses "Kasai" (not "Kasai-Occidental")
     [normalizeProvince('Kasai')]: 'Zone 3',
     [normalizeProvince('Sankuru')]: 'Zone 3',
+
+    // Zone 4 — Copper belt (Haut-Katanga, Lualaba, etc.)
+    [normalizeProvince('Haut-Katanga')]: 'Zone 4',
+    [normalizeProvince('Lualaba')]: 'Zone 4'
 };
 
 function getZoneFromRegion(region) {
-    // Zone 4 = default (partie Est + provinces restantes)
     return PROVINCE_TO_ZONE[normalizeProvince(region)] || 'Zone 4';
 }
 
@@ -319,6 +328,30 @@ app.get('/api/auth/me', authMiddleware, async (req, res) => {
         if (!user) return res.status(404).json({ success: false, error: 'Utilisateur introuvable' });
         res.json({ success: true, user });
     } catch (err) {
+        res.status(500).json({ success: false, error: 'Erreur serveur' });
+    }
+});
+
+app.post('/api/auth/change-password', authMiddleware, async (req, res) => {
+    try {
+        const { current_password, new_password } = req.body;
+        if (!current_password || !new_password) {
+            return res.status(400).json({ success: false, error: 'Mot de passe actuel et nouveau requis' });
+        }
+        if (String(new_password).length < 6) {
+            return res.status(400).json({ success: false, error: 'Le nouveau mot de passe doit comporter au moins 6 caractères' });
+        }
+        const user = await User.findById(req.user.id);
+        if (!user) return res.status(404).json({ success: false, error: 'Utilisateur introuvable' });
+        const valid = await bcrypt.compare(current_password, user.password_hash);
+        if (!valid) {
+            return res.status(401).json({ success: false, error: 'Mot de passe actuel incorrect' });
+        }
+        user.password_hash = await bcrypt.hash(new_password, 10);
+        await user.save();
+        res.json({ success: true, message: 'Mot de passe mis à jour' });
+    } catch (err) {
+        console.error('Erreur change-password:', err);
         res.status(500).json({ success: false, error: 'Erreur serveur' });
     }
 });
@@ -1381,7 +1414,7 @@ app.get('/api/sites', authMiddleware, async (req, res) => {
         let sites = await Site.find(query).sort({ assigned_at: -1, created_at: -1 });
 
         sites.forEach(s => {
-            if (!s.zone && s.region) s.zone = getZoneFromRegion(s.region);
+            if (s.region) s.zone = getZoneFromRegion(s.region);
         });
 
         if (zone) {
@@ -1495,19 +1528,30 @@ app.get('/api/export/excel', authMiddleware, requireRole('admin', 'group_pm', 'p
 
 app.get('/api/export/site-tracking', authMiddleware, requireRole('admin', 'group_pm', 'program_manager', 'pm'), async (req, res) => {
     try {
-        const { zone, region } = req.query;
+        const { zone: zoneQuery, region } = req.query;
         const siteQuery = {};
         if (region) siteQuery.region = region;
 
         let sites = await Site.find(siteQuery).sort({ id: 1 });
 
-        // Backfill zone for sites that don't have it stored
         sites.forEach(s => {
-            if (!s.zone && s.region) s.zone = getZoneFromRegion(s.region);
+            if (s.region) s.zone = getZoneFromRegion(s.region);
         });
 
-        if (zone) {
-            sites = sites.filter(s => s.zone === zone);
+        let effectiveZone = (zoneQuery && String(zoneQuery).trim()) || '';
+
+        if (req.user.role === 'pm' && req.user.zone && effectiveZone !== '') {
+            effectiveZone = req.user.zone;
+        }
+
+        if (effectiveZone) {
+            const supUsers = await User.find({ role: 'supervisor', zone: effectiveZone, is_active: true }).select('full_name');
+            const nameSet = new Set(supUsers.map(u => (u.full_name || '').trim().toLowerCase()).filter(Boolean));
+            sites = sites.filter(s => {
+                if (s.zone === effectiveZone) return true;
+                const sup = (s.assigned_supervisor || '').trim().toLowerCase();
+                return sup && nameSet.has(sup);
+            });
         }
         const allReports = await Report.find({}).sort({ created_at: -1 });
 

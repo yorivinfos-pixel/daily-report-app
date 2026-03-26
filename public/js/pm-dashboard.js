@@ -132,6 +132,29 @@ class PMDashboard {
         if (logoutBtn) {
             logoutBtn.addEventListener('click', () => this.logout());
         }
+        const changePwBtn = document.getElementById('change-password-btn');
+        if (changePwBtn) {
+            changePwBtn.addEventListener('click', () => this.changePassword());
+        }
+    }
+
+    async changePassword() {
+        const cur = prompt(this.t('Mot de passe actuel :', 'Current password:'));
+        if (cur === null || cur === '') return;
+        const neu = prompt(this.t('Nouveau mot de passe (min. 6 caractères) :', 'New password (min 6 characters):'));
+        if (neu === null || neu === '') return;
+        try {
+            const r = await this.authFetch(this.getApiUrl('/api/auth/change-password'), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ current_password: cur, new_password: neu })
+            });
+            const d = await r.json();
+            if (!r.ok || !d.success) throw new Error(d.error || 'Erreur');
+            this.showToast(this.t('Mot de passe mis à jour', 'Password updated'), 'success');
+        } catch (e) {
+            this.showToast(e.message || 'Erreur', 'error');
+        }
     }
 
     showApp() {
@@ -1759,10 +1782,24 @@ class PMDashboard {
     
     async fetchSiteTrackingData() {
         const showOtherZones = document.getElementById('show-other-zones')?.checked;
-        const zone = showOtherZones ? '' : this.getCurrentPmZone();
+        const role = this.currentUser?.role;
         const region = document.getElementById('region-filter')?.value || '';
         const params = new URLSearchParams();
-        if (zone) params.set('zone', zone);
+
+        if (role === 'program_manager' || role === 'group_pm') {
+            // Pas de filtre zone par défaut (évite Zone 1 vide alors que les sites sont ailleurs)
+        } else if (role === 'admin') {
+            if (!showOtherZones && document.getElementById('pm-zone-filter')?.value) {
+                params.set('zone', document.getElementById('pm-zone-filter').value);
+            }
+        } else if (role === 'pm') {
+            const z = showOtherZones ? '' : (this.currentUser?.zone || this.getCurrentPmZone());
+            if (z) params.set('zone', z);
+        } else {
+            const z = showOtherZones ? '' : this.getCurrentPmZone();
+            if (z) params.set('zone', z);
+        }
+
         if (region) params.set('region', region);
         const url = this.getApiUrl(`/api/export/site-tracking?${params.toString()}`);
         const response = await this.authFetch(url);
