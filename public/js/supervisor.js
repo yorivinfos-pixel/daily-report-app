@@ -283,7 +283,10 @@ class SupervisorApp {
             return;
         }
 
-        this.socket = io(this.serverUrl);
+        const token = localStorage.getItem('authToken') || '';
+        this.socket = io(this.serverUrl, {
+            auth: { token }
+        });
         
         this.socket.on('connect', () => {
             console.log('Connecté au serveur');
@@ -817,10 +820,10 @@ class SupervisorApp {
             list.innerHTML = messages.map(m => `
                 <div class="feedback-item">
                     <div class="feedback-header">
-                        <span class="feedback-pm">${m.sender_name} (${m.sender_role})</span>
+                        <span class="feedback-pm">${this.escapeHtml(m.sender_name)} (${this.escapeHtml(m.sender_role)})</span>
                         <span class="feedback-date">${this.formatDate(m.created_at)}</span>
                     </div>
-                    <div class="feedback-text">${m.message}</div>
+                    <div class="feedback-text">${this.escapeHtml(m.message).replace(/\n/g, '<br>')}</div>
                 </div>
             `).join('');
             list.scrollTop = list.scrollHeight;
@@ -1158,15 +1161,15 @@ class SupervisorApp {
             <div class="report-card ${report.status}" data-id="${rid}">
                 <div class="report-card-header">
                     <div class="report-site-info">
-                        <span class="report-site-id">${report.site_id}</span>
-                        <div class="report-site-name">${report.site_name}</div>
+                        <span class="report-site-id">${this.escapeHtml(report.site_id)}</span>
+                        <div class="report-site-name">${this.escapeHtml(report.site_name)}</div>
                     </div>
                     <span class="report-status ${report.status}">
                         ${report.status === 'pending' ? '⏳ En attente' : '✅ Examiné'}
                     </span>
                 </div>
                 <div class="report-card-body">
-                    ${this.truncateText(report.activities, 100)}
+                    ${this.escapeHtml(this.truncateText(report.activities, 100))}
                 </div>
                 <div class="report-card-footer">
                     <span class="report-date">${this.formatDate(report.created_at)} • ${report.phase_name || report.milestone_category || 'Jalon N/A'} (${report.phase_status || 'on track'})</span>
@@ -1404,10 +1407,10 @@ class SupervisorApp {
         const feedbackHtml = `
             <div class="feedback-item new">
                 <div class="feedback-header">
-                    <span class="feedback-pm">${data.feedback.pm_name || 'PM'}</span>
+                    <span class="feedback-pm">${this.escapeHtml(data.feedback.pm_name || 'PM')}</span>
                     <span class="feedback-date">${this.formatDate(data.feedback.created_at)}</span>
                 </div>
-                <div class="feedback-text">${data.feedback.feedback}</div>
+                <div class="feedback-text">${this.escapeHtml(data.feedback.feedback || '').replace(/\n/g, '<br>')}</div>
             </div>
         `;
         

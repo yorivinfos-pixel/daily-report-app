@@ -384,7 +384,8 @@ class PMDashboard {
             return;
         }
         try {
-            this.socket = this.serverUrl ? io(this.serverUrl) : io();
+            const token = localStorage.getItem('pmAuthToken') || '';
+            this.socket = this.serverUrl ? io(this.serverUrl, { auth: { token } }) : io({ auth: { token } });
         
         this.socket.on('connect', () => {
             console.log('PM Dashboard connecté');
@@ -1086,10 +1087,10 @@ class PMDashboard {
                  data-id="${rid}">
                 <div class="pm-card-header">
                     <div class="pm-site-info">
-                        <span class="pm-site-id">${report.site_id}</span>
-                        <h3>${report.site_name}</h3>
-                        <span class="pm-supervisor">👷 ${report.supervisor_name || 'Non spécifié'}</span>
-                        <span class="pm-region">🌍 ${report.region || 'N/A'}</span>
+                        <span class="pm-site-id">${this.escapeHtml(report.site_id)}</span>
+                        <h3>${this.escapeHtml(report.site_name)}</h3>
+                        <span class="pm-supervisor">👷 ${this.escapeHtml(report.supervisor_name || 'Non spécifié')}</span>
+                        <span class="pm-region">🌍 ${this.escapeHtml(report.region || 'N/A')}</span>
                         <span class="pm-zone">🗺️ ${this.getReportZone(report)}</span>
                         <span class="pm-report-date">📆 ${this.t('Rapport du:', 'Report date:')} ${report.report_date || 'N/A'}</span>
                     </div>
@@ -1102,7 +1103,7 @@ class PMDashboard {
                     <span style="color:${phaseColor};font-weight:600;">${phaseLabel}</span>
                     <span style="color:${phaseColor};font-size:0.75rem;margin-left:auto;">${phaseStatus}${phaseDaysInfo}</span>
                 </div>
-                <div class="pm-card-content">${report.activities}</div>
+                <div class="pm-card-content">${this.escapeHtml(report.activities || '')}</div>
                 ${imagesHtml}
                 <div class="pm-card-footer">
                     <span>📅 ${this.t('Soumis:', 'Submitted:')} ${this.formatDate(report.created_at)}</span>
@@ -1274,22 +1275,22 @@ class PMDashboard {
             <div class="detail-section">
                 <div class="detail-section-title">Site</div>
                 <div class="detail-section-content">
-                    <strong>${report.site_id}</strong><br>
-                    ${report.site_name}
+                    <strong>${this.escapeHtml(report.site_id)}</strong><br>
+                    ${this.escapeHtml(report.site_name)}
                 </div>
             </div>
             
             <div class="detail-section">
                 <div class="detail-section-title">Région</div>
                 <div class="detail-section-content">
-                    🌍 ${report.region || 'Non spécifiée'}
+                    🌍 ${this.escapeHtml(report.region || 'Non spécifiée')}
                 </div>
             </div>
             
             <div class="detail-section">
                 <div class="detail-section-title">Superviseur</div>
                 <div class="detail-section-content">
-                    👷 ${report.supervisor_name || 'Non spécifié'}
+                    👷 ${this.escapeHtml(report.supervisor_name || 'Non spécifié')}
                 </div>
             </div>
             
@@ -1330,13 +1331,13 @@ class PMDashboard {
             
             <div class="detail-section">
                 <div class="detail-section-title">Activités sur le site</div>
-                <div class="detail-section-content">${report.activities}</div>
+                <div class="detail-section-content">${this.escapeHtml(report.activities || '').replace(/\n/g, '<br>')}</div>
             </div>
             
             ${report.comments ? `
                 <div class="detail-section">
                     <div class="detail-section-title">Commentaires</div>
-                    <div class="detail-section-content">${report.comments}</div>
+                    <div class="detail-section-content">${this.escapeHtml(report.comments).replace(/\n/g, '<br>')}</div>
                 </div>
             ` : ''}
             
@@ -1357,10 +1358,10 @@ class PMDashboard {
                     ${report.feedbacks.map(fb => `
                         <div class="feedback-item">
                             <div class="feedback-meta">
-                                <span>👤 ${fb.pm_name || 'PM'}</span>
+                                <span>👤 ${this.escapeHtml(fb.pm_name || 'PM')}</span>
                                 <span>${this.formatDate(fb.created_at)}</span>
                             </div>
-                            <div class="feedback-content">${fb.feedback}</div>
+                            <div class="feedback-content">${this.escapeHtml(fb.feedback || '').replace(/\n/g, '<br>')}</div>
                         </div>
                     `).join('')}
                 </div>
@@ -1532,10 +1533,10 @@ class PMDashboard {
             list.innerHTML = messages.map(m => `
                 <div class="feedback-item">
                     <div class="feedback-meta">
-                        <span>👤 ${m.sender_name} (${m.sender_role})</span>
+                        <span>👤 ${this.escapeHtml(m.sender_name)} (${this.escapeHtml(m.sender_role)})</span>
                         <span>${this.formatDate(m.created_at)}</span>
                     </div>
-                    <div class="feedback-content">${m.message}</div>
+                    <div class="feedback-content">${this.escapeHtml(m.message).replace(/\n/g, '<br>')}</div>
                 </div>
             `).join('');
             list.scrollTop = list.scrollHeight;
