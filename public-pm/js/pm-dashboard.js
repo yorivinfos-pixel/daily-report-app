@@ -1577,10 +1577,13 @@ class PMDashboard {
     }
     
     async fetchSiteTrackingData() {
-        const zone = this.getCurrentPmZone();
+        const showOtherZones = document.getElementById('show-other-zones')?.checked;
+        const zone = showOtherZones ? '' : this.getCurrentPmZone();
         const region = document.getElementById('region-filter')?.value || '';
-        let url = this.getApiUrl(`/api/export/site-tracking?zone=${encodeURIComponent(zone)}`);
-        if (region) url += `&region=${encodeURIComponent(region)}`;
+        const params = new URLSearchParams();
+        if (zone) params.set('zone', zone);
+        if (region) params.set('region', region);
+        const url = this.getApiUrl(`/api/export/site-tracking?${params.toString()}`);
         const response = await this.authFetch(url);
         const result = await response.json();
         if (!result.success) throw new Error(result.error || 'Erreur export');
