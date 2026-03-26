@@ -227,6 +227,11 @@ class SupervisorApp {
                 } catch (_) {
                     throw new Error(this.t('Réponse serveur illisible (pas du JSON).', 'Invalid server response (non-JSON).'));
                 }
+                if (response.status === 401) {
+                    this.showToast(this.t('Session expirée. Veuillez vous reconnecter.', 'Session expired. Please log in again.'), 'warning');
+                    this.logout();
+                    throw new Error('Session expirée');
+                }
                 if (!response.ok) {
                     const msg = json?.error ? `: ${json.error}` : '';
                     throw new Error(`HTTP ${response.status}${msg}`);
