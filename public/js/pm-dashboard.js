@@ -1023,17 +1023,62 @@ class PMDashboard {
             `;
             return;
         }
+
+        const groups = {};
+        filtered.forEach(report => {
+            const name = report.supervisor_name || this.t('Non spécifié', 'Unspecified');
+            if (!groups[name]) groups[name] = [];
+            groups[name].push(report);
+        });
+
+        const sortedSupervisors = Object.keys(groups).sort((a, b) => a.localeCompare(b));
+
+        if (!this._openSupervisors) this._openSupervisors = {};
+
+        grid.innerHTML = sortedSupervisors.map(name => {
+            const reports = groups[name];
+            const pendingCount = reports.filter(r => r.status === 'pending').length;
+            const reviewedCount = reports.filter(r => r.status === 'reviewed').length;
+            const isOpen = this._openSupervisors[name] === true;
+
+            return `
+                <div class="supervisor-accordion">
+                    <div class="supervisor-accordion-header" data-supervisor="${this.escapeHtml(name)}">
+                        <div class="supervisor-accordion-info">
+                            <span class="supervisor-accordion-icon">👷</span>
+                            <span class="supervisor-accordion-name">${this.escapeHtml(name)}</span>
+                            <span class="supervisor-accordion-count">${reports.length} ${this.t('rapport(s)', 'report(s)')}</span>
+                            ${pendingCount > 0 ? `<span class="supervisor-badge pending">${pendingCount} ${this.t('en attente', 'pending')}</span>` : ''}
+                            ${reviewedCount > 0 ? `<span class="supervisor-badge reviewed">${reviewedCount} ${this.t('examiné(s)', 'reviewed')}</span>` : ''}
+                        </div>
+                        <span class="supervisor-accordion-chevron ${isOpen ? 'open' : ''}">▼</span>
+                    </div>
+                    <div class="supervisor-accordion-body ${isOpen ? '' : 'collapsed'}">
+                        <div class="supervisor-reports-grid">
+                            ${reports.map(report => this.createReportCard(report)).join('')}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        grid.querySelectorAll('.supervisor-accordion-header').forEach(header => {
+            header.addEventListener('click', () => {
+                const supervisor = header.dataset.supervisor;
+                const body = header.nextElementSibling;
+                const chevron = header.querySelector('.supervisor-accordion-chevron');
+                const isCollapsed = body.classList.toggle('collapsed');
+                chevron.classList.toggle('open', !isCollapsed);
+                this._openSupervisors[supervisor] = !isCollapsed;
+            });
+        });
         
-        grid.innerHTML = filtered.map(report => this.createReportCard(report)).join('');
-        
-        // Ajouter les event listeners
         grid.querySelectorAll('.pm-report-card').forEach(card => {
             card.addEventListener('click', () => {
                 this.selectReport(card.dataset.id);
             });
         });
         
-        // Event listeners pour les miniatures d'images
         grid.querySelectorAll('.pm-image-thumb').forEach(img => {
             img.addEventListener('click', (e) => {
                 e.stopPropagation();
