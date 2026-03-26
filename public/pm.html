@@ -158,6 +158,12 @@
                         <button class="export-btn excel" id="export-excel" title="Exporter en Excel">
                             <span>📊</span> Excel
                         </button>
+                        <button class="export-btn excel" id="export-site-tracking-excel" title="Tableau de suivi sites (Excel)" style="background:#0d9488;">
+                            <span>📋</span> Tracking
+                        </button>
+                        <button class="export-btn pdf" id="export-site-tracking-pdf" title="Tableau de suivi sites (PDF)" style="background:#7c3aed;">
+                            <span>📑</span> Tracking PDF
+                        </button>
                     </div>
                     <div style="display:flex;align-items:center;gap:0.4rem;flex-wrap:wrap;">
                         <select id="export-supervisor-filter" style="padding:4px 8px;background:#1e293b;color:#fff;border:1px solid #475569;border-radius:6px;font-size:0.8rem;">
@@ -258,6 +264,8 @@
                         <option value="Pacifique KABASODA">Pacifique KABASODA</option>
                     </select>
                     <input type="text" id="assign-site-location" placeholder="Localisation (optionnel)">
+                    <input type="text" id="assign-b2s-vendor" placeholder="B2S Vendor (ex: STE TOM METAL)">
+                    <input type="text" id="assign-target-rfi" placeholder="Target RFI (ex: March)">
                     <button type="submit" class="export-btn excel">Affecter</button>
                 </form>
             </section>

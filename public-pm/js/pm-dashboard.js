@@ -2,6 +2,20 @@
 // YoRivSiteTrack-YST1 - PM Dashboard JS
 // ============================================
 
+function safeJsonParse(value, fallback) {
+    try {
+        return JSON.parse(value);
+    } catch (_) {
+        return fallback;
+    }
+}
+
+function getReportId(report) {
+    if (!report) return '';
+    const v = report.id != null ? report.id : report._id;
+    return v != null ? String(v) : '';
+}
+
 function normalizeProvince(str = '') {
     return String(str)
         .trim()
@@ -11,6 +25,7 @@ function normalizeProvince(str = '') {
         .toLowerCase();
 }
 
+// Zone mapping based on province (Zone 1-3 are explicit; Zone 4 is the rest)
 const PROVINCE_TO_ZONE = {
     // Zone 1
     [normalizeProvince('Kinshasa')]: 'Zone 1',
@@ -18,50 +33,156 @@ const PROVINCE_TO_ZONE = {
     [normalizeProvince('Bandundu')]: 'Zone 1',
     [normalizeProvince('Kwango')]: 'Zone 1',
     [normalizeProvince('Kwilu')]: 'Zone 1',
+    [normalizeProvince('Equateur')]: 'Zone 1',
+    [normalizeProvince('Mai-Ndombe')]: 'Zone 1',
+    [normalizeProvince('Mongala')]: 'Zone 1',
+    [normalizeProvince('Tshuapa')]: 'Zone 1',
+    [normalizeProvince('Nord-Ubangi')]: 'Zone 1',
+    [normalizeProvince('Sud-Ubangi')]: 'Zone 1',
 
     // Zone 2
     [normalizeProvince('Haut-Katanga')]: 'Zone 2',
     [normalizeProvince('Lualaba')]: 'Zone 2',
     [normalizeProvince('Lomami')]: 'Zone 2',
     [normalizeProvince('Haut-Lomami')]: 'Zone 2',
+    [normalizeProvince('Tanganyika')]: 'Zone 2',
 
     // Zone 3
     [normalizeProvince('Kasai-Central')]: 'Zone 3',
     [normalizeProvince('Kasai-Oriental')]: 'Zone 3',
-    // UI uses "Kasai"
     [normalizeProvince('Kasai')]: 'Zone 3',
+    [normalizeProvince('Sankuru')]: 'Zone 3'
 };
 
 class PMDashboard {
     constructor() {
         this.socket = null;
         this.reports = [];
+        this.unreadReportCounts = safeJsonParse(localStorage.getItem('pmUnreadReportCounts') || '{}', {});
+        this.unreadZoneCount = parseInt(localStorage.getItem('pmUnreadZoneCount') || '0', 10);
         this.currentFilter = 'all';
         this.selectedReport = null;
         this.currentImages = [];
         this.currentImageIndex = 0;
-        this.isNativeApp = this.checkIfNativeApp();
         this.serverUrl = this.getServerUrl();
+        this.language = localStorage.getItem('pmLanguage') || 'fr';
+        this.authToken = localStorage.getItem('pmAuthToken') || null;
+        this.currentUser = safeJsonParse(localStorage.getItem('pmCurrentUser'), null);
         
-        console.log('Is Native App:', this.isNativeApp);
-        console.log('Server URL:', this.serverUrl);
-        console.log('Location:', window.location.href);
-        
+        this.setupLogin();
+        if (this.authToken && this.currentUser) {
+            this.showApp();
+        }
+    }
+
+    getAuthHeaders() {
+        const headers = { 'Content-Type': 'application/json' };
+        if (this.authToken) headers['Authorization'] = `Bearer ${this.authToken}`;
+        return headers;
+    }
+
+    setupLogin() {
+        const form = document.getElementById('login-form');
+        if (!form) return;
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const username = document.getElementById('login-username').value.trim();
+            const password = document.getElementById('login-password').value;
+            const errorDiv = document.getElementById('login-error');
+            const btn = document.getElementById('login-btn');
+
+            if (!username || !password) {
+                errorDiv.textContent = 'Veuillez remplir tous les champs';
+                errorDiv.style.display = 'block';
+                return;
+            }
+
+            btn.disabled = true;
+            btn.textContent = 'Connexion...';
+            errorDiv.style.display = 'none';
+
+            try {
+                const res = await fetch(`${this.serverUrl}/api/auth/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: username.toLowerCase(), password })
+                });
+                const data = await res.json();
+                if (!data.success) {
+                    throw new Error(data.error || 'Erreur de connexion');
+                }
+                if (!['pm', 'group_pm', 'admin'].includes(data.user.role)) {
+                    throw new Error('Ce compte n\'a pas accès au Dashboard PM. Utilisez l\'application Superviseur.');
+                }
+                this.authToken = data.token;
+                this.currentUser = data.user;
+                localStorage.setItem('pmAuthToken', data.token);
+                localStorage.setItem('pmCurrentUser', JSON.stringify(data.user));
+                this.showApp();
+            } catch (err) {
+                errorDiv.textContent = err.message;
+                errorDiv.style.display = 'block';
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Se connecter';
+            }
+        });
+
+        const logoutBtn = document.getElementById('logout-btn');
+        if (logoutBtn) {
+            logoutBtn.addEventListener('click', () => this.logout());
+        }
+    }
+
+    showApp() {
+        const loginScreen = document.getElementById('login-screen');
+        const appDiv = document.getElementById('app');
+        if (loginScreen) loginScreen.style.display = 'none';
+        if (appDiv) appDiv.style.display = '';
+        this.applyCurrentUser();
         this.init();
     }
-    
-    checkIfNativeApp() {
-        // Détecte si on est dans une app Capacitor/Cordova
-        // Capacitor utilise capacitor:// ou https://localhost sur Android
-        const isCapacitor = window.Capacitor !== undefined;
-        const isCordova = window.cordova !== undefined;
-        const isFileProtocol = window.location.protocol === 'file:';
-        const isCapacitorProtocol = window.location.protocol === 'capacitor:';
-        const isIonicProtocol = window.location.protocol === 'ionic:';
-        // Sur Android Capacitor, c'est souvent https://localhost
-        const isCapacitorLocalhost = window.location.origin === 'https://localhost';
-        
-        return isCapacitor || isCordova || isFileProtocol || isCapacitorProtocol || isIonicProtocol || isCapacitorLocalhost;
+
+    applyCurrentUser() {
+        if (!this.currentUser) return;
+        const nameDisplay = document.getElementById('pm-name-display');
+        const nameInput = document.getElementById('pm-name-input');
+        if (nameDisplay) nameDisplay.textContent = this.currentUser.full_name;
+        if (nameInput) nameInput.value = this.currentUser.full_name;
+
+        if (this.currentUser.zone && this.currentUser.role === 'pm') {
+            const zoneSelect = document.getElementById('pm-zone-filter');
+            if (zoneSelect) zoneSelect.value = this.currentUser.zone;
+        }
+    }
+
+    logout() {
+        this.authToken = null;
+        this.currentUser = null;
+        localStorage.removeItem('pmAuthToken');
+        localStorage.removeItem('pmCurrentUser');
+        const loginScreen = document.getElementById('login-screen');
+        const appDiv = document.getElementById('app');
+        if (loginScreen) loginScreen.style.display = '';
+        if (appDiv) appDiv.style.display = 'none';
+    }
+
+    authFetch(url, options = {}) {
+        if (!options.headers) options.headers = {};
+        if (this.authToken) options.headers['Authorization'] = `Bearer ${this.authToken}`;
+        return fetch(url, options);
+    }
+
+    persistUnreadState() {
+        localStorage.setItem('pmUnreadReportCounts', JSON.stringify(this.unreadReportCounts));
+        localStorage.setItem('pmUnreadZoneCount', String(this.unreadZoneCount));
+    }
+
+    updateZoneBadge() {
+        const badge = document.getElementById('pm-zone-chat-badge');
+        if (!badge) return;
+        badge.style.display = this.unreadZoneCount > 0 ? 'inline-flex' : 'none';
+        badge.textContent = String(this.unreadZoneCount);
     }
     
     getServerUrl() {
@@ -76,24 +197,150 @@ class PMDashboard {
     }
     
     init() {
-        // Vérifier si on a besoin de configurer le serveur
-        if (this.isNativeApp && !this.serverUrl) {
+        if (!this.serverUrl && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
             this.showServerConfig();
             return;
         }
-        if (!this.serverUrl && window.location.protocol === 'http:' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
-            this.showServerConfig();
-            return;
-        }
+
+        const safe = (label, fn) => {
+            try { fn(); } catch (e) { console.error(`[PM init] ${label}:`, e); }
+        };
         
-        this.setupSocket();
-        this.setupNavigation();
-        this.setupSearch();
-        this.setupDetailPanel();
-        this.setupImageModal();
+        safe('setupLanguage',      () => this.setupLanguage());
+        safe('setupSocket',        () => this.setupSocket());
+        safe('setupNavigation',    () => this.setupNavigation());
+        safe('setupSearch',        () => this.setupSearch());
+        safe('setupSiteAssignment',() => this.setupSiteAssignment());
+        safe('setupDetailPanel',   () => this.setupDetailPanel());
+        safe('setupImageModal',    () => this.setupImageModal());
+        safe('loadPMName',         () => this.loadPMName());
+        safe('loadPMZone',         () => this.loadPMZone());
+        safe('setupPhotosGallery', () => this.setupPhotosGallery());
+
         this.loadReports();
-        this.loadPMName();
-        this.loadPMZone();
+        this.setupZoneChat();
+    }
+
+    setupLanguage() {
+        const select = document.getElementById('pm-language-select');
+        if (!select) return;
+        select.value = this.language;
+        select.addEventListener('change', () => {
+            this.language = select.value;
+            localStorage.setItem('pmLanguage', this.language);
+            this.applyLanguage();
+            this.renderReports();
+            this.showToast(this.t('Langue mise à jour', 'Language updated'), 'success');
+        });
+        this.applyLanguage();
+    }
+
+    t(fr, en) {
+        return this.language === 'en' ? en : fr;
+    }
+
+    applyLanguage() {
+        const mappings = [
+            ['.logo-subtitle', this.t('DASHBOARD PM', 'DASHBOARD PM')],
+            ['.header-subtitle', this.t('Rapports journaliers des superviseurs', 'Daily supervisor reports')],
+            ['#search-input', this.t('Rechercher par site, superviseur...', 'Search by site, supervisor...'), 'placeholder'],
+            ['#pm-zone-chat-input', this.t('Écrire un message à la zone...', 'Write a message to the zone...'), 'placeholder'],
+            ['#connection-text', this.t('Déconnecté', 'Disconnected')],
+            ['#assign-site-id', this.t('Site ID (ex: CDKN-045)', 'Site ID (ex: CDKN-045)'), 'placeholder'],
+            ['#assign-site-name', this.t('Nom du site', 'Site name'), 'placeholder'],
+            ['#assign-supervisor-name', this.t('Nom du superviseur', 'Supervisor name'), 'placeholder'],
+            ['#assign-site-location', this.t('Localisation (optionnel)', 'Location (optional)'), 'placeholder']
+        ];
+        mappings.forEach(([selector, value, attr]) => {
+            const el = document.querySelector(selector);
+            if (!el) return;
+            if (attr === 'placeholder') el.setAttribute('placeholder', value);
+            else el.textContent = value;
+        });
+
+        const navTexts = document.querySelectorAll('.nav-item .nav-text');
+        if (navTexts.length >= 3) {
+            navTexts[0].textContent = this.t('Tous les Rapports', 'All Reports');
+            navTexts[1].textContent = this.t('En Attente', 'Pending');
+            navTexts[2].textContent = this.t('Examinés', 'Reviewed');
+        }
+
+        const exportPdf = document.querySelector('#export-pdf');
+        if (exportPdf) {
+            exportPdf.innerHTML = `<span>📄</span> ${this.t('PDF', 'PDF')}`;
+            exportPdf.title = this.t('Exporter en PDF', 'Export as PDF');
+        }
+        const exportExcel = document.querySelector('#export-excel');
+        if (exportExcel) {
+            exportExcel.innerHTML = `<span>📊</span> ${this.t('Excel', 'Excel')}`;
+            exportExcel.title = this.t('Exporter en Excel', 'Export as Excel');
+        }
+
+        const lp = document.getElementById('pm-label-province');
+        if (lp) lp.textContent = this.t('🌍 Province:', '🌍 Province:');
+        const lz = document.getElementById('pm-label-zone');
+        if (lz) lz.textContent = this.t('🗺️ Zone du PM:', '🗺️ PM Zone:');
+        const ld = document.getElementById('pm-label-date');
+        if (ld) ld.textContent = this.t('Date:', 'Date:');
+
+        const showOtherZonesLabel = document.querySelector('.other-zones-toggle');
+        if (showOtherZonesLabel) {
+            const checkbox = showOtherZonesLabel.querySelector('input');
+            showOtherZonesLabel.innerHTML = '';
+            if (checkbox) showOtherZonesLabel.appendChild(checkbox);
+            showOtherZonesLabel.appendChild(document.createTextNode(` ${this.t('Voir aussi les autres zones', 'Also show other zones')}`));
+        }
+
+        const statLabels = document.querySelectorAll('.stat-label');
+        if (statLabels.length >= 4) {
+            statLabels[0].textContent = this.t('Total Rapports', 'Total Reports');
+            statLabels[1].textContent = this.t('En Attente', 'Pending');
+            statLabels[2].textContent = this.t('Examinés', 'Reviewed');
+            statLabels[3].textContent = this.t('Photos', 'Photos');
+        }
+
+        const sectionTitles = document.querySelectorAll('.site-assignment-section .section-title');
+        if (sectionTitles.length >= 2) {
+            sectionTitles[0].innerHTML = `<span class="title-icon">🧭</span> ${this.t('Attribution de site au superviseur', 'Assign site to supervisor')}`;
+            sectionTitles[1].innerHTML = `<span class="title-icon">💬</span> ${this.t('Chat de Zone (PM ↔ Superviseurs)', 'Zone Chat (PM ↔ Supervisors)')} <span id="pm-zone-chat-badge" class="nav-badge warning" style="display:none;">${this.unreadZoneCount || 0}</span>`;
+            this.updateZoneBadge();
+        }
+
+        const assignSubmit = document.querySelector('#site-assignment-form button[type="submit"]');
+        if (assignSubmit) assignSubmit.textContent = this.t('Affecter', 'Assign');
+        const zoneSendBtn = document.querySelector('#pm-zone-chat-form button[type="submit"]');
+        if (zoneSendBtn) zoneSendBtn.textContent = this.t('Envoyer', 'Send');
+
+        const pmName = document.getElementById('pm-name-input');
+        if (pmName) pmName.setAttribute('placeholder', this.t('Votre nom (PM)', 'Your name (PM)'));
+
+        const loadEl = document.getElementById('pm-loading-reports');
+        if (loadEl) loadEl.textContent = this.t('Chargement des rapports...', 'Loading reports...');
+
+        const detailTitle = document.querySelector('.detail-header h2');
+        if (detailTitle) detailTitle.textContent = this.t('Détails du Rapport', 'Report details');
+
+        const detailEmpty = document.getElementById('pm-detail-empty');
+        if (detailEmpty) {
+            detailEmpty.textContent = this.t('Sélectionnez un rapport pour voir les détails', 'Select a report to see details');
+        }
+
+        const regionSel = document.getElementById('region-filter');
+        if (regionSel && regionSel.options.length) {
+            regionSel.options[0].textContent = this.t('Toutes les provinces', 'All provinces');
+        }
+        const assignReg = document.getElementById('assign-site-region');
+        if (assignReg && assignReg.options.length) {
+            assignReg.options[0].textContent = this.t('Province du site', 'Site province');
+        }
+
+        const dlImg = document.getElementById('download-image');
+        if (dlImg) dlImg.innerHTML = `<span>📥</span> ${this.t('Télécharger', 'Download')}`;
+
+        const closePanel = document.getElementById('close-panel');
+        if (closePanel) closePanel.setAttribute('aria-label', this.t('Fermer', 'Close'));
+
+        this.updateViewTitle();
     }
     
     showServerConfig() {
@@ -132,6 +379,10 @@ class PMDashboard {
     // ================== Socket.IO Setup ==================
     
     setupSocket() {
+        if (typeof io === 'undefined') {
+            console.warn('Socket.IO not loaded – real-time features disabled');
+            return;
+        }
         try {
             this.socket = this.serverUrl ? io(this.serverUrl) : io();
         
@@ -139,15 +390,16 @@ class PMDashboard {
             console.log('PM Dashboard connecté');
             document.getElementById('connection-status').classList.add('online');
             document.getElementById('connection-status').classList.remove('offline');
-            document.getElementById('connection-text').textContent = 'Connecté';
+            document.getElementById('connection-text').textContent = this.t('Connecté', 'Connected');
             this.socket.emit('join-role', 'pm');
+            this.joinZoneRoom();
         });
         
         this.socket.on('disconnect', () => {
             console.log('PM Dashboard déconnecté');
             document.getElementById('connection-status').classList.remove('online');
             document.getElementById('connection-status').classList.add('offline');
-            document.getElementById('connection-text').textContent = 'Déconnecté';
+            document.getElementById('connection-text').textContent = this.t('Déconnecté', 'Disconnected');
         });
         
         // Nouveau rapport reçu
@@ -166,6 +418,11 @@ class PMDashboard {
         this.socket.on('report-deleted', (data) => {
             console.log('Rapport supprimé:', data);
             this.handleReportDeleted(data);
+        });
+
+        this.socket.on('new-chat-message', (message) => {
+            this.handleIncomingZoneChat(message);
+            this.handleIncomingReportChat(message);
         });
         
         // Erreur de connexion
@@ -202,9 +459,9 @@ class PMDashboard {
     
     updateViewTitle() {
         const titleMap = {
-            'all': 'Tous les Rapports',
-            'pending': 'Rapports En Attente',
-            'reviewed': 'Rapports Examinés'
+            'all': this.t('Tous les Rapports', 'All Reports'),
+            'pending': this.t('Rapports En Attente', 'Pending Reports'),
+            'reviewed': this.t('Rapports Examinés', 'Reviewed Reports')
         };
         document.getElementById('view-title').textContent = titleMap[this.currentFilter];
     }
@@ -233,6 +490,8 @@ class PMDashboard {
         if (pmZoneFilter) {
             pmZoneFilter.addEventListener('change', () => {
                 localStorage.setItem('pmZone', pmZoneFilter.value);
+                this.joinZoneRoom();
+                this.loadZoneChatMessages();
                 this.renderReports();
             });
         }
@@ -251,27 +510,326 @@ class PMDashboard {
         document.getElementById('export-excel').addEventListener('click', () => {
             this.exportExcel();
         });
+
+        const trackingExcelBtn = document.getElementById('export-site-tracking-excel');
+        if (trackingExcelBtn) {
+            trackingExcelBtn.addEventListener('click', () => this.exportSiteTrackingExcel());
+        }
+        const trackingPdfBtn = document.getElementById('export-site-tracking-pdf');
+        if (trackingPdfBtn) {
+            trackingPdfBtn.addEventListener('click', () => this.exportSiteTrackingPDF());
+        }
+    }
+
+    setupPhotosGallery() {
+        const card = document.getElementById('stat-card-photos');
+        const modal = document.getElementById('photos-gallery-modal');
+        const closeBtn = document.getElementById('close-photos-gallery');
+        const filterSelect = document.getElementById('photos-filter-supervisor');
+        if (!card || !modal) return;
+
+        card.addEventListener('click', () => {
+            this.populatePhotosSupervisorFilter();
+            this.renderPhotosGallery();
+            modal.style.display = 'flex';
+        });
+
+        if (closeBtn) closeBtn.addEventListener('click', () => { modal.style.display = 'none'; });
+        modal.addEventListener('click', (e) => { if (e.target === modal) modal.style.display = 'none'; });
+
+        if (filterSelect) {
+            filterSelect.addEventListener('change', () => this.renderPhotosGallery());
+        }
+    }
+
+    populatePhotosSupervisorFilter() {
+        const select = document.getElementById('photos-filter-supervisor');
+        if (!select) return;
+        const supervisors = new Set();
+        this.reports.forEach(r => { if (r.supervisor_name) supervisors.add(r.supervisor_name); });
+        const current = select.value;
+        select.innerHTML = '<option value="">Tous les superviseurs</option>';
+        [...supervisors].sort().forEach(name => {
+            select.innerHTML += `<option value="${this.escapeHtml(name)}">${this.escapeHtml(name)}</option>`;
+        });
+        select.value = current;
+    }
+
+    renderPhotosGallery() {
+        const grid = document.getElementById('photos-gallery-grid');
+        const empty = document.getElementById('photos-gallery-empty');
+        const filterSupervisor = document.getElementById('photos-filter-supervisor')?.value || '';
+        if (!grid) return;
+
+        const photos = [];
+        this.reports.forEach(r => {
+            if (filterSupervisor && r.supervisor_name !== filterSupervisor) return;
+            if (!r.images || !r.images.length) return;
+            r.images.forEach(img => {
+                const url = img.url?.startsWith('http') ? img.url : `${this.serverUrl}${img.url}`;
+                photos.push({
+                    url,
+                    site: r.site_name || r.site_id || '—',
+                    supervisor: r.supervisor_name || '—',
+                    date: r.created_at
+                });
+            });
+        });
+
+        if (!photos.length) {
+            grid.innerHTML = '';
+            if (empty) empty.style.display = '';
+            return;
+        }
+        if (empty) empty.style.display = 'none';
+
+        grid.innerHTML = photos.map(p => `
+            <div style="border-radius:10px;overflow:hidden;background:#1e293b;border:1px solid #334155;cursor:pointer;" onclick="window.open('${p.url}','_blank')">
+                <img src="${p.url}" alt="Photo" style="width:100%;height:140px;object-fit:cover;display:block;" loading="lazy" onerror="this.style.display='none'">
+                <div style="padding:0.5rem;font-size:0.78rem;">
+                    <div style="color:#f1f5f9;font-weight:600;">${this.escapeHtml(p.site)}</div>
+                    <div style="color:#94a3b8;">${this.escapeHtml(p.supervisor)} • ${this.formatDate(p.date)}</div>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    setupZoneChat() {
+        const form = document.getElementById('pm-zone-chat-form');
+        if (!form) return;
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            await this.sendZoneChatMessage();
+        });
+        const chatInput = document.getElementById('pm-zone-chat-input');
+        if (chatInput) {
+            chatInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    this.sendZoneChatMessage();
+                }
+            });
+        }
+        this.loadZoneChatMessages();
+        this.updateZoneBadge();
+    }
+
+    escapeHtml(str) {
+        const d = document.createElement('div');
+        d.textContent = str || '';
+        return d.innerHTML;
+    }
+
+    getCurrentPmZone() {
+        return document.getElementById('pm-zone-filter')?.value || 'Zone 1';
+    }
+
+    joinZoneRoom() {
+        if (!this.socket) return;
+        this.socket.emit('join-zone', this.getCurrentPmZone());
+    }
+
+    async loadZoneChatMessages() {
+        const zone = this.getCurrentPmZone();
+        const list = document.getElementById('pm-zone-chat-list');
+        if (!list) return;
+
+        try {
+            const response = await this.authFetch(this.getApiUrl(`/api/chat/messages?scope_type=zone&scope_id=${encodeURIComponent(zone)}&limit=120`));
+            const result = await response.json();
+            if (!result.success) throw new Error(result.error || 'Erreur chat');
+            this.renderZoneChatMessages(result.messages || []);
+            this.unreadZoneCount = 0;
+            this.persistUnreadState();
+            this.updateZoneBadge();
+        } catch (error) {
+            console.error('Erreur chat zone:', error);
+            list.innerHTML = '<div class="empty-state"><p>Impossible de charger le chat de zone</p></div>';
+        }
+    }
+
+    renderZoneChatMessages(messages) {
+        const list = document.getElementById('pm-zone-chat-list');
+        if (!list) return;
+        if (!messages.length) {
+            list.innerHTML = '<div class="empty-state"><p>Aucun message pour cette zone</p></div>';
+            return;
+        }
+
+        list.innerHTML = messages.map(m => `
+            <div class="feedback-item">
+                <div class="feedback-header">
+                    <span class="feedback-pm">${this.escapeHtml(m.sender_name)} (${m.sender_role})</span>
+                    <span class="feedback-date">${this.formatDate(m.created_at)}</span>
+                </div>
+                <div class="feedback-text">${this.escapeHtml(m.message).replace(/\n/g, '<br>')}</div>
+            </div>
+        `).join('');
+        list.scrollTop = list.scrollHeight;
+    }
+
+    async sendZoneChatMessage() {
+        const input = document.getElementById('pm-zone-chat-input');
+        const pmName = document.getElementById('pm-name-input')?.value?.trim() || 'PM';
+        const text = (input?.value || '').trim();
+        if (!text) return;
+
+        const zone = this.getCurrentPmZone();
+        try {
+            const response = await this.authFetch(this.getApiUrl('/api/chat/messages'), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    scope_type: 'zone',
+                    scope_id: zone,
+                    sender_role: 'pm',
+                    sender_name: pmName,
+                    message: text
+                })
+            });
+            const result = await response.json();
+            if (!response.ok || !result.success) {
+                throw new Error(result?.error || `HTTP ${response.status}`);
+            }
+            input.value = '';
+        } catch (error) {
+            console.error('Erreur envoi chat zone:', error);
+            this.showToast(`Erreur chat: ${error.message}`, 'error');
+        }
+    }
+
+    setupSiteAssignment() {
+        const form = document.getElementById('site-assignment-form');
+        if (!form) return;
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            await this.assignSiteToSupervisor();
+        });
+    }
+
+    async assignSiteToSupervisor() {
+        const pmName = document.getElementById('pm-name-input')?.value?.trim() || 'PM';
+        const payload = {
+            id: document.getElementById('assign-site-id').value.trim(),
+            name: document.getElementById('assign-site-name').value.trim(),
+            region: document.getElementById('assign-site-region').value,
+            assigned_supervisor: document.getElementById('assign-supervisor-name').value.trim(),
+            location: document.getElementById('assign-site-location').value.trim(),
+            assigned_by_pm: pmName,
+            b2s_vendor: (document.getElementById('assign-b2s-vendor')?.value || '').trim(),
+            target_rfi: (document.getElementById('assign-target-rfi')?.value || '').trim()
+        };
+
+        try {
+            const response = await this.authFetch(this.getApiUrl('/api/sites'), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const result = await response.json();
+            if (!response.ok || !result.success) {
+                throw new Error(result?.error || `HTTP ${response.status}`);
+            }
+
+            this.showToast(`Site ${payload.id} attribué à ${payload.assigned_supervisor}`, 'success');
+            document.getElementById('site-assignment-form').reset();
+        } catch (error) {
+            console.error('Erreur attribution site:', error);
+            this.showToast(`Erreur attribution: ${error.message}`, 'error');
+        }
     }
     
     // ================== Export Functions ==================
     
+    getExportFilteredReports() {
+        let filtered = this.getFilteredReports();
+        const supervisorFilter = document.getElementById('export-supervisor-filter')?.value;
+        const periodFilter = document.getElementById('export-period-filter')?.value;
+
+        if (supervisorFilter) {
+            filtered = filtered.filter(r => r.supervisor_name === supervisorFilter);
+        }
+
+        if (periodFilter) {
+            const now = new Date();
+            let start, end;
+            if (periodFilter === 'week') {
+                const day = now.getDay() || 7;
+                start = new Date(now); start.setDate(now.getDate() - day + 1); start.setHours(0,0,0,0);
+                end = new Date(now); end.setHours(23,59,59,999);
+            } else if (periodFilter === 'month') {
+                start = new Date(now.getFullYear(), now.getMonth(), 1);
+                end = new Date(now); end.setHours(23,59,59,999);
+            } else if (periodFilter === 'last-month') {
+                start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+                end = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
+            }
+            if (start && end) {
+                filtered = filtered.filter(r => {
+                    const d = new Date(r.created_at);
+                    return d >= start && d <= end;
+                });
+            }
+        }
+        return filtered;
+    }
+
+    populateExportSupervisorFilter() {
+        const select = document.getElementById('export-supervisor-filter');
+        if (!select) return;
+        const supervisors = new Set();
+        this.reports.forEach(r => { if (r.supervisor_name) supervisors.add(r.supervisor_name); });
+        const current = select.value;
+        select.innerHTML = '<option value="">Tous superviseurs</option>';
+        [...supervisors].sort().forEach(name => {
+            select.innerHTML += `<option value="${this.escapeHtml(name)}">${this.escapeHtml(name)}</option>`;
+        });
+        select.value = current;
+    }
+
     exportExcel() {
-        const region = document.getElementById('region-filter').value;
-        const date = document.getElementById('date-filter').value;
-        const pmZone = document.getElementById('pm-zone-filter')?.value;
-        const showOtherZones = document.getElementById('show-other-zones')?.checked;
-        
-        let url = '/api/export/excel?';
-        if (region) url += `region=${encodeURIComponent(region)}&`;
-        if (pmZone && !showOtherZones) url += `zone=${encodeURIComponent(pmZone)}&`;
-        if (date) url += `date=${encodeURIComponent(date)}`;
-        
-        window.location.href = url;
-        this.showToast('Export Excel en cours...', 'info');
+        const filtered = this.getExportFilteredReports();
+        if (!filtered.length) {
+            this.showToast(this.t('Aucun rapport à exporter', 'No reports to export'), 'warning');
+            return;
+        }
+
+        const headers = ['Site ID', 'Nom du Site', 'Région', 'Zone', 'Superviseur', 'Phase', 'Statut Phase',
+            'Durée réelle (j)', 'Retard (j)', 'Activités', 'Commentaires', 'Statut', 'Date', 'Nb Photos'];
+        const rows = filtered.map(r => [
+            r.site_id,
+            r.site_name,
+            r.region || 'N/A',
+            r.zone || this.getReportZone(r),
+            r.supervisor_name || 'N/A',
+            r.phase_name || '',
+            r.phase_status || '',
+            r.phase_actual_days || '',
+            r.phase_variance_days || 0,
+            `"${(r.activities || '').replace(/"/g, '""')}"`,
+            `"${(r.comments || '').replace(/"/g, '""')}"`,
+            r.status === 'reviewed' ? 'Examiné' : 'En attente',
+            new Date(r.created_at).toLocaleString('fr-FR'),
+            r.images?.length || 0
+        ]);
+
+        const BOM = '\uFEFF';
+        const csv = BOM + headers.join(';') + '\n' + rows.map(r => r.join(';')).join('\n');
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        const supervisorTag = document.getElementById('export-supervisor-filter')?.value || 'tous';
+        const periodTag = document.getElementById('export-period-filter')?.value || 'tout';
+        a.href = url;
+        a.download = `YST1-rapports-${supervisorTag}-${periodTag}-${new Date().toISOString().split('T')[0]}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+        this.showToast(`${filtered.length} rapport(s) exporté(s) en Excel`, 'success');
     }
     
     exportPDF() {
-        const filtered = this.getFilteredReports();
+        const filtered = this.getExportFilteredReports();
         
         if (filtered.length === 0) {
             this.showToast('Aucun rapport à exporter', 'warning');
@@ -342,7 +900,7 @@ class PMDashboard {
                     </div>
                 `).join('')}
                 <div class="footer">
-                    <p>YoRiv - Document généré le ${new Date().toLocaleString('fr-FR')}</p>
+                    <p>YoRivSiteTrack-YST1 - Document généré le ${new Date().toLocaleString('fr-FR')}</p>
                 </div>
             </body>
             </html>
@@ -404,28 +962,31 @@ class PMDashboard {
         const grid = document.getElementById('reports-grid');
         
         try {
-            const response = await fetch(this.getApiUrl('/api/reports'));
-            const result = await response.json();
+            const response = await this.authFetch(this.getApiUrl('/api/reports'));
+            const raw = await response.text();
+            let result = null;
+            try {
+                result = raw ? JSON.parse(raw) : null;
+            } catch (_) {
+                throw new Error(this.t('Réponse serveur illisible', 'Invalid server response'));
+            }
             
             if (!result.success) {
                 throw new Error(result.error);
             }
             
-            this.reports = result.reports;
+            this.reports = result.reports || [];
             this.updateStats();
             this.renderReports();
+            this.populateExportSupervisorFilter();
             
         } catch (error) {
             console.error('Erreur chargement rapports:', error);
-            grid.innerHTML = '<div class="empty-state"><p>Erreur lors du chargement des rapports</p></div>';
+            grid.innerHTML = `<div class="empty-state"><p>${this.t('Erreur lors du chargement des rapports', 'Error loading reports')}: ${error.message}</p></div>`;
         }
     }
     
-    updateStats() {
-        return this.updateStatsForReports(this.reports);
-    }
-
-    updateStatsForReports(reports) {
+    updateStats(reports = this.reports) {
         const total = reports.length;
         const pending = reports.filter(r => r.status === 'pending').length;
         const reviewed = reports.filter(r => r.status === 'reviewed').length;
@@ -444,14 +1005,13 @@ class PMDashboard {
     renderReports() {
         const grid = document.getElementById('reports-grid');
         const filtered = this.getFilteredReports();
-
-        this.updateStatsForReports(filtered);
+        this.updateStats(filtered);
         
         if (filtered.length === 0) {
             grid.innerHTML = `
                 <div class="empty-state">
                     <div class="empty-state-icon">📭</div>
-                    <p>Aucun rapport trouvé</p>
+                    <p>${this.t('Aucun rapport trouvé', 'No reports found')}</p>
                 </div>
             `;
             return;
@@ -471,7 +1031,7 @@ class PMDashboard {
             img.addEventListener('click', (e) => {
                 e.stopPropagation();
                 const reportId = img.closest('.pm-report-card').dataset.id;
-                const report = this.reports.find(r => r.id === reportId);
+                const report = this.reports.find(r => getReportId(r) === reportId);
                 if (report && report.images) {
                     const index = parseInt(img.dataset.index);
                     this.openImageModal(report.images, index);
@@ -481,11 +1041,13 @@ class PMDashboard {
     }
     
     createReportCard(report) {
+        const rid = getReportId(report);
         const isNew = this.isNewReport(report);
         const imagesHtml = this.createImagesPreview(report.images);
+        const unreadCount = this.unreadReportCounts[rid] || 0;
 
         // Phase color logic
-        let phaseColor = '#94a3b8';
+        let phaseColor = '#94a3b8'; // gray default
         let phaseBg = 'rgba(100,116,139,0.1)';
         let phaseIcon = '⬜';
         const actualDays = Number(report.phase_actual_days || 0);
@@ -514,14 +1076,14 @@ class PMDashboard {
             }
         }
 
-        const phaseLabel = report.phase_name || report.milestone_category || 'Jalon N/A';
+        const phaseLabel = report.phase_name || report.milestone_category || this.t('Jalon N/A', 'Milestone N/A');
         const phaseDaysInfo = actualDays > 0 && maxDays > 0
             ? ` — ${actualDays}j/${maxDays}j`
             : actualDays > 0 ? ` — ${actualDays}j` : '';
-        
+
         return `
-            <div class="pm-report-card ${isNew ? 'new' : ''} ${this.selectedReport?.id === report.id ? 'selected' : ''}" 
-                 data-id="${report.id}">
+            <div class="pm-report-card ${isNew ? 'new' : ''} ${getReportId(this.selectedReport) === rid ? 'selected' : ''}" 
+                 data-id="${rid}">
                 <div class="pm-card-header">
                     <div class="pm-site-info">
                         <span class="pm-site-id">${report.site_id}</span>
@@ -529,10 +1091,10 @@ class PMDashboard {
                         <span class="pm-supervisor">👷 ${report.supervisor_name || 'Non spécifié'}</span>
                         <span class="pm-region">🌍 ${report.region || 'N/A'}</span>
                         <span class="pm-zone">🗺️ ${this.getReportZone(report)}</span>
-                        <span class="pm-report-date">📆 Rapport du: ${report.report_date || 'N/A'}</span>
+                        <span class="pm-report-date">📆 ${this.t('Rapport du:', 'Report date:')} ${report.report_date || 'N/A'}</span>
                     </div>
                     <span class="pm-status-badge ${report.status}">
-                        ${report.status === 'pending' ? '⏳ En attente' : '✅ Examiné'}
+                        ${report.status === 'pending' ? `⏳ ${this.t('En attente', 'Pending')}` : `✅ ${this.t('Examiné', 'Reviewed')}`}
                     </span>
                 </div>
                 <div style="display:flex;align-items:center;gap:6px;padding:6px 10px;margin:6px 0;background:${phaseBg};border-left:3px solid ${phaseColor};border-radius:6px;font-size:0.82rem;">
@@ -543,8 +1105,8 @@ class PMDashboard {
                 <div class="pm-card-content">${report.activities}</div>
                 ${imagesHtml}
                 <div class="pm-card-footer">
-                    <span>📅 Soumis: ${this.formatDate(report.created_at)}</span>
-                    <span>📷 ${report.images?.length || 0} photos</span>
+                    <span>📅 ${this.t('Soumis:', 'Submitted:')} ${this.formatDate(report.created_at)}</span>
+                    <span>📷 ${report.images?.length || 0} ${this.t('photos', 'photos')} ${unreadCount > 0 ? `<span class="pm-chat-badge">${unreadCount}</span>` : ''}</span>
                 </div>
             </div>
         `;
@@ -613,6 +1175,7 @@ class PMDashboard {
     async selectReport(reportId) {
         const panel = document.getElementById('detail-panel');
         const content = document.getElementById('detail-content');
+        if (this.socket) this.socket.emit('join-report', reportId);
         
         // Marquer comme sélectionné
         document.querySelectorAll('.pm-report-card').forEach(card => {
@@ -623,7 +1186,7 @@ class PMDashboard {
         });
         
         try {
-            const response = await fetch(this.getApiUrl(`/api/reports/${reportId}`));
+            const response = await this.authFetch(this.getApiUrl(`/api/reports/${reportId}`));
             const result = await response.json();
             
             if (!result.success) {
@@ -631,12 +1194,75 @@ class PMDashboard {
             }
             
             this.selectedReport = result.report;
+            if (this.unreadReportCounts[reportId]) {
+                delete this.unreadReportCounts[reportId];
+                this.persistUnreadState();
+            }
             this.renderDetailPanel();
+            this.renderReports();
             panel.classList.add('open');
+            this.loadSitePhasesStatus();
             
         } catch (error) {
             console.error('Erreur:', error);
             this.showToast('Erreur lors du chargement du rapport', 'error');
+        }
+    }
+
+    async loadSitePhasesStatus() {
+        const grid = document.getElementById('site-phases-grid');
+        if (!grid || !this.selectedReport?.site_id) return;
+
+        try {
+            const response = await this.authFetch(this.getApiUrl(`/api/sites/${encodeURIComponent(this.selectedReport.site_id)}/phases-status`));
+            const data = await response.json();
+            if (!data.success || !data.phases) throw new Error('Erreur');
+
+            const colorMap = {
+                green: { bg: 'rgba(5,150,105,0.15)', border: '#059669', text: '#6ee7b7', subtext: '#a7f3d0', icon: '✅' },
+                orange: { bg: 'rgba(245,158,11,0.15)', border: '#d97706', text: '#fcd34d', subtext: '#fde68a', icon: '⚠️' },
+                red: { bg: 'rgba(220,38,38,0.15)', border: '#dc2626', text: '#fca5a5', subtext: '#fecaca', icon: '🔴' },
+                gray: { bg: 'rgba(100,116,139,0.08)', border: '#475569', text: '#94a3b8', subtext: '#64748b', icon: '⬜' }
+            };
+
+            const formatDateShort = (d) => {
+                if (!d) return '—';
+                const dt = new Date(d);
+                if (isNaN(dt.getTime())) return '—';
+                return dt.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
+            };
+
+            grid.innerHTML = data.phases
+                .filter(p => p.name !== 'Autres')
+                .map(p => {
+                    const c = colorMap[p.color] || colorMap.gray;
+                    const statusLabel = p.status === 'closed' ? this.t('Clôturée', 'Closed')
+                        : p.status === 'in_progress' ? this.t('En cours', 'In progress')
+                        : this.t('Non démarrée', 'Not started');
+                    const daysInfo = p.actual_days > 0 ? `${p.actual_days}j / ${p.max}j max` : '';
+
+                    // Date display
+                    let dateInfo = '';
+                    if (p.start_date) {
+                        dateInfo = `📅 ${this.t('Début:', 'Start:')} ${formatDateShort(p.start_date)}`;
+                        if (p.closed_date) {
+                            dateInfo += ` → ${this.t('Fin:', 'End:')} ${formatDateShort(p.closed_date)}`;
+                        } else if (p.status === 'in_progress') {
+                            dateInfo += ` → ${this.t('En cours...', 'Ongoing...')}`;
+                        }
+                    }
+
+                    return `<div style="padding:6px 8px;background:${c.bg};border-left:3px solid ${c.border};border-radius:6px;font-size:0.8rem;margin-bottom:2px;">
+                        <div style="display:flex;align-items:center;gap:6px;">
+                            <span>${c.icon}</span>
+                            <span style="color:${c.text};flex:1;font-weight:600;">${p.name}</span>
+                            <span style="color:${c.text};font-size:0.75rem;font-weight:500;">${statusLabel}${daysInfo ? ' — ' + daysInfo : ''}</span>
+                        </div>
+                        ${dateInfo ? `<div style="color:${c.subtext};font-size:0.7rem;margin-top:3px;margin-left:24px;">${dateInfo}</div>` : ''}
+                    </div>`;
+                }).join('');
+        } catch (err) {
+            grid.innerHTML = '<div style="color:#64748b;font-size:0.82rem;">Impossible de charger les phases</div>';
         }
     }
     
@@ -671,6 +1297,34 @@ class PMDashboard {
                 <div class="detail-section-title">Date & Heure</div>
                 <div class="detail-section-content">
                     📅 ${this.formatDate(report.created_at)}
+                </div>
+            </div>
+
+            <div class="detail-section">
+                <div class="detail-section-title">Jalon & Planning</div>
+                <div class="detail-section-content">
+                    <strong>Phase:</strong> ${report.phase_name || report.milestone_category || 'N/A'}<br>
+                    <strong>Statut:</strong> ${report.phase_status || 'on track'}<br>
+                    <strong>Durée estimée:</strong> ${report.phase_estimated_label || 'N/A'} jours<br>
+                    <strong>Jours réels phase:</strong> ${report.phase_actual_days || 0} jours<br>
+                    <strong>Retard phase:</strong> ${report.phase_variance_days ?? 0} jours<br>
+                    <strong>Durée réalisée site:</strong> ${report.actual_duration_days || 0} jours
+                </div>
+            </div>
+
+            ${report.schedule_warnings?.length ? `
+                <div class="detail-section">
+                    <div class="detail-section-title">Alerte planning</div>
+                    <div class="detail-section-content">
+                        ${report.schedule_warnings.map(w => `- ${w}`).join('<br>')}
+                    </div>
+                </div>
+            ` : ''}
+
+            <div class="detail-section">
+                <div class="detail-section-title">📊 Progression des phases du site</div>
+                <div id="site-phases-grid" style="display:grid;grid-template-columns:1fr;gap:4px;margin-top:8px;">
+                    <div style="color:#94a3b8;font-size:0.85rem;">Chargement...</div>
                 </div>
             </div>
             
@@ -711,6 +1365,28 @@ class PMDashboard {
                     `).join('')}
                 </div>
             ` : ''}
+
+            ${report.acceptance_document?.url ? `
+                <div class="detail-section">
+                    <div class="detail-section-title">Clôture / Acceptance</div>
+                    <div class="detail-section-content">
+                        <a href="${this.resolveFileUrl(report.acceptance_document.url)}" target="_blank">📎 Voir document acceptance</a><br>
+                        ${report.supervisor_score !== undefined ? `<strong>Côte superviseur:</strong> ${report.supervisor_score}` : ''}<br>
+                        <strong>Milestone RFI:</strong> ${report.is_rfi_ready ? 'READY' : 'Non atteint'}
+                    </div>
+                </div>
+            ` : ''}
+
+            ${report.score_breakdown?.phase_points?.length ? `
+                <div class="detail-section">
+                    <div class="detail-section-title">Côtes par phase clôturée</div>
+                    <div class="detail-section-content">
+                        ${report.score_breakdown.phase_points
+                            .map(p => `- ${p.phase_name}: ${p.points > 0 ? '+' : ''}${p.points} ${p.delay_days > 0 ? `(retard ${p.delay_days}j)` : '(à temps)'}`)
+                            .join('<br>')}
+                    </div>
+                </div>
+            ` : ''}
             
             <div class="feedback-form">
                 <h4>💬 Envoyer un avis au superviseur</h4>
@@ -718,6 +1394,16 @@ class PMDashboard {
                           placeholder="Écrivez votre retour ou instruction ici..."></textarea>
                 <button id="send-feedback-btn" class="send-feedback-btn">
                     📤 Envoyer l'avis
+                </button>
+            </div>
+
+            <div class="feedback-form">
+                <h4>🗨️ Chat du rapport</h4>
+                <div id="pm-report-chat-list" class="previous-feedbacks" style="max-height: 220px; overflow-y: auto;"></div>
+                <textarea id="pm-report-chat-text" class="feedback-textarea"
+                          placeholder="Message en temps réel lié à ce rapport..."></textarea>
+                <button id="send-report-chat-btn" class="send-feedback-btn">
+                    💬 Envoyer au chat du rapport
                 </button>
             </div>
             
@@ -740,11 +1426,27 @@ class PMDashboard {
         document.getElementById('send-feedback-btn').addEventListener('click', () => {
             this.sendFeedback();
         });
+
+        document.getElementById('send-report-chat-btn').addEventListener('click', () => {
+            this.sendReportChatMessage();
+        });
+
+        const reportChatInput = document.getElementById('pm-report-chat-text');
+        if (reportChatInput) {
+            reportChatInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    this.sendReportChatMessage();
+                }
+            });
+        }
         
         // Event listener pour supprimer le rapport
         document.getElementById('delete-report-btn').addEventListener('click', () => {
             this.deleteReport();
         });
+
+        this.loadReportChatMessages();
     }
     
     async deleteReport() {
@@ -755,7 +1457,7 @@ class PMDashboard {
         if (!confirmed) return;
         
         try {
-            const response = await fetch(this.getApiUrl(`/api/reports/${this.selectedReport.id}`), {
+            const response = await this.authFetch(this.getApiUrl(`/api/reports/${getReportId(this.selectedReport)}`), {
                 method: 'DELETE'
             });
             
@@ -785,7 +1487,7 @@ class PMDashboard {
         }
         
         try {
-            const response = await fetch(this.getApiUrl(`/api/reports/${this.selectedReport.id}/feedback`), {
+            const response = await this.authFetch(this.getApiUrl(`/api/reports/${getReportId(this.selectedReport)}/feedback`), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -804,14 +1506,221 @@ class PMDashboard {
             
             // Rafraîchir les données
             await this.loadReports();
-            await this.selectReport(this.selectedReport.id);
+            await this.selectReport(getReportId(this.selectedReport));
             
         } catch (error) {
             console.error('Erreur:', error);
             this.showToast('Erreur lors de l\'envoi de l\'avis', 'error');
         }
     }
+
+    async loadReportChatMessages() {
+        if (!getReportId(this.selectedReport)) return;
+        const list = document.getElementById('pm-report-chat-list');
+        if (!list) return;
+
+        try {
+            const response = await this.authFetch(this.getApiUrl(`/api/chat/messages?scope_type=report&scope_id=${encodeURIComponent(getReportId(this.selectedReport))}&limit=120`));
+            const result = await response.json();
+            if (!result.success) throw new Error(result.error || 'Erreur chargement chat');
+            const messages = result.messages || [];
+            if (!messages.length) {
+                list.innerHTML = '<div class="empty-state"><p>Aucun message pour ce rapport</p></div>';
+                return;
+            }
+
+            list.innerHTML = messages.map(m => `
+                <div class="feedback-item">
+                    <div class="feedback-meta">
+                        <span>👤 ${m.sender_name} (${m.sender_role})</span>
+                        <span>${this.formatDate(m.created_at)}</span>
+                    </div>
+                    <div class="feedback-content">${m.message}</div>
+                </div>
+            `).join('');
+            list.scrollTop = list.scrollHeight;
+        } catch (error) {
+            console.error('Erreur chat rapport PM:', error);
+            list.innerHTML = '<div class="empty-state"><p>Impossible de charger le chat du rapport</p></div>';
+        }
+    }
+
+    async sendReportChatMessage() {
+        if (!getReportId(this.selectedReport)) return;
+        const pmName = document.getElementById('pm-name-input')?.value?.trim() || 'PM';
+        const input = document.getElementById('pm-report-chat-text');
+        const text = (input?.value || '').trim();
+        if (!text) return;
+
+        try {
+            const response = await this.authFetch(this.getApiUrl('/api/chat/messages'), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    scope_type: 'report',
+                    scope_id: getReportId(this.selectedReport),
+                    sender_role: 'pm',
+                    sender_name: pmName,
+                    message: text
+                })
+            });
+            const result = await response.json();
+            if (!response.ok || !result.success) {
+                throw new Error(result?.error || `HTTP ${response.status}`);
+            }
+            input.value = '';
+        } catch (error) {
+            console.error('Erreur envoi chat rapport PM:', error);
+            this.showToast(`Erreur chat rapport: ${error.message}`, 'error');
+        }
+    }
     
+    async fetchSiteTrackingData() {
+        const zone = this.getCurrentPmZone();
+        const region = document.getElementById('region-filter')?.value || '';
+        let url = this.getApiUrl(`/api/export/site-tracking?zone=${encodeURIComponent(zone)}`);
+        if (region) url += `&region=${encodeURIComponent(region)}`;
+        const response = await this.authFetch(url);
+        const result = await response.json();
+        if (!result.success) throw new Error(result.error || 'Erreur export');
+        return result.rows || [];
+    }
+
+    async exportSiteTrackingExcel() {
+        try {
+            const rows = await this.fetchSiteTrackingData();
+            if (!rows.length) {
+                this.showToast(this.t('Aucun site à exporter', 'No sites to export'), 'warning');
+                return;
+            }
+
+            const headers = ['Site ID', 'Anchor Site Name', 'SITE NAME', 'Supervisor', 'B2S Vendor', 'Target RFI', 'Work Status'];
+            const csvRows = rows.map(r => [
+                r.site_id,
+                `"${(r.anchor_site_name || '').replace(/"/g, '""')}"`,
+                r.site_name_region,
+                r.supervisor,
+                `"${(r.b2s_vendor || '').replace(/"/g, '""')}"`,
+                r.target_rfi,
+                `"${(r.work_status || '').replace(/"/g, '""')}"`
+            ]);
+
+            const BOM = '\uFEFF';
+            const csv = BOM + headers.join(';') + '\n' + csvRows.map(r => r.join(';')).join('\n');
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `YST1-Site-Tracking-${new Date().toISOString().split('T')[0]}.csv`;
+            a.click();
+            URL.revokeObjectURL(url);
+            this.showToast(`${rows.length} site(s) ${this.t('exporté(s)', 'exported')}`, 'success');
+        } catch (err) {
+            console.error('Erreur export site tracking Excel:', err);
+            this.showToast(`Erreur: ${err.message}`, 'error');
+        }
+    }
+
+    async exportSiteTrackingPDF() {
+        try {
+            const rows = await this.fetchSiteTrackingData();
+            if (!rows.length) {
+                this.showToast(this.t('Aucun site à exporter', 'No sites to export'), 'warning');
+                return;
+            }
+
+            const zone = this.getCurrentPmZone();
+            const region = document.getElementById('region-filter')?.value || 'All';
+            const dateStr = new Date().toLocaleDateString('en-US', { day: '2-digit', month: 'long', year: 'numeric' });
+            const pmName = document.getElementById('pm-name-input')?.value || 'PM';
+
+            const printWindow = window.open('', '_blank');
+            printWindow.document.write(`<!DOCTYPE html>
+<html>
+<head>
+    <title>Site Tracking - YoRivSiteTrack-YST1</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: Arial, Helvetica, sans-serif; padding: 18px; color: #222; }
+        .header { text-align: center; margin-bottom: 16px; }
+        .header h1 { font-size: 18px; color: #1e40af; margin-bottom: 2px; }
+        .header p { font-size: 11px; color: #555; }
+        table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 10px; }
+        thead th {
+            background: #2563eb; color: #fff; padding: 7px 6px;
+            text-align: left; font-weight: 700; font-size: 10.5px;
+            border: 1px solid #1d4ed8; white-space: nowrap;
+        }
+        tbody td {
+            padding: 5px 6px; border: 1px solid #cbd5e1;
+            vertical-align: top;
+        }
+        tbody tr:nth-child(even) { background: #f1f5f9; }
+        tbody tr:hover { background: #e0e7ff; }
+        .status-completed { color: #059669; font-weight: 600; }
+        .status-wip { color: #d97706; font-weight: 600; }
+        .status-pending { color: #dc2626; font-weight: 600; }
+        .status-started { color: #2563eb; font-weight: 600; }
+        .footer { text-align: center; margin-top: 14px; font-size: 10px; color: #888; border-top: 1px solid #ddd; padding-top: 8px; }
+        @media print {
+            body { padding: 8px; }
+            table { page-break-inside: auto; }
+            tr { page-break-inside: avoid; }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🏗️ Eastcastle PM PRINCE - Site Tracking</h1>
+        <p>${pmName} | ${zone} | Region: ${region} | ${dateStr}</p>
+        <p>Total: ${rows.length} site(s)</p>
+    </div>
+    <table>
+        <thead>
+            <tr>
+                <th>Site ID</th>
+                <th>Anchor Site Name</th>
+                <th>SITE NAME</th>
+                <th>Supervisor</th>
+                <th>B2S Vendor</th>
+                <th>Target RFI</th>
+                <th>Work Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            ${rows.map(r => {
+                let cls = '';
+                const ws = (r.work_status || '').toLowerCase();
+                if (ws.includes('completed')) cls = 'status-completed';
+                else if (ws.includes('wip') || ws.includes('on track')) cls = 'status-wip';
+                else if (ws.includes('pending')) cls = 'status-pending';
+                else if (ws.includes('started')) cls = 'status-started';
+                return `<tr>
+                    <td>${r.site_id || ''}</td>
+                    <td>${r.anchor_site_name || ''}</td>
+                    <td><strong>${r.site_name_region || ''}</strong></td>
+                    <td>${r.supervisor || ''}</td>
+                    <td>${r.b2s_vendor || ''}</td>
+                    <td>${r.target_rfi || ''}</td>
+                    <td class="${cls}">${r.work_status || ''}</td>
+                </tr>`;
+            }).join('')}
+        </tbody>
+    </table>
+    <div class="footer">
+        <p>YoRivSiteTrack-YST1 — Generated ${dateStr}</p>
+    </div>
+</body>
+</html>`);
+            printWindow.document.close();
+            setTimeout(() => printWindow.print(), 400);
+            this.showToast(this.t('PDF généré — Ctrl+P pour imprimer', 'PDF generated — Ctrl+P to print'), 'success');
+        } catch (err) {
+            console.error('Erreur export site tracking PDF:', err);
+            this.showToast(`Erreur: ${err.message}`, 'error');
+        }
+    }
+
     closeDetailPanel() {
         document.getElementById('detail-panel').classList.remove('open');
         document.querySelectorAll('.pm-report-card').forEach(card => {
@@ -894,6 +1803,7 @@ class PMDashboard {
         this.renderReports();
         
         // Notification
+        this.playNotificationSound('success');
         this.showToast(`📋 Nouveau rapport de ${report.supervisor_name || 'un superviseur'}`, 'info');
         
         // Notification système si supporté
@@ -907,7 +1817,7 @@ class PMDashboard {
     
     handleNewImages(data) {
         // Mettre à jour le rapport avec les nouvelles images
-        const reportIndex = this.reports.findIndex(r => r.id === data.reportId);
+        const reportIndex = this.reports.findIndex(r => getReportId(r) === String(data.reportId));
         if (reportIndex !== -1) {
             if (!this.reports[reportIndex].images) {
                 this.reports[reportIndex].images = [];
@@ -917,27 +1827,81 @@ class PMDashboard {
             this.renderReports();
             
             // Si c'est le rapport sélectionné, rafraîchir le panel
-            if (this.selectedReport?.id === data.reportId) {
-                this.selectReport(data.reportId);
+            if (getReportId(this.selectedReport) === String(data.reportId)) {
+                this.selectReport(String(data.reportId));
             }
         }
     }
     
     handleReportDeleted(data) {
         // Supprimer le rapport de la liste locale
-        const reportIndex = this.reports.findIndex(r => r.id === data.reportId);
+        const reportIndex = this.reports.findIndex(r => getReportId(r) === String(data.reportId));
         if (reportIndex !== -1) {
             this.reports.splice(reportIndex, 1);
             this.updateStats();
             this.renderReports();
             
             // Si c'est le rapport sélectionné, fermer le panel
-            if (this.selectedReport?.id === data.reportId) {
+            if (getReportId(this.selectedReport) === String(data.reportId)) {
                 this.closeDetailPanel();
             }
         }
     }
+
+    handleIncomingZoneChat(message) {
+        if (message?.scope_type !== 'zone') return;
+        if (message.scope_id !== this.getCurrentPmZone()) return;
+        this.playNotificationSound('default');
+        if (document.hidden) {
+            this.unreadZoneCount += 1;
+            this.persistUnreadState();
+            this.updateZoneBadge();
+        }
+        this.loadZoneChatMessages();
+    }
+
+    handleIncomingReportChat(message) {
+        if (message?.scope_type !== 'report') return;
+        this.playNotificationSound('default');
+        const currentId = getReportId(this.selectedReport);
+        if (currentId && String(message.scope_id) === currentId) {
+            this.loadReportChatMessages();
+            return;
+        }
+        this.unreadReportCounts[message.scope_id] = (this.unreadReportCounts[message.scope_id] || 0) + 1;
+        this.persistUnreadState();
+        this.renderReports();
+    }
     
+    // ================== Notification Sound ==================
+
+    playNotificationSound(style = 'default') {
+        try {
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const now = ctx.currentTime;
+
+            const tones = style === 'success'
+                ? [[523.25, 0, 0.12], [659.25, 0.12, 0.12], [783.99, 0.24, 0.18]]
+                : style === 'warning'
+                    ? [[440, 0, 0.15], [440, 0.2, 0.15]]
+                    : [[587.33, 0, 0.1], [783.99, 0.12, 0.16]];
+
+            tones.forEach(([freq, offset, dur]) => {
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.value = freq;
+                gain.gain.setValueAtTime(0.25, now + offset);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + offset + dur);
+                osc.connect(gain).connect(ctx.destination);
+                osc.start(now + offset);
+                osc.stop(now + offset + dur + 0.05);
+            });
+
+            setTimeout(() => ctx.close(), 1500);
+        } catch (_) {}
+    }
+
     // ================== Utilities ==================
     
     showToast(message, type = 'info') {
@@ -967,10 +1931,19 @@ class PMDashboard {
         };
         return icons[type] || icons.info;
     }
+
+    resolveFileUrl(fileUrl) {
+        if (!fileUrl) return '';
+        if (/^https?:\/\//i.test(fileUrl)) return fileUrl;
+        return `${this.serverUrl}${fileUrl}`;
+    }
     
     formatDate(dateString) {
+        if (!dateString) return '—';
         const date = new Date(dateString);
-        return date.toLocaleDateString('fr-FR', {
+        if (Number.isNaN(date.getTime())) return '—';
+        const locale = this.language === 'en' ? 'en-US' : 'fr-FR';
+        return date.toLocaleDateString(locale, {
             day: '2-digit',
             month: '2-digit',
             year: 'numeric',

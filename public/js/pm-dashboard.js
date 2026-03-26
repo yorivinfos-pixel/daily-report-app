@@ -510,6 +510,15 @@ class PMDashboard {
         document.getElementById('export-excel').addEventListener('click', () => {
             this.exportExcel();
         });
+
+        const trackingExcelBtn = document.getElementById('export-site-tracking-excel');
+        if (trackingExcelBtn) {
+            trackingExcelBtn.addEventListener('click', () => this.exportSiteTrackingExcel());
+        }
+        const trackingPdfBtn = document.getElementById('export-site-tracking-pdf');
+        if (trackingPdfBtn) {
+            trackingPdfBtn.addEventListener('click', () => this.exportSiteTrackingPDF());
+        }
     }
 
     setupPhotosGallery() {
@@ -707,7 +716,9 @@ class PMDashboard {
             region: document.getElementById('assign-site-region').value,
             assigned_supervisor: document.getElementById('assign-supervisor-name').value.trim(),
             location: document.getElementById('assign-site-location').value.trim(),
-            assigned_by_pm: pmName
+            assigned_by_pm: pmName,
+            b2s_vendor: (document.getElementById('assign-b2s-vendor')?.value || '').trim(),
+            target_rfi: (document.getElementById('assign-target-rfi')?.value || '').trim()
         };
 
         try {
@@ -1564,6 +1575,152 @@ class PMDashboard {
         }
     }
     
+    async fetchSiteTrackingData() {
+        const zone = this.getCurrentPmZone();
+        const region = document.getElementById('region-filter')?.value || '';
+        let url = this.getApiUrl(`/api/export/site-tracking?zone=${encodeURIComponent(zone)}`);
+        if (region) url += `&region=${encodeURIComponent(region)}`;
+        const response = await this.authFetch(url);
+        const result = await response.json();
+        if (!result.success) throw new Error(result.error || 'Erreur export');
+        return result.rows || [];
+    }
+
+    async exportSiteTrackingExcel() {
+        try {
+            const rows = await this.fetchSiteTrackingData();
+            if (!rows.length) {
+                this.showToast(this.t('Aucun site à exporter', 'No sites to export'), 'warning');
+                return;
+            }
+
+            const headers = ['Site ID', 'Anchor Site Name', 'SITE NAME', 'Supervisor', 'B2S Vendor', 'Target RFI', 'Work Status'];
+            const csvRows = rows.map(r => [
+                r.site_id,
+                `"${(r.anchor_site_name || '').replace(/"/g, '""')}"`,
+                r.site_name_region,
+                r.supervisor,
+                `"${(r.b2s_vendor || '').replace(/"/g, '""')}"`,
+                r.target_rfi,
+                `"${(r.work_status || '').replace(/"/g, '""')}"`
+            ]);
+
+            const BOM = '\uFEFF';
+            const csv = BOM + headers.join(';') + '\n' + csvRows.map(r => r.join(';')).join('\n');
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `YST1-Site-Tracking-${new Date().toISOString().split('T')[0]}.csv`;
+            a.click();
+            URL.revokeObjectURL(url);
+            this.showToast(`${rows.length} site(s) ${this.t('exporté(s)', 'exported')}`, 'success');
+        } catch (err) {
+            console.error('Erreur export site tracking Excel:', err);
+            this.showToast(`Erreur: ${err.message}`, 'error');
+        }
+    }
+
+    async exportSiteTrackingPDF() {
+        try {
+            const rows = await this.fetchSiteTrackingData();
+            if (!rows.length) {
+                this.showToast(this.t('Aucun site à exporter', 'No sites to export'), 'warning');
+                return;
+            }
+
+            const zone = this.getCurrentPmZone();
+            const region = document.getElementById('region-filter')?.value || 'All';
+            const dateStr = new Date().toLocaleDateString('en-US', { day: '2-digit', month: 'long', year: 'numeric' });
+            const pmName = document.getElementById('pm-name-input')?.value || 'PM';
+
+            const printWindow = window.open('', '_blank');
+            printWindow.document.write(`<!DOCTYPE html>
+<html>
+<head>
+    <title>Site Tracking - YoRivSiteTrack-YST1</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: Arial, Helvetica, sans-serif; padding: 18px; color: #222; }
+        .header { text-align: center; margin-bottom: 16px; }
+        .header h1 { font-size: 18px; color: #1e40af; margin-bottom: 2px; }
+        .header p { font-size: 11px; color: #555; }
+        table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 10px; }
+        thead th {
+            background: #2563eb; color: #fff; padding: 7px 6px;
+            text-align: left; font-weight: 700; font-size: 10.5px;
+            border: 1px solid #1d4ed8; white-space: nowrap;
+        }
+        tbody td {
+            padding: 5px 6px; border: 1px solid #cbd5e1;
+            vertical-align: top;
+        }
+        tbody tr:nth-child(even) { background: #f1f5f9; }
+        tbody tr:hover { background: #e0e7ff; }
+        .status-completed { color: #059669; font-weight: 600; }
+        .status-wip { color: #d97706; font-weight: 600; }
+        .status-pending { color: #dc2626; font-weight: 600; }
+        .status-started { color: #2563eb; font-weight: 600; }
+        .footer { text-align: center; margin-top: 14px; font-size: 10px; color: #888; border-top: 1px solid #ddd; padding-top: 8px; }
+        @media print {
+            body { padding: 8px; }
+            table { page-break-inside: auto; }
+            tr { page-break-inside: avoid; }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🏗️ Eastcastle PM PRINCE - Site Tracking</h1>
+        <p>${pmName} | ${zone} | Region: ${region} | ${dateStr}</p>
+        <p>Total: ${rows.length} site(s)</p>
+    </div>
+    <table>
+        <thead>
+            <tr>
+                <th>Site ID</th>
+                <th>Anchor Site Name</th>
+                <th>SITE NAME</th>
+                <th>Supervisor</th>
+                <th>B2S Vendor</th>
+                <th>Target RFI</th>
+                <th>Work Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            ${rows.map(r => {
+                let cls = '';
+                const ws = (r.work_status || '').toLowerCase();
+                if (ws.includes('completed')) cls = 'status-completed';
+                else if (ws.includes('wip') || ws.includes('on track')) cls = 'status-wip';
+                else if (ws.includes('pending')) cls = 'status-pending';
+                else if (ws.includes('started')) cls = 'status-started';
+                return `<tr>
+                    <td>${r.site_id || ''}</td>
+                    <td>${r.anchor_site_name || ''}</td>
+                    <td><strong>${r.site_name_region || ''}</strong></td>
+                    <td>${r.supervisor || ''}</td>
+                    <td>${r.b2s_vendor || ''}</td>
+                    <td>${r.target_rfi || ''}</td>
+                    <td class="${cls}">${r.work_status || ''}</td>
+                </tr>`;
+            }).join('')}
+        </tbody>
+    </table>
+    <div class="footer">
+        <p>YoRivSiteTrack-YST1 — Generated ${dateStr}</p>
+    </div>
+</body>
+</html>`);
+            printWindow.document.close();
+            setTimeout(() => printWindow.print(), 400);
+            this.showToast(this.t('PDF généré — Ctrl+P pour imprimer', 'PDF generated — Ctrl+P to print'), 'success');
+        } catch (err) {
+            console.error('Erreur export site tracking PDF:', err);
+            this.showToast(`Erreur: ${err.message}`, 'error');
+        }
+    }
+
     closeDetailPanel() {
         document.getElementById('detail-panel').classList.remove('open');
         document.querySelectorAll('.pm-report-card').forEach(card => {
