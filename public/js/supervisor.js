@@ -248,13 +248,11 @@ class SupervisorApp {
             ['.report-form-section .section-title', this.t('Nouveau Rapport Journalier', 'New Daily Report')],
             ['#submit-btn .btn-text', this.t('Envoyer le Rapport', 'Submit Report')],
             ['#supervisor-zone-chat-input', this.t('Écrire un message à votre zone...', 'Write a message to your zone...'), 'placeholder'],
-            ['#activities', this.t("Décrivez les activités réalisées aujourd'hui...", 'Describe ongoing site work...'), 'placeholder'],
+            ['#activities', this.t("Décrivez en détail les activités techniques de cette phase...", 'Describe in detail the technical activities for this phase...'), 'placeholder'],
             ['#comments', this.t('Ajoutez des commentaires supplémentaires...', 'Add additional comments...'), 'placeholder'],
             ['#site-id', this.t('Ex: CDKN-001', 'Ex: CDKN-001'), 'placeholder'],
             ['#site-name', this.t('Ex: Chantier Centre-Ville', 'Ex: Downtown Site'), 'placeholder'],
             ['#supervisor-name', this.t('Entrez votre nom', 'Enter your name'), 'placeholder'],
-            ['#phase-actual-days', this.t('Ex: 3', 'Ex: 3'), 'placeholder'],
-            ['#phase-estimated-display', this.t('Estimé: N/A | Retard: N/A', 'Estimated: N/A | Delay: N/A')],
             ['.reports-history-section .section-title', this.t('Mes Rapports Récents', 'My Recent Reports')]
         ];
 
@@ -329,7 +327,7 @@ class SupervisorApp {
         const regionSelect = document.getElementById('region');
         const siteIdInput = document.getElementById('site-id');
         const phaseSelect = document.getElementById('phase-name');
-        const phaseActualDaysInput = document.getElementById('phase-actual-days');
+        const phaseStatusSelect = document.getElementById('phase-status');
         
         // Sauvegarder le nom du superviseur
         supervisorInput.addEventListener('change', () => {
@@ -362,32 +360,230 @@ class SupervisorApp {
             await this.submitReport();
         });
 
-        const updatePhaseEstimateDisplay = () => {
-            const display = document.getElementById('phase-estimated-display');
-            if (!display) return;
-            const opt = phaseSelect?.options?.[phaseSelect.selectedIndex];
-            const min = Number(opt?.dataset?.min || 0);
-            const max = Number(opt?.dataset?.max || 0);
-            const actual = Number(phaseActualDaysInput?.value || 0);
-            if (!min && !max) {
-                display.textContent = 'Estimé: N/A | Retard: N/A';
-                return;
-            }
-            const estimateLabel = min === max ? `${min}j` : `${min}-${max}j`;
-            if (!actual) {
-                display.textContent = `Estimé: ${estimateLabel} | Retard: N/A`;
-                return;
-            }
-            const delay = Math.round((actual - max) * 10) / 10;
-            if (delay > 0) {
-                display.textContent = `Estimé: ${estimateLabel} | Retard: +${delay}j`;
-            } else {
-                display.textContent = `Estimé: ${estimateLabel} | Statut: À temps`;
-            }
+        // === Auto-calcul des jours de phase ===
+        const triggerAutoCalculation = () => {
+            this.fetchPhaseAutoDays();
         };
-        phaseSelect?.addEventListener('change', updatePhaseEstimateDisplay);
-        phaseActualDaysInput?.addEventListener('input', updatePhaseEstimateDisplay);
-        updatePhaseEstimateDisplay();
+
+        // Quand on change phase, site_id ou date → recalculer
+        phaseSelect?.addEventListener('change', () => {
+            triggerAutoCalculation();
+            this.updateActivitiesLabel();
+        });
+        phaseStatusSelect?.addEventListener('change', triggerAutoCalculation);
+        siteIdInput?.addEventListener('change', triggerAutoCalculation);
+        siteIdInput?.addEventListener('blur', triggerAutoCalculation);
+
+        // Initialisation
+        this.resetPhaseDisplay();
+        this.updateActivitiesLabel();
+    }
+
+    /**
+     * Fetch auto-calculated phase days from server and update display.
+     * Replaces manual day input entirely.
+     */
+    async fetchPhaseAutoDays() {
+        const siteId = (document.getElementById('site-id')?.value || '').trim();
+        const phaseSelect = document.getElementById('phase-name');
+        const phaseName = phaseSelect?.value || '';
+        const reportDate = document.getElementById('report-date')?.value || '';
+        const phaseStatus = document.getElementById('phase-status')?.value || 'on track';
+
+        const daysDisplay = document.getElementById('phase-actual-days-display');
+        const daysValue = document.getElementById('phase-auto-days-value');
+        const daysBadge = document.getElementById('phase-auto-badge');
+        const hiddenInput = document.getElementById('phase-actual-days');
+
+        // Si pas de phase sélectionnée, reset
+        if (!phaseName) {
+            this.resetPhaseDisplay();
+            return;
+        }
+
+        // Récupérer min/max de la phase sélectionnée
+        const opt = phaseSelect.options[phaseSelect.selectedIndex];
+        const estimatedMin = Number(opt?.dataset?.min || 0);
+        const estimatedMax = Number(opt?.dataset?.max || 0);
+
+        // Si pas de site_id, afficher seulement l'estimé statique
+        if (!siteId) {
+            this.updatePhaseEstimateDisplay(0, estimatedMin, estimatedMax, 'not_started');
+            if (daysDisplay) {
+                daysDisplay.className = 'phase-auto-days-display';
+                daysValue.textContent = phaseStatus === 'start' ? '1' : '—';
+                daysBadge.textContent = phaseStatus === 'start' ? this.t('Jour 1', 'Day 1') : this.t('Nouveau site', 'New site');
+                hiddenInput.value = phaseStatus === 'start' ? 1 : 0;
+            }
+            return;
+        }
+
+        // Loading state
+        if (daysDisplay) {
+            daysDisplay.className = 'phase-auto-days-display loading';
+            daysValue.textContent = '...';
+            daysBadge.textContent = this.t('Calcul...', 'Calculating...');
+        }
+
+        try {
+            const url = `${this.serverUrl}/api/sites/${encodeURIComponent(siteId)}/phase-auto-days?phase_name=${encodeURIComponent(phaseName)}&report_date=${encodeURIComponent(reportDate)}`;
+            const result = await this.apiFetchJson(url);
+
+            let autoDays = Number(result.auto_days || 0);
+            const serverPhaseStatus = result.phase_status || 'not_started';
+
+            // Si c'est un "start" et aucune donnée existante → jour 1
+            if (autoDays === 0 && (phaseStatus === 'start' || phaseStatus === 'on track')) {
+                autoDays = 1;
+            }
+
+            // Déterminer la couleur
+            let statusClass = 'has-data';
+            let badgeText = '';
+
+            if (autoDays <= 0) {
+                statusClass = '';
+                badgeText = this.t('Non démarrée', 'Not started');
+            } else if (autoDays <= estimatedMin) {
+                statusClass = 'on-track';
+                badgeText = '✅ ' + this.t('À temps', 'On time');
+            } else if (autoDays <= estimatedMax) {
+                statusClass = 'on-track';
+                badgeText = '✅ ' + this.t('Dans le délai', 'Within schedule');
+            } else {
+                const delay = autoDays - estimatedMax;
+                if (delay <= 2) {
+                    statusClass = 'warning';
+                    badgeText = '⚠️ +' + delay + this.t('j de retard', 'd delay');
+                } else {
+                    statusClass = 'danger';
+                    badgeText = '🔴 +' + delay + this.t('j de retard', 'd delay');
+                }
+            }
+
+            if (serverPhaseStatus === 'closed') {
+                badgeText = '🏁 ' + this.t('Phase clôturée', 'Phase closed');
+            }
+
+            // Mettre à jour le display
+            if (daysDisplay) {
+                daysDisplay.className = 'phase-auto-days-display ' + statusClass;
+                daysValue.textContent = autoDays > 0 ? String(autoDays) : '—';
+                daysBadge.textContent = badgeText;
+            }
+            hiddenInput.value = autoDays;
+
+            // Mettre à jour l'estimé / retard
+            this.updatePhaseEstimateDisplay(autoDays, estimatedMin, estimatedMax, serverPhaseStatus);
+
+        } catch (err) {
+            console.warn('Erreur calcul auto-jours phase:', err);
+            // Fallback : afficher juste les estimés statiques
+            if (daysDisplay) {
+                daysDisplay.className = 'phase-auto-days-display';
+                daysValue.textContent = phaseStatus === 'start' ? '1' : '—';
+                daysBadge.textContent = this.t('Calcul indisponible', 'Calculation unavailable');
+                hiddenInput.value = phaseStatus === 'start' ? 1 : 0;
+            }
+            this.updatePhaseEstimateDisplay(0, estimatedMin, estimatedMax, 'not_started');
+        }
+    }
+
+    /**
+     * Update the estimated / delay display with progress bar
+     */
+    updatePhaseEstimateDisplay(actualDays, minDays, maxDays, phaseStatus) {
+        const textEl = document.querySelector('.phase-estimate-text');
+        const progressBar = document.getElementById('phase-progress-bar');
+        const progressFill = document.getElementById('phase-progress-fill');
+
+        if (!textEl) return;
+
+        if (!minDays && !maxDays) {
+            textEl.textContent = this.t('Estimé: N/A | Retard: N/A', 'Estimated: N/A | Delay: N/A');
+            if (progressBar) progressBar.style.display = 'none';
+            return;
+        }
+
+        const estimateLabel = minDays === maxDays ? `${minDays}j` : `${minDays}-${maxDays}j`;
+
+        if (!actualDays || actualDays <= 0) {
+            textEl.textContent = `${this.t('Estimé:', 'Estimated:')} ${estimateLabel} | ${this.t('Retard:', 'Delay:')} N/A`;
+            if (progressBar) progressBar.style.display = 'none';
+            return;
+        }
+
+        const delay = Math.round((actualDays - maxDays) * 10) / 10;
+        
+        if (delay > 0) {
+            textEl.innerHTML = `${this.t('Prévu:', 'Planned:')} <strong>${estimateLabel}</strong> | <span style="color:#dc2626;font-weight:600">${this.t('Retard:', 'Delay:')} +${delay}j 🔴</span>`;
+        } else if (actualDays > minDays) {
+            textEl.innerHTML = `${this.t('Prévu:', 'Planned:')} <strong>${estimateLabel}</strong> | <span style="color:#d97706;font-weight:600">${this.t('En approche du seuil', 'Approaching threshold')} ⚠️</span>`;
+        } else {
+            textEl.innerHTML = `${this.t('Prévu:', 'Planned:')} <strong>${estimateLabel}</strong> | <span style="color:#059669;font-weight:600">${this.t('Statut:', 'Status:')} ${this.t('À temps', 'On time')} ✅</span>`;
+        }
+
+        // Progress bar
+        if (progressBar && progressFill) {
+            progressBar.style.display = '';
+            const pct = Math.min(100, Math.round((actualDays / maxDays) * 100));
+            progressFill.style.width = pct + '%';
+            progressFill.className = 'phase-progress-fill';
+            if (pct > 100 || delay > 0) {
+                progressFill.classList.add('danger');
+                progressFill.style.width = '100%';
+            } else if (pct > 80) {
+                progressFill.classList.add('warning');
+            }
+        }
+    }
+
+    updateActivitiesLabel() {
+        const phaseSelect = document.getElementById('phase-name');
+        const phaseName = phaseSelect?.value || '';
+        const label = document.getElementById('activities-label');
+        const hint = document.getElementById('activities-hint');
+        const textarea = document.getElementById('activities');
+
+        if (!label) return;
+
+        if (phaseName && phaseName !== 'Autres') {
+            label.innerHTML = `<span class="label-icon">⚙️</span> ${this.t('Activités de la phase', 'Phase activities')} : <strong>${phaseName}</strong>`;
+            if (textarea) textarea.placeholder = this.t(
+                `Décrivez en détail les activités techniques pour la phase "${phaseName}"...`,
+                `Describe in detail the technical activities for the "${phaseName}" phase...`
+            );
+            if (hint) hint.textContent = this.t(
+                `Expliquez précisément ce qui a été fait, ce qui est en cours et les éventuels blocages pour "${phaseName}"`,
+                `Explain precisely what was done, what is ongoing and any blockers for "${phaseName}"`
+            );
+        } else {
+            label.innerHTML = `<span class="label-icon">⚙️</span> ${this.t('Activités de la phase', 'Phase activities')}`;
+            if (textarea) textarea.placeholder = this.t(
+                'Décrivez en détail les activités techniques de cette phase...',
+                'Describe in detail the technical activities for this phase...'
+            );
+            if (hint) hint.textContent = this.t(
+                'Expliquez les travaux réalisés pour la phase sélectionnée ci-dessus',
+                'Explain the work done for the phase selected above'
+            );
+        }
+    }
+
+    resetPhaseDisplay() {
+        const daysDisplay = document.getElementById('phase-actual-days-display');
+        const daysValue = document.getElementById('phase-auto-days-value');
+        const daysBadge = document.getElementById('phase-auto-badge');
+        const hiddenInput = document.getElementById('phase-actual-days');
+        const textEl = document.querySelector('.phase-estimate-text');
+        const progressBar = document.getElementById('phase-progress-bar');
+
+        if (daysDisplay) daysDisplay.className = 'phase-auto-days-display';
+        if (daysValue) daysValue.textContent = '—';
+        if (daysBadge) daysBadge.textContent = this.t('Automatique', 'Automatic');
+        if (hiddenInput) hiddenInput.value = '0';
+        if (textEl) textEl.textContent = this.t('Estimé: N/A | Retard: N/A', 'Estimated: N/A | Delay: N/A');
+        if (progressBar) progressBar.style.display = 'none';
     }
     
     loadSavedSupervisorName() {
@@ -905,6 +1101,7 @@ class SupervisorApp {
         // Restaurer le nom du superviseur
         this.loadSavedSupervisorName();
         this.setDefaultDate();
+        this.resetPhaseDisplay();
     }
     
     // ================== Load Reports ==================

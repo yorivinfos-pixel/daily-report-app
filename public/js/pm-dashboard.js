@@ -1034,7 +1034,42 @@ class PMDashboard {
         const isNew = this.isNewReport(report);
         const imagesHtml = this.createImagesPreview(report.images);
         const unreadCount = this.unreadReportCounts[rid] || 0;
-        
+
+        // Phase color logic
+        let phaseColor = '#94a3b8'; // gray default
+        let phaseBg = 'rgba(100,116,139,0.1)';
+        let phaseIcon = '⬜';
+        const actualDays = Number(report.phase_actual_days || 0);
+        const maxDays = Number(report.phase_estimated_max_days || 0);
+        const minDays = Number(report.phase_estimated_min_days || 0);
+        const phaseStatus = report.phase_status || 'on track';
+
+        if (report.phase_name && report.phase_name !== 'Autres') {
+            if (phaseStatus === 'closed') {
+                const delay = maxDays > 0 ? actualDays - maxDays : 0;
+                if (delay > 0) {
+                    phaseColor = '#dc2626'; phaseBg = 'rgba(220,38,38,0.12)'; phaseIcon = '🔴';
+                } else {
+                    phaseColor = '#059669'; phaseBg = 'rgba(5,150,105,0.12)'; phaseIcon = '✅';
+                }
+            } else if (actualDays > 0 && maxDays > 0) {
+                if (actualDays <= minDays) {
+                    phaseColor = '#059669'; phaseBg = 'rgba(5,150,105,0.12)'; phaseIcon = '🟢';
+                } else if (actualDays <= maxDays) {
+                    phaseColor = '#d97706'; phaseBg = 'rgba(217,119,6,0.12)'; phaseIcon = '🟡';
+                } else {
+                    phaseColor = '#dc2626'; phaseBg = 'rgba(220,38,38,0.12)'; phaseIcon = '🔴';
+                }
+            } else if (phaseStatus === 'start') {
+                phaseColor = '#2563eb'; phaseBg = 'rgba(37,99,235,0.1)'; phaseIcon = '🔵';
+            }
+        }
+
+        const phaseLabel = report.phase_name || report.milestone_category || this.t('Jalon N/A', 'Milestone N/A');
+        const phaseDaysInfo = actualDays > 0 && maxDays > 0
+            ? ` — ${actualDays}j/${maxDays}j`
+            : actualDays > 0 ? ` — ${actualDays}j` : '';
+
         return `
             <div class="pm-report-card ${isNew ? 'new' : ''} ${getReportId(this.selectedReport) === rid ? 'selected' : ''}" 
                  data-id="${rid}">
@@ -1051,10 +1086,15 @@ class PMDashboard {
                         ${report.status === 'pending' ? `⏳ ${this.t('En attente', 'Pending')}` : `✅ ${this.t('Examiné', 'Reviewed')}`}
                     </span>
                 </div>
+                <div style="display:flex;align-items:center;gap:6px;padding:6px 10px;margin:6px 0;background:${phaseBg};border-left:3px solid ${phaseColor};border-radius:6px;font-size:0.82rem;">
+                    <span>${phaseIcon}</span>
+                    <span style="color:${phaseColor};font-weight:600;">${phaseLabel}</span>
+                    <span style="color:${phaseColor};font-size:0.75rem;margin-left:auto;">${phaseStatus}${phaseDaysInfo}</span>
+                </div>
                 <div class="pm-card-content">${report.activities}</div>
                 ${imagesHtml}
                 <div class="pm-card-footer">
-                    <span>📅 ${this.t('Soumis:', 'Submitted:')} ${this.formatDate(report.created_at)} • ${report.phase_name || report.milestone_category || this.t('Jalon N/A', 'Milestone N/A')} (${report.phase_status || 'on track'})</span>
+                    <span>📅 ${this.t('Soumis:', 'Submitted:')} ${this.formatDate(report.created_at)}</span>
                     <span>📷 ${report.images?.length || 0} ${this.t('photos', 'photos')} ${unreadCount > 0 ? `<span class="pm-chat-badge">${unreadCount}</span>` : ''}</span>
                 </div>
             </div>
@@ -1168,24 +1208,46 @@ class PMDashboard {
             if (!data.success || !data.phases) throw new Error('Erreur');
 
             const colorMap = {
-                green: { bg: 'rgba(5,150,105,0.2)', border: '#059669', text: '#6ee7b7', icon: '✅' },
-                orange: { bg: 'rgba(245,158,11,0.2)', border: '#d97706', text: '#fcd34d', icon: '⚠️' },
-                red: { bg: 'rgba(220,38,38,0.2)', border: '#dc2626', text: '#fca5a5', icon: '🔴' },
-                gray: { bg: 'rgba(100,116,139,0.1)', border: '#475569', text: '#94a3b8', icon: '⬜' }
+                green: { bg: 'rgba(5,150,105,0.15)', border: '#059669', text: '#6ee7b7', subtext: '#a7f3d0', icon: '✅' },
+                orange: { bg: 'rgba(245,158,11,0.15)', border: '#d97706', text: '#fcd34d', subtext: '#fde68a', icon: '⚠️' },
+                red: { bg: 'rgba(220,38,38,0.15)', border: '#dc2626', text: '#fca5a5', subtext: '#fecaca', icon: '🔴' },
+                gray: { bg: 'rgba(100,116,139,0.08)', border: '#475569', text: '#94a3b8', subtext: '#64748b', icon: '⬜' }
+            };
+
+            const formatDateShort = (d) => {
+                if (!d) return '—';
+                const dt = new Date(d);
+                if (isNaN(dt.getTime())) return '—';
+                return dt.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
             };
 
             grid.innerHTML = data.phases
                 .filter(p => p.name !== 'Autres')
                 .map(p => {
                     const c = colorMap[p.color] || colorMap.gray;
-                    const statusLabel = p.status === 'closed' ? 'Clôturée'
-                        : p.status === 'in_progress' ? 'En cours'
-                        : 'Non démarrée';
-                    const daysInfo = p.actual_days > 0 ? ` — ${p.actual_days}j / ${p.max}j max` : '';
-                    return `<div style="display:flex;align-items:center;gap:6px;padding:5px 8px;background:${c.bg};border-left:3px solid ${c.border};border-radius:6px;font-size:0.8rem;">
-                        <span>${c.icon}</span>
-                        <span style="color:${c.text};flex:1;font-weight:500;">${p.name}</span>
-                        <span style="color:${c.text};font-size:0.75rem;">${statusLabel}${daysInfo}</span>
+                    const statusLabel = p.status === 'closed' ? this.t('Clôturée', 'Closed')
+                        : p.status === 'in_progress' ? this.t('En cours', 'In progress')
+                        : this.t('Non démarrée', 'Not started');
+                    const daysInfo = p.actual_days > 0 ? `${p.actual_days}j / ${p.max}j max` : '';
+
+                    // Date display
+                    let dateInfo = '';
+                    if (p.start_date) {
+                        dateInfo = `📅 ${this.t('Début:', 'Start:')} ${formatDateShort(p.start_date)}`;
+                        if (p.closed_date) {
+                            dateInfo += ` → ${this.t('Fin:', 'End:')} ${formatDateShort(p.closed_date)}`;
+                        } else if (p.status === 'in_progress') {
+                            dateInfo += ` → ${this.t('En cours...', 'Ongoing...')}`;
+                        }
+                    }
+
+                    return `<div style="padding:6px 8px;background:${c.bg};border-left:3px solid ${c.border};border-radius:6px;font-size:0.8rem;margin-bottom:2px;">
+                        <div style="display:flex;align-items:center;gap:6px;">
+                            <span>${c.icon}</span>
+                            <span style="color:${c.text};flex:1;font-weight:600;">${p.name}</span>
+                            <span style="color:${c.text};font-size:0.75rem;font-weight:500;">${statusLabel}${daysInfo ? ' — ' + daysInfo : ''}</span>
+                        </div>
+                        ${dateInfo ? `<div style="color:${c.subtext};font-size:0.7rem;margin-top:3px;margin-left:24px;">${dateInfo}</div>` : ''}
                     </div>`;
                 }).join('');
         } catch (err) {

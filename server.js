@@ -643,26 +643,44 @@ app.get('/api/phases-config', (req, res) => {
 
 app.get('/api/sites/:siteId/phases-status', authMiddleware, async (req, res) => {
     try {
-        const siteReports = await Report.find({ site_id: req.params.siteId }).sort({ created_at: -1 });
-        const latestByPhase = new Map();
+        const siteReports = await Report.find({ site_id: req.params.siteId }).sort({ report_date: 1, created_at: 1 });
+
+        // Group reports by phase
+        const reportsByPhase = new Map();
         siteReports.forEach(r => {
             if (!r.phase_name) return;
-            if (!latestByPhase.has(r.phase_name)) latestByPhase.set(r.phase_name, r);
+            if (!reportsByPhase.has(r.phase_name)) reportsByPhase.set(r.phase_name, []);
+            reportsByPhase.get(r.phase_name).push(r);
         });
 
         const phases = Object.entries(PHASES_CONFIG).map(([name, cfg]) => {
-            const report = latestByPhase.get(name);
+            const phaseReports = reportsByPhase.get(name) || [];
             let status = 'pending';
             let actual_days = 0;
             let color = 'gray';
+            let start_date = null;
+            let closed_date = null;
 
-            if (report) {
-                actual_days = Number(report.phase_actual_days || 0);
-                if (report.phase_status === 'closed') {
-                    const delay = computeDelayDays(actual_days, cfg.max);
+            if (phaseReports.length > 0) {
+                const firstReport = phaseReports[0];
+                const startDateRaw = firstReport.report_date || firstReport.created_at;
+                start_date = startDateRaw;
+
+                // Check if closed
+                const closedReport = phaseReports.find(r => r.phase_status === 'closed');
+                if (closedReport) {
+                    const endDateRaw = closedReport.report_date || closedReport.created_at;
+                    closed_date = endDateRaw;
+                    const diffMs = new Date(endDateRaw).getTime() - new Date(startDateRaw).getTime();
+                    actual_days = Math.max(1, Math.floor(diffMs / (1000 * 60 * 60 * 24)) + 1);
                     status = 'closed';
+                    const delay = computeDelayDays(actual_days, cfg.max);
                     color = delay > 0 ? 'red' : 'green';
                 } else {
+                    // In progress - calculate from start to today
+                    const today = new Date();
+                    const diffMs = today.getTime() - new Date(startDateRaw).getTime();
+                    actual_days = Math.max(1, Math.floor(diffMs / (1000 * 60 * 60 * 24)) + 1);
                     status = 'in_progress';
                     if (actual_days <= cfg.min) color = 'green';
                     else if (actual_days <= cfg.max) color = 'orange';
@@ -677,13 +695,89 @@ app.get('/api/sites/:siteId/phases-status', authMiddleware, async (req, res) => 
                 weight: cfg.weight,
                 status,
                 actual_days,
-                color
+                color,
+                start_date,
+                closed_date
             };
         });
 
         res.json({ success: true, phases });
     } catch (err) {
         console.error('Erreur phases-status:', err);
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+// Auto-calculate phase duration for a site (used by supervisor form)
+app.get('/api/sites/:siteId/phase-auto-days', authMiddleware, async (req, res) => {
+    try {
+        const siteId = req.params.siteId;
+        const phaseName = req.query.phase_name || '';
+        if (!siteId || !phaseName) {
+            return res.json({ success: true, auto_days: 0, start_date: null, estimated_min: 0, estimated_max: 0 });
+        }
+
+        // Find all reports for this site with this phase
+        const phaseReports = await Report.find({
+            site_id: siteId,
+            phase_name: phaseName
+        }).sort({ report_date: 1, created_at: 1 });
+
+        const cfg = PHASES_CONFIG[phaseName] || { min: 0, max: 0 };
+        let autoDays = 0;
+        let startDate = null;
+        let phaseStatus = 'not_started';
+
+        if (phaseReports.length > 0) {
+            // Find the earliest report for this phase (the "start")
+            const firstReport = phaseReports[0];
+            startDate = firstReport.report_date || firstReport.created_at;
+
+            // Check if the phase is already closed
+            const closedReport = phaseReports.find(r => r.phase_status === 'closed');
+            if (closedReport) {
+                // Phase is closed - use the closed report's date as end
+                const endDate = closedReport.report_date || closedReport.created_at;
+                const diffMs = new Date(endDate).getTime() - new Date(startDate).getTime();
+                autoDays = Math.max(1, Math.floor(diffMs / (1000 * 60 * 60 * 24)) + 1);
+                phaseStatus = 'closed';
+            } else {
+                // Phase is in progress - calculate from start to today
+                const today = new Date(req.query.report_date || new Date().toISOString().split('T')[0]);
+                const diffMs = today.getTime() - new Date(startDate).getTime();
+                autoDays = Math.max(1, Math.floor(diffMs / (1000 * 60 * 60 * 24)) + 1);
+                phaseStatus = 'in_progress';
+            }
+        }
+
+        // Also get all phases summary for this site
+        const allSiteReports = await Report.find({ site_id: siteId }).sort({ created_at: 1 });
+        const phasesSummary = {};
+        allSiteReports.forEach(r => {
+            if (!r.phase_name) return;
+            if (!phasesSummary[r.phase_name]) {
+                phasesSummary[r.phase_name] = {
+                    start_date: r.report_date || r.created_at,
+                    status: r.phase_status || 'on track',
+                    reports_count: 0
+                };
+            }
+            phasesSummary[r.phase_name].reports_count++;
+            // Keep updating status to latest
+            phasesSummary[r.phase_name].status = r.phase_status || 'on track';
+        });
+
+        res.json({
+            success: true,
+            auto_days: autoDays,
+            start_date: startDate,
+            phase_status: phaseStatus,
+            estimated_min: cfg.min,
+            estimated_max: cfg.max,
+            phases_summary: phasesSummary
+        });
+    } catch (err) {
+        console.error('Erreur phase-auto-days:', err);
         res.status(500).json({ success: false, error: err.message });
     }
 });

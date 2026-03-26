@@ -1,0 +1,536 @@
+# YoRivSiteTrack-YST1 — Guide Complet
+
+**Application de Rapports Journaliers pour Superviseurs de Site**
+Conçue par **Jean-Baptiste MBUYI** — Contact : 0850145419
+
+---
+
+## TABLE DES MATIÈRES
+
+1. [Présentation de l'application](#1-présentation-de-lapplication) (incl. stockage des photos Cloudinary)
+2. [Guide d'installation (accès)](#2-guide-dinstallation)
+3. [Guide du Superviseur](#3-guide-du-superviseur)
+4. [Guide du Project Manager (PM)](#4-guide-du-project-manager-pm)
+5. [Guide de l'Administrateur](#5-guide-de-ladministrateur)
+6. [Référence des Phases de Construction](#6-référence-des-phases-de-construction)
+7. [Cas Pratiques & FAQ](#7-cas-pratiques--faq)
+
+---
+
+## 1. PRÉSENTATION DE L'APPLICATION
+
+YoRivSiteTrack-YST1 est une application web (accessible depuis un téléphone ou un ordinateur) qui permet de :
+
+- **Superviseurs** : soumettre des rapports journaliers avec photos depuis le terrain
+- **Project Managers (PM)** : consulter, filtrer, examiner les rapports et communiquer avec les superviseurs
+- **Administrateur** : gérer les comptes utilisateurs (création, désactivation, suppression)
+
+L'application fonctionne en **temps réel** : quand un superviseur envoie un rapport, le PM le voit immédiatement.
+
+### Les 3 interfaces
+
+| Interface | URL | Qui l'utilise |
+|-----------|-----|---------------|
+| App Superviseur | `https://daily-report-app-fanv.onrender.com` | Les superviseurs terrain |
+| Dashboard PM | `https://daily-report-app-fanv.onrender.com/pm` | Les Project Managers |
+| Panneau Admin | `https://daily-report-app-fanv.onrender.com/admin` | L'administrateur système |
+
+### Stockage des photos (Cloudinary — production)
+
+En production (hébergement sur Render), les **photos des rapports** et les **documents d'acceptation** sont enregistrés sur **Cloudinary** (service cloud). Les images reçoivent une adresse du type `https://res.cloudinary.com/.../daily-report-site-supervisor/...` : elles restent disponibles après redéploiement ou redémarrage du serveur.
+
+**À noter :** les anciennes photos enregistrées uniquement sur le disque du serveur (chemins `/uploads/images/...`) avant la configuration Cloudinary peuvent ne plus être accessibles. Seules les photos envoyées **après** la mise en place de Cloudinary sont garanties à long terme.
+
+Pour l’équipe technique : les variables d’environnement `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY` et `CLOUDINARY_API_SECRET` doivent être définies sur le serveur (ex. Render).
+
+---
+
+## 2. GUIDE D'INSTALLATION
+
+L'application est déjà hébergée en ligne. **Aucune installation technique n'est nécessaire.** Il suffit d'un navigateur internet (Chrome, Safari, Firefox, Edge...).
+
+### 2.1 Accès depuis un téléphone Android ou iPhone
+
+1. Ouvrir le navigateur **Chrome** (Android) ou **Safari** (iPhone)
+2. Taper l'adresse dans la barre : `https://daily-report-app-fanv.onrender.com`
+3. Attendre que la page se charge complètement
+
+### 2.2 Installer l'application sur l'écran d'accueil (recommandé)
+
+Cela crée un raccourci sur votre téléphone, comme une vraie application.
+
+**Sur Android (Chrome) :**
+1. Ouvrir l'adresse ci-dessus dans Chrome
+2. Appuyer sur le menu **⋮** (3 points en haut à droite)
+3. Appuyer sur **"Ajouter à l'écran d'accueil"** ou **"Installer l'application"**
+4. Confirmer en appuyant sur **"Ajouter"**
+5. L'icône **YST1** apparaît sur votre écran d'accueil
+
+**Sur iPhone (Safari) :**
+1. Ouvrir l'adresse ci-dessus dans Safari
+2. Appuyer sur le bouton **Partager** (carré avec flèche vers le haut, en bas de l'écran)
+3. Faire défiler et appuyer sur **"Sur l'écran d'accueil"**
+4. Appuyer sur **"Ajouter"**
+5. L'icône **YST1** apparaît sur votre écran d'accueil
+
+### 2.3 Accès depuis un ordinateur
+
+1. Ouvrir un navigateur web (Chrome recommandé)
+2. Aller à l'adresse correspondant à votre rôle (voir tableau ci-dessus)
+3. Se connecter avec vos identifiants
+
+### 2.4 Première connexion
+
+Chaque utilisateur dispose d'un **identifiant** et d'un **mot de passe** fournis par l'administrateur.
+
+**Identifiants par défaut pour les superviseurs :**
+
+| Nom complet | Identifiant | Mot de passe |
+|-------------|-------------|--------------|
+| Evariste FAMBA | `evariste.famba` | `Yoriv@2026` |
+| Gaston MUTSHIPULE | `gaston.mutshipule` | `Yoriv@2026` |
+| Patou KIESELO | `patou.kieselo` | `Yoriv@2026` |
+| Denis ILUNGA | `denis.ilunga` | `Yoriv@2026` |
+| Grace NGOMBA | `grace.ngomba` | `Yoriv@2026` |
+| Don MAFINGE | `don.mafinge` | `Yoriv@2026` |
+| Vincent KAPAJIKA | `vincent.kapajika` | `Yoriv@2026` |
+| Patient KYAVIRO | `patient.kyaviro` | `Yoriv@2026` |
+| Baudoin TSHIMBUNDU | `baudoin.tshimbundu` | `Yoriv@2026` |
+| Pacifique KABASODA | `pacifique.kabasoda` | `Yoriv@2026` |
+
+**Identifiants par défaut pour les PM :**
+
+| Rôle | Identifiant | Mot de passe |
+|------|-------------|--------------|
+| Group PM (Sunil) | `sunil` | `Sunil@2026` |
+| PM Zone 1 | `pm1` | `Pm1@2026` |
+| PM Zone 2 | `pm2` | `Pm2@2026` |
+| PM Zone 3 | `pm3` | `Pm3@2026` |
+| PM Zone 4 | `pm4` | `Pm4@2026` |
+
+**Identifiant Admin :**
+
+| Rôle | Identifiant | Mot de passe |
+|------|-------------|--------------|
+| Administrateur | `admin` | `Admin@2026` |
+
+> **IMPORTANT** : Changez votre mot de passe après la première connexion en contactant l'administrateur.
+
+---
+
+## 3. GUIDE DU SUPERVISEUR
+
+### 3.1 Se connecter
+
+1. Ouvrir l'application (via le navigateur ou l'icône installée)
+2. Entrer votre **identifiant** (ex: `evariste.famba`)
+3. Entrer votre **mot de passe**
+4. Appuyer sur **"Se connecter"**
+
+### 3.2 Remplir un rapport journalier
+
+Après connexion, vous arrivez sur le formulaire de rapport. Voici chaque champ à remplir :
+
+#### Champs obligatoires (marqués d'une étoile)
+
+| Champ | Description | Exemple |
+|-------|-------------|---------|
+| **Nom du Superviseur** | Sélectionnez votre nom dans la liste déroulante | `Evariste FAMBA` |
+| **Province** | Province où se trouve le site | `Kinshasa (CDKN)` |
+| **Date du Rapport** | Date du jour (se remplit automatiquement) | `2026-03-25` |
+| **Site ID** | Identifiant unique du site, format : PRÉFIXE-NUMÉRO | `CDKN-001` |
+| **Nom du Site** | Nom du chantier | `Tour Gombe Centre` |
+| **Activités sur le Site** | Description détaillée des activités du jour | Voir exemples ci-dessous |
+| **Phase / Jalon** | Étape de construction en cours | `Excavation` |
+| **Statut phase** | État d'avancement de la phase | `on track` |
+
+#### Champs optionnels
+
+| Champ | Description |
+|-------|-------------|
+| **Jours réels (phase)** | Nombre de jours déjà passés sur cette phase |
+| **Commentaires** | Observations supplémentaires, problèmes rencontrés |
+| **Photos du Site** | Photos prises sur le terrain (via galerie ou caméra) |
+| **Clôture du site** | Cocher uniquement pour le dernier rapport du site (avec document) |
+
+### 3.3 Comment choisir la phase et le statut
+
+#### Les 17 phases de construction (dans l'ordre)
+
+| # | Phase | Durée estimée |
+|---|-------|---------------|
+| 1 | Implantation | 1 jour |
+| 2 | Excavation | 2 à 5 jours |
+| 3 | Réseau de terre | 1 jour |
+| 4 | Béton de propreté | 1 jour |
+| 5 | Rebars (armatures) | 2 à 5 jours |
+| 6 | RFC (Ready for Casting) | 1 jour |
+| 7 | Casting (Coulage) | 1 jour |
+| 8 | Curing (Séchage) | 5 à 7 jours |
+| 9 | Backfilling (Remblayage) | 2 à 3 jours |
+| 10 | Tower Erection | 3 à 5 jours |
+| 11 | Casting Slabs (Dalles) | 1 à 2 jours |
+| 12 | Manholes (Regards) | 2 à 3 jours |
+| 13 | Power Installation | 1 à 2 jours |
+| 14 | Guardhouse (Guérite) | 5 à 10 jours |
+| 15 | Fence (Clôture) | 5 à 10 jours |
+| 16 | Nivellement & Épandage | 1 à 2 jours |
+| 17 | Cleaning Site (Nettoyage) | 1 jour |
+| 18 | Autres | Activités diverses |
+
+#### Les 4 statuts possibles
+
+| Statut | Quand l'utiliser |
+|--------|-----------------|
+| **start** | Vous commencez cette phase aujourd'hui (premier jour) |
+| **on track** | La phase est en cours et avance normalement |
+| **pending** | La phase est identifiée mais en attente (matériaux, météo, autorisation...) |
+| **closed** | La phase est terminée, vous passez à la suivante |
+
+#### Règle importante : le cycle de vie d'une phase
+
+Pour chaque phase d'un site, le cycle normal est :
+
+```
+start → on track → closed
+```
+
+Ou si la phase est bloquée :
+
+```
+start → on track → pending → on track → closed
+```
+
+> **Quand vous clôturez une phase (closed)**, renseignez bien le nombre de **jours réels** passés sur cette phase. C'est essentiel pour le calcul de performance.
+
+### 3.4 Ajouter des photos
+
+1. Dans la section **"Photos du Site"**, cliquez sur :
+   - **"Galerie"** pour choisir des photos existantes sur votre téléphone
+   - **"Caméra"** pour prendre une photo directement
+2. Vous pouvez ajouter **jusqu'à 10 photos** par rapport
+3. Les photos apparaissent en aperçu avant l'envoi
+4. Pour supprimer une photo avant l'envoi, cliquez sur le **X** de l'aperçu
+
+Une fois le rapport envoyé, les photos sont stockées sur **Cloudinary** en production : elles restent consultables par vous et par les PM dans l’application et la galerie photos.
+
+### 3.5 Envoyer le rapport
+
+1. Vérifiez que tous les champs obligatoires sont remplis
+2. Appuyez sur le bouton **"Envoyer le Rapport"**
+3. Attendez la confirmation (message vert en bas de l'écran)
+4. Le rapport apparaît dans la section **"Mes Rapports Récents"** en dessous
+
+### 3.6 Consulter ses rapports précédents
+
+- Faites défiler vers le bas pour voir la section **"Mes Rapports Récents"**
+- Cliquez sur un rapport pour voir ses détails (activités, photos, phase, retard, feedbacks du PM)
+
+### 3.7 Sites attribués
+
+- La section **"Sites attribués"** montre les sites que le PM vous a affectés
+- Utilisez les informations (Site ID, Nom, Province) pour remplir vos rapports
+
+### 3.8 Chat de Zone
+
+- La section **"Chat de Zone"** vous permet d'échanger des messages avec le PM de votre zone et les autres superviseurs
+- Tapez votre message et appuyez sur **"Envoyer"**
+- Les messages apparaissent en temps réel
+
+### 3.9 Notifications du PM
+
+- Quand un PM laisse un avis (feedback) sur l'un de vos rapports, une notification apparaît dans la section **"Nouveaux Avis du PM"**
+- Consultez régulièrement cette section
+
+### 3.10 Clôture d'un site (dernier rapport)
+
+Quand toutes les phases d'un site sont terminées :
+1. Remplissez le rapport final normalement
+2. Cochez la case **"Cochez si c'est le dernier rapport du site"**
+3. Joignez le **document d'acceptance** (PDF ou image) — obligatoire
+4. Envoyez le rapport
+
+### 3.11 Changer la langue
+
+- En haut à droite, utilisez le sélecteur **FR / EN** pour passer du français à l'anglais
+
+### 3.12 Se déconnecter
+
+- Appuyez sur le bouton **⏻** en haut à droite
+
+---
+
+## 4. GUIDE DU PROJECT MANAGER (PM)
+
+### 4.1 Accéder au Dashboard PM
+
+1. Ouvrir `https://daily-report-app-fanv.onrender.com/pm`
+2. Entrer votre identifiant (ex: `pm1`) et mot de passe (ex: `Pm1@2026`)
+3. Vous accédez au tableau de bord
+
+### 4.2 Vue d'ensemble du Dashboard
+
+Le dashboard PM comprend :
+
+- **Barre latérale (à gauche)** : navigation entre les vues (Tous / En attente / Examinés)
+- **En-tête** : filtres (province, zone, recherche, date) et boutons d'export
+- **Cartes statistiques** : Total rapports, En attente, Examinés, Photos
+- **Attribution de site** : formulaire pour affecter des sites aux superviseurs
+- **Chat de Zone** : messagerie avec les superviseurs de votre zone
+- **Grille des rapports** : tous les rapports reçus
+
+### 4.3 Filtrer les rapports
+
+| Filtre | Description |
+|--------|-------------|
+| **Province** | Voir les rapports d'une province spécifique |
+| **Zone du PM** | Filtrer par zone géographique (Zone 1 à 4) |
+| **Voir aussi les autres zones** | Cocher pour voir toutes les zones |
+| **Recherche** | Chercher par nom de site, superviseur, etc. |
+| **Date** | Filtrer par date de rapport |
+| **Superviseur** | Filtrer par superviseur spécifique |
+| **Période** | Cette semaine / Ce mois / Mois dernier |
+
+### 4.4 Examiner un rapport
+
+1. Cliquer sur un rapport dans la grille
+2. Le panneau de détails s'ouvre à droite avec :
+   - Informations du site (ID, nom, région)
+   - Activités et commentaires du superviseur
+   - Phase en cours et son statut
+   - Durée estimée vs réelle et retard éventuel
+   - Photos du site (cliquer pour agrandir)
+   - Historique des feedbacks
+3. Écrire votre feedback / avis dans le champ prévu
+4. Appuyer sur **Envoyer** — le rapport passe en statut "Examiné"
+
+### 4.5 Affecter un site à un superviseur
+
+1. Dans la section **"Attribution de site au superviseur"** :
+   - Entrer le **Site ID** (ex: `CDKN-045`)
+   - Entrer le **Nom du site**
+   - Sélectionner la **Province**
+   - Sélectionner le **Superviseur**
+   - Optionnellement, ajouter la **Localisation**
+2. Cliquer sur **"Affecter"**
+3. Le superviseur verra immédiatement le site dans sa section "Sites attribués"
+
+### 4.6 Chat de Zone
+
+- Utilisez le chat pour communiquer avec tous les superviseurs de votre zone
+- Les messages sont visibles par tous les membres de la même zone
+
+### 4.7 Exporter les rapports
+
+| Bouton | Format | Description |
+|--------|--------|-------------|
+| **PDF** | PDF | Exporte les rapports visibles en format PDF |
+| **Excel** | CSV | Exporte un fichier CSV (ouvrable dans Excel) |
+
+Les filtres actifs (province, date, superviseur, période) s'appliquent à l'export.
+
+### 4.8 Galerie Photos
+
+- Cliquez sur la carte statistique **Photos** pour ouvrir la galerie complète
+- Filtrez par superviseur
+- Cliquez sur une photo pour l'agrandir
+- Utilisez les flèches pour naviguer entre les photos
+- Bouton **"Télécharger"** pour sauvegarder une photo
+
+### 4.9 Correspondance Province → Zone
+
+| Zone | Provinces |
+|------|-----------|
+| **Zone 1** | Kinshasa, Kongo-Central, Bandundu, Kwango, Kwilu, Équateur, Mai-Ndombe, Mongala, Tshuapa, Nord-Ubangi, Sud-Ubangi |
+| **Zone 2** | Haut-Katanga, Lualaba, Lomami, Haut-Lomami, Tanganyika |
+| **Zone 3** | Kasaï-Central, Kasaï-Oriental, Kasaï, Sankuru |
+| **Zone 4** | Toutes les autres (Nord-Kivu, Sud-Kivu, Ituri, Tshopo, Province Orientale, Maniema, Bas-Uélé, Haut-Uélé) |
+
+---
+
+## 5. GUIDE DE L'ADMINISTRATEUR
+
+### 5.1 Accéder au panneau Admin
+
+1. Ouvrir `https://daily-report-app-fanv.onrender.com/admin`
+2. Se connecter avec l'identifiant `admin` et le mot de passe `Admin@2026`
+
+### 5.2 Créer un nouveau compte
+
+1. Remplir le formulaire **"Créer un nouveau compte"** :
+   - **Nom complet** : nom et prénom de la personne
+   - **Identifiant** : login unique (ex: `prenom.nom`, tout en minuscules)
+   - **Mot de passe** : minimum 6 caractères
+   - **Rôle** : Superviseur, PM, Group PM, ou Administrateur
+   - **Zone** : uniquement pour les PM (Zone 1, 2, 3 ou 4)
+2. Cliquer sur **"Créer le compte"**
+3. Communiquer l'identifiant et le mot de passe à la personne
+
+### 5.3 Gérer les comptes existants
+
+Le tableau affiche tous les comptes avec :
+- **Nom** et **Identifiant**
+- **Rôle** (avec badge coloré)
+- **Zone** attribuée
+- **Statut** (Actif / Inactif)
+- **Dernière connexion**
+
+#### Actions possibles
+
+| Bouton | Action |
+|--------|--------|
+| **Désactiver / Activer** | Désactiver temporairement un compte (la personne ne peut plus se connecter) |
+| **🔑** | Réinitialiser le mot de passe d'un utilisateur |
+| **🗑** | Supprimer définitivement un compte |
+
+> **Note** : Le dernier compte administrateur ne peut pas être supprimé.
+
+### 5.4 Liens rapides
+
+Depuis le panneau admin, vous pouvez accéder à :
+- **App Superviseur** (lien en haut)
+- **Dashboard PM** (lien en haut)
+
+---
+
+## 6. RÉFÉRENCE DES PHASES DE CONSTRUCTION
+
+### 6.1 Enchaînement des phases
+
+Voici l'ordre des phases et leurs dépendances. Une phase ne devrait être commencée que si ses dépendances sont clôturées :
+
+```
+1. Implantation ──────────────────────────────────────────┐
+2. Excavation ────────────────┬───────────────────────────┤
+3. Réseau de terre ←──────────┤ (dépend de Excavation)    │
+4. Béton de propreté ←────────┘ (dépend de Excavation)    │
+5. Rebars ←─────────────────────(dépend de Béton propreté)│
+6. RFC (Ready for Casting) ←────(dépend de Rebars)        │
+7. Casting (Coulage) ←──────────(dépend de Rebars)        │
+8. Curing ←─────────────────────(dépend de Casting)       │
+9. Backfilling ←────────────────(dépend de Casting)       │
+10. Tower Erection ←────────────(dépend de Casting) ──────┤
+11. Casting Slabs ←─────────────(dépend de Backfilling)   │
+12. Manholes ←──────────────────(dépend de Tower Erect.)  │
+13. Power Installation ←────────(dépend de Slabs + Tower) │
+14. Guardhouse ←────────────────(dépend de Tower Erect.)  │
+15. Fence ←─────────────────────(dépend de Tower Erect.)  │
+16. Nivellement & Épandage ←────(dépend de Guard. + Fence)│
+17. Cleaning Site ←─────────────(dépend de Power + Nivel.)│
+```
+
+### 6.2 Durées estimées et poids (scoring)
+
+| Phase | Durée min | Durée max | Poids |
+|-------|-----------|-----------|-------|
+| Implantation | 1j | 1j | 2 |
+| Excavation | 2j | 5j | 6 |
+| Réseau de terre | 1j | 1j | 4 |
+| Béton de propreté | 1j | 1j | 3 |
+| Rebars | 2j | 5j | 6 |
+| RFC (Ready for Casting) | 1j | 1j | 3 |
+| Casting (Coulage) | 1j | 1j | 7 |
+| Curing | 5j | 7j | 5 |
+| Backfilling | 2j | 3j | 5 |
+| Tower Erection | 3j | 5j | 8 |
+| Casting Slabs | 1j | 2j | 6 |
+| Manholes | 2j | 3j | 6 |
+| Power Installation | 1j | 2j | 8 |
+| Guardhouse | 5j | 10j | 9 |
+| Fence | 5j | 10j | 9 |
+| Nivellement & Épandage | 1j | 2j | 6 |
+| Cleaning Site | 1j | 1j | 7 |
+
+### 6.3 Comment le retard est calculé
+
+- **À temps** : Jours réels ≤ Durée max → le superviseur reçoit des **points positifs** (= poids de la phase)
+- **En retard** : Jours réels > Durée max → le superviseur reçoit des **points négatifs** (= poids × jours de retard)
+- Exemple : Excavation (poids 6, max 5j), terminée en 7j → retard de 2j → score = -(6 × 2) = **-12 points**
+
+### 6.4 RFI Ready (Request for Inspection)
+
+Un site est considéré **RFI Ready** (prêt pour inspection) quand les 5 phases critiques suivantes sont toutes clôturées :
+1. Casting (Coulage)
+2. Tower Erection
+3. Casting Slabs
+4. Power Installation
+5. Manholes
+
+---
+
+## 7. CAS PRATIQUES & FAQ
+
+### Q1 : Quelle phase choisir si le site n'a pas encore commencé ?
+**R** : Sélectionnez la phase **"Implantation"** avec le statut **"pending"** et expliquez dans les activités que le site n'a pas encore démarré.
+
+### Q2 : Le site a commencé (implantation, excavation, béton de propreté faits) mais on attend la livraison des matériaux pour les rebars. Quelle phase choisir ?
+**R** : Sélectionnez la phase **"Rebars"** avec le statut **"pending"**. Dans les activités, écrivez : *"En attente de livraison des armatures sur site."* Les phases précédentes doivent déjà avoir été rapportées et clôturées (closed).
+
+### Q3 : Deux activités se passent en même temps sur le site (ex: Fence et Guardhouse). Comment faire ?
+**R** : Envoyez **un rapport par phase**. Choisissez la phase principale en cours et décrivez les deux activités dans le champ "Activités". Le lendemain, faites un rapport pour l'autre phase.
+
+### Q4 : Je n'ai pas de réseau sur le terrain. Puis-je envoyer le rapport plus tard ?
+**R** : Oui, remplissez le rapport quand vous avez du réseau. Pensez à bien mettre la **date correcte** dans le champ "Date du Rapport" (celle du jour des activités, pas celle de l'envoi).
+
+### Q5 : J'ai oublié d'ajouter des photos. Puis-je les ajouter après ?
+**R** : Non, les photos doivent être envoyées avec le rapport. Veillez à toujours prendre vos photos avant de soumettre.
+
+### Q6 : Le système me dit "Dépendance non clôturée". Que faire ?
+**R** : Cela signifie que vous essayez de rapporter une phase alors que la phase précédente (dont elle dépend) n'a pas encore été clôturée. C'est un avertissement, pas un blocage. Assurez-vous de clôturer les phases dans l'ordre.
+
+### Q7 : Combien de jours réels (phase) mettre quand la phase vient de commencer ?
+**R** : Mettez **1** si c'est le premier jour, **2** le deuxième jour, etc. Ce compteur représente le nombre total de jours travaillés sur cette phase depuis son début.
+
+### Q8 : Quand cocher "Clôture du site" ?
+**R** : Uniquement quand **toutes** les phases du site sont terminées et que vous soumettez le tout dernier rapport. Un document d'acceptance (PDF ou image) est obligatoire.
+
+### Q9 : Mon identifiant ne fonctionne pas.
+**R** : Vérifiez que vous utilisez bien le format `prenom.nom` en minuscules. Si le problème persiste, contactez l'administrateur pour réinitialiser votre mot de passe.
+
+### Q10 : Quelle est la différence entre "on track" et "pending" ?
+**R** :
+- **on track** = Le travail avance normalement sur cette phase
+- **pending** = Le travail est en pause/attente (matériaux manquants, météo, autorisation, etc.)
+
+### Q11 : Je suis PM. Comment savoir si un superviseur est en retard ?
+**R** : Dans le détail d'un rapport, vérifiez :
+- **Durée estimée** vs **Jours réels** : si les jours réels dépassent la borne max, le superviseur est en retard
+- **Retard phase** : indique le nombre de jours de retard
+- Un code couleur s'affiche dans la timeline des phases du site
+
+### Q12 : Qu'est-ce que "Autres (non-activité / divers)" ?
+**R** : Utilisez cette phase quand l'activité du jour ne correspond à aucune des 17 phases standards (ex: visite du client, réunion de sécurité, événement imprévu...). Cette phase n'a pas d'impact sur le score.
+
+### Q13 : Où sont stockées mes photos ? Pourquoi une ancienne photo ne s’affiche plus ?
+**R** : En production, les photos sont sur **Cloudinary** (URL commençant par `https://res.cloudinary.com/...`). Les photos très anciennes enregistrées uniquement sur le serveur (`/uploads/...`) avant cette configuration peuvent ne plus être disponibles si le fichier a été effacé lors d’un redéploiement. Envoyez de nouvelles photos si besoin.
+
+---
+
+## RÉSUMÉ RAPIDE POUR LES SUPERVISEURS
+
+### Chaque jour sur le terrain :
+
+1. **Ouvrir** l'application YST1
+2. **Se connecter** avec votre identifiant
+3. **Remplir** le formulaire :
+   - Votre nom + Province + Date
+   - Site ID + Nom du site
+   - Description des activités du jour
+   - Phase en cours + Statut + Jours réels
+   - Commentaires si nécessaire
+4. **Prendre des photos** du site (minimum recommandé : 2-3 photos)
+5. **Envoyer** le rapport
+6. **Vérifier** que le rapport apparaît dans "Mes Rapports Récents"
+
+### Rappels importants :
+
+- Un rapport par jour **minimum** par site actif
+- Toujours **clôturer** une phase (statut `closed`) avant de passer à la suivante
+- Indiquer les **jours réels** passés sur chaque phase pour le suivi du planning
+- Joindre des **photos** à chaque rapport
+- Consulter régulièrement les **avis du PM** et le **chat de zone**
+
+---
+
+*Document mis à jour le 25 mars 2026*
+*YoRivSiteTrack-YST1 v1.0.0*

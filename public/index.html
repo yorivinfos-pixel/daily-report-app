@@ -160,15 +160,7 @@
                         </div>
                     </div>
 
-                    <div class="form-group">
-                        <label for="activities">
-                            <span class="label-icon">⚙️</span>
-                            Activités sur le Site
-                        </label>
-                        <textarea id="activities" name="activities" rows="4"
-                                  placeholder="Décrivez les activités réalisées aujourd'hui..." required></textarea>
-                    </div>
-
+                    <!-- ====== SECTION PHASE / JALON (avant activités) ====== -->
                     <div class="form-row">
                         <div class="form-group">
                             <label for="phase-name">
@@ -211,21 +203,44 @@
                         </div>
                     </div>
 
-                    <div class="form-row">
+                    <!-- Durée automatique calculée -->
+                    <div class="form-row" id="phase-duration-row">
                         <div class="form-group">
-                            <label for="phase-actual-days">
+                            <label>
                                 <span class="label-icon">📅</span>
                                 Jours réels (phase)
                             </label>
-                            <input type="number" min="0" step="0.5" id="phase-actual-days" name="phase_actual_days" placeholder="Ex: 3">
+                            <div id="phase-actual-days-display" class="phase-auto-days-display">
+                                <span class="auto-days-value" id="phase-auto-days-value">—</span>
+                                <span class="auto-days-label">jour(s)</span>
+                                <span class="auto-days-badge" id="phase-auto-badge">Automatique</span>
+                            </div>
+                            <!-- Hidden field to submit value -->
+                            <input type="hidden" id="phase-actual-days" name="phase_actual_days" value="0">
                         </div>
                         <div class="form-group">
                             <label>
                                 <span class="label-icon">📊</span>
                                 Estimé / Retard
                             </label>
-                            <div id="phase-estimated-display" class="form-hint">Estimé: N/A | Retard: N/A</div>
+                            <div id="phase-estimated-display" class="phase-estimate-box">
+                                <div class="phase-estimate-text">Estimé: N/A | Retard: N/A</div>
+                                <div class="phase-progress-bar" id="phase-progress-bar" style="display:none;">
+                                    <div class="phase-progress-fill" id="phase-progress-fill" style="width:0%"></div>
+                                </div>
+                            </div>
                         </div>
+                    </div>
+
+                    <!-- ====== SECTION ACTIVITÉS (après phase) ====== -->
+                    <div class="form-group">
+                        <label for="activities" id="activities-label">
+                            <span class="label-icon">⚙️</span>
+                            Activités de la phase
+                        </label>
+                        <textarea id="activities" name="activities" rows="4"
+                                  placeholder="Décrivez en détail les activités techniques de cette phase..." required></textarea>
+                        <small class="form-hint" id="activities-hint">Expliquez les travaux réalisés pour la phase sélectionnée ci-dessus</small>
                     </div>
 
                     <div class="form-group">
@@ -371,7 +386,7 @@
             document.head.appendChild(s);
         }
     </script>
-    <script src="/js/supervisor.js?v=20260326c"></script>
+    <script src="/js/supervisor.js?v=20260326e"></script>
     <script>
         // Sur APK Capacitor, le SW en cache-first peut bloquer les mises à jour JS → pas de SW en natif
         const __isCapNative = typeof window.Capacitor !== 'undefined' && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform();
