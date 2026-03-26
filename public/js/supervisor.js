@@ -248,8 +248,8 @@ class SupervisorApp {
             ['.report-form-section .section-title', this.t('Nouveau Rapport Journalier', 'New Daily Report')],
             ['#submit-btn .btn-text', this.t('Envoyer le Rapport', 'Submit Report')],
             ['#supervisor-zone-chat-input', this.t('Écrire un message à votre zone...', 'Write a message to your zone...'), 'placeholder'],
-            ['#activities', this.t("Décrivez en détail les activités techniques de cette phase...", 'Describe in detail the technical activities for this phase...'), 'placeholder'],
-            ['#comments', this.t('Ajoutez des commentaires supplémentaires...', 'Add additional comments...'), 'placeholder'],
+            ['#activities', this.t("Décrivez les activités réalisées sur le site...", 'Describe the site activities...'), 'placeholder'],
+            ['#comments', this.t('Observations, pending issues...', 'Observations, pending issues...'), 'placeholder'],
             ['#site-id', this.t('Ex: CDKN-001', 'Ex: CDKN-001'), 'placeholder'],
             ['#site-name', this.t('Ex: Chantier Centre-Ville', 'Ex: Downtown Site'), 'placeholder'],
             ['#supervisor-name', this.t('Entrez votre nom', 'Enter your name'), 'placeholder'],
@@ -630,28 +630,30 @@ class SupervisorApp {
 
         const weight = phaseConfigs[phaseName] || 0;
         const delay = Math.max(0, actualDays - maxDays);
-        let score = weight;
-        if (delay > 0) score = -(weight * delay);
-        score = Math.round(score * 10) / 10;
+
+        // 100% = à temps, pénalité de 10% par jour de retard
+        let pct = 100;
+        if (delay > 0) pct = Math.max(0, 100 - (delay * 10));
+        pct = Math.round(pct);
 
         scoreRow.style.display = '';
-        scoreValue.textContent = (score >= 0 ? '+' : '') + score + ' pts';
-        scoreValue.style.color = score >= 0 ? '#10b981' : '#ef4444';
+        scoreValue.textContent = pct + '%';
+        scoreValue.style.color = pct >= 80 ? '#10b981' : pct >= 50 ? '#d97706' : '#ef4444';
         if (scoreDisplay) {
-            scoreDisplay.style.borderColor = score >= 0 ? '#059669' : '#ef4444';
-            scoreDisplay.style.background = score >= 0 ? 'rgba(5,150,105,0.1)' : 'rgba(239,68,68,0.1)';
+            scoreDisplay.style.borderColor = pct >= 80 ? '#059669' : pct >= 50 ? '#d97706' : '#ef4444';
+            scoreDisplay.style.background = pct >= 80 ? 'rgba(5,150,105,0.1)' : pct >= 50 ? 'rgba(217,119,6,0.1)' : 'rgba(239,68,68,0.1)';
         }
 
         if (scoreDetail) {
             if (delay > 0) {
                 scoreDetail.textContent = this.t(
-                    `${actualDays}j réels vs ${maxDays}j max → ${delay}j de retard → pénalité ×${weight}`,
-                    `${actualDays}d actual vs ${maxDays}d max → ${delay}d delay → penalty ×${weight}`
+                    `${actualDays}j réels vs ${maxDays}j max → ${delay}j de retard → -${delay * 10}%`,
+                    `${actualDays}d actual vs ${maxDays}d max → ${delay}d delay → -${delay * 10}%`
                 );
             } else {
                 scoreDetail.textContent = this.t(
-                    `${actualDays}j réels ≤ ${maxDays}j max → à temps → bonus poids ${weight}`,
-                    `${actualDays}d actual ≤ ${maxDays}d max → on time → weight bonus ${weight}`
+                    `${actualDays}j réels ≤ ${maxDays}j max → à temps → 100%`,
+                    `${actualDays}d actual ≤ ${maxDays}d max → on time → 100%`
                 );
             }
         }
@@ -667,24 +669,24 @@ class SupervisorApp {
         if (!label) return;
 
         if (phaseName && phaseName !== 'Autres') {
-            label.innerHTML = `<span class="label-icon">⚙️</span> ${this.t('Activités de la phase', 'Phase activities')} : <strong>${phaseName}</strong>`;
+            label.innerHTML = `<span class="label-icon">⚙️</span> ${this.t('Activités sur le Site', 'Site Activities')} : <strong>${phaseName}</strong>`;
             if (textarea) textarea.placeholder = this.t(
-                `Décrivez en détail les activités techniques pour la phase "${phaseName}"...`,
-                `Describe in detail the technical activities for the "${phaseName}" phase...`
+                `Décrivez les activités réalisées sur le site pour la phase "${phaseName}"...`,
+                `Describe the site activities for the "${phaseName}" phase...`
             );
             if (hint) hint.textContent = this.t(
-                `Expliquez précisément ce qui a été fait, ce qui est en cours et les éventuels blocages pour "${phaseName}"`,
-                `Explain precisely what was done, what is ongoing and any blockers for "${phaseName}"`
+                `Détaillez les travaux en cours, ce qui est fait et les blocages éventuels`,
+                `Detail ongoing work, completed tasks and any blockers`
             );
         } else {
-            label.innerHTML = `<span class="label-icon">⚙️</span> ${this.t('Activités de la phase', 'Phase activities')}`;
+            label.innerHTML = `<span class="label-icon">⚙️</span> ${this.t('Activités sur le Site', 'Site Activities')}`;
             if (textarea) textarea.placeholder = this.t(
-                'Décrivez en détail les activités techniques de cette phase...',
-                'Describe in detail the technical activities for this phase...'
+                'Décrivez les activités réalisées sur le site...',
+                'Describe the site activities...'
             );
             if (hint) hint.textContent = this.t(
-                'Expliquez les travaux réalisés pour la phase sélectionnée ci-dessus',
-                'Explain the work done for the phase selected above'
+                'Détaillez les travaux en cours pour la phase sélectionnée ci-dessus',
+                'Detail the ongoing work for the phase selected above'
             );
         }
     }
