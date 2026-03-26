@@ -366,20 +366,30 @@ class SupervisorApp {
         // === Auto-calcul des jours de phase ===
         const triggerAutoCalculation = () => {
             this.fetchPhaseAutoDays();
+            this.computeLocalPhaseDays();
         };
 
-        // Quand on change phase, site_id ou date → recalculer
         phaseSelect?.addEventListener('change', () => {
             triggerAutoCalculation();
             this.updateActivitiesLabel();
+            this.toggleEndDateField();
         });
-        phaseStatusSelect?.addEventListener('change', triggerAutoCalculation);
+        phaseStatusSelect?.addEventListener('change', () => {
+            triggerAutoCalculation();
+            this.toggleEndDateField();
+        });
         siteIdInput?.addEventListener('change', triggerAutoCalculation);
         siteIdInput?.addEventListener('blur', triggerAutoCalculation);
+
+        const startDateInput = document.getElementById('phase-start-date');
+        const endDateInput = document.getElementById('phase-end-date');
+        startDateInput?.addEventListener('change', () => this.computeLocalPhaseDays());
+        endDateInput?.addEventListener('change', () => this.computeLocalPhaseDays());
 
         // Initialisation
         this.resetPhaseDisplay();
         this.updateActivitiesLabel();
+        this.toggleEndDateField();
     }
 
     /**
@@ -537,6 +547,112 @@ class SupervisorApp {
                 progressFill.style.width = '100%';
             } else if (pct > 80) {
                 progressFill.classList.add('warning');
+            }
+        }
+    }
+
+    toggleEndDateField() {
+        const status = document.getElementById('phase-status')?.value || '';
+        const endGroup = document.getElementById('phase-end-date-group');
+        const scoreRow = document.getElementById('phase-score-row');
+        if (endGroup) endGroup.style.display = status === 'closed' ? '' : 'none';
+        if (scoreRow && status !== 'closed') scoreRow.style.display = 'none';
+    }
+
+    computeLocalPhaseDays() {
+        const startStr = document.getElementById('phase-start-date')?.value;
+        const endStr = document.getElementById('phase-end-date')?.value;
+        const status = document.getElementById('phase-status')?.value || '';
+        const reportDate = document.getElementById('report-date')?.value;
+
+        const daysValue = document.getElementById('phase-auto-days-value');
+        const daysBadge = document.getElementById('phase-auto-badge');
+        const daysDisplay = document.getElementById('phase-actual-days-display');
+        const hiddenInput = document.getElementById('phase-actual-days');
+
+        if (!startStr) return;
+
+        const start = new Date(startStr);
+        let end;
+        if (status === 'closed' && endStr) {
+            end = new Date(endStr);
+        } else {
+            end = reportDate ? new Date(reportDate) : new Date();
+        }
+
+        if (isNaN(start) || isNaN(end) || end < start) return;
+
+        const days = Math.round((end - start) / (1000 * 60 * 60 * 24)) + 1;
+
+        if (hiddenInput) hiddenInput.value = days;
+        if (daysValue) daysValue.textContent = String(days);
+
+        const phaseSelect = document.getElementById('phase-name');
+        const opt = phaseSelect?.options[phaseSelect.selectedIndex];
+        const estimatedMin = Number(opt?.dataset?.min || 0);
+        const estimatedMax = Number(opt?.dataset?.max || 0);
+
+        let statusClass = 'has-data';
+        if (days <= estimatedMax) {
+            statusClass = 'on-track';
+            if (daysBadge) daysBadge.textContent = '✅ ' + this.t('À temps', 'On time');
+        } else {
+            const delay = days - estimatedMax;
+            statusClass = delay <= 2 ? 'warning' : 'danger';
+            if (daysBadge) daysBadge.textContent = (delay <= 2 ? '⚠️ ' : '🔴 ') + '+' + delay + this.t('j retard', 'd delay');
+        }
+        if (daysDisplay) daysDisplay.className = 'phase-auto-days-display ' + statusClass;
+
+        this.updatePhaseEstimateDisplay(days, estimatedMin, estimatedMax, status === 'closed' ? 'closed' : 'on_track');
+
+        if (status === 'closed' && endStr) {
+            this.showPhaseScore(days, estimatedMin, estimatedMax);
+        }
+    }
+
+    showPhaseScore(actualDays, minDays, maxDays) {
+        const scoreRow = document.getElementById('phase-score-row');
+        const scoreValue = document.getElementById('phase-score-value');
+        const scoreDetail = document.getElementById('phase-score-detail');
+        const scoreDisplay = document.getElementById('phase-score-display');
+        if (!scoreRow || !scoreValue) return;
+
+        const phaseSelect = document.getElementById('phase-name');
+        const phaseName = phaseSelect?.value || '';
+
+        const phaseConfigs = {
+            'Implantation': 5, 'Excavation': 7, 'Réseau de terre': 5, 'Béton de propreté': 5,
+            'Rebars': 7, 'RFC (Ready for Casting)': 5, 'Casting (Coulage)': 8, 'Curing': 7,
+            'Backfilling': 6, 'Tower Erection': 8, 'Casting Slabs': 6, 'Manholes': 6,
+            'Power Installation': 8, 'Guardhouse': 9, 'Fence': 9, 'Nivellement & Épandage': 6,
+            'Cleaning Site': 7, 'Autres': 0
+        };
+
+        const weight = phaseConfigs[phaseName] || 0;
+        const delay = Math.max(0, actualDays - maxDays);
+        let score = weight;
+        if (delay > 0) score = -(weight * delay);
+        score = Math.round(score * 10) / 10;
+
+        scoreRow.style.display = '';
+        scoreValue.textContent = (score >= 0 ? '+' : '') + score + ' pts';
+        scoreValue.style.color = score >= 0 ? '#10b981' : '#ef4444';
+        if (scoreDisplay) {
+            scoreDisplay.style.borderColor = score >= 0 ? '#059669' : '#ef4444';
+            scoreDisplay.style.background = score >= 0 ? 'rgba(5,150,105,0.1)' : 'rgba(239,68,68,0.1)';
+        }
+
+        if (scoreDetail) {
+            if (delay > 0) {
+                scoreDetail.textContent = this.t(
+                    `${actualDays}j réels vs ${maxDays}j max → ${delay}j de retard → pénalité ×${weight}`,
+                    `${actualDays}d actual vs ${maxDays}d max → ${delay}d delay → penalty ×${weight}`
+                );
+            } else {
+                scoreDetail.textContent = this.t(
+                    `${actualDays}j réels ≤ ${maxDays}j max → à temps → bonus poids ${weight}`,
+                    `${actualDays}d actual ≤ ${maxDays}d max → on time → weight bonus ${weight}`
+                );
             }
         }
     }
@@ -1007,6 +1123,8 @@ class SupervisorApp {
                 phase_name: phaseName,
                 phase_status: this.getFieldValue('phase-status', 'on track'),
                 phase_actual_days: Number(this.getFieldValue('phase-actual-days', 0) || 0),
+                phase_start_date: document.getElementById('phase-start-date')?.value || '',
+                phase_end_date: document.getElementById('phase-end-date')?.value || '',
                 is_final_acceptance: Boolean(document.getElementById('is-final-acceptance')?.checked)
             };
             formData.milestone_category = formData.phase_name || 'Autres';
@@ -1101,10 +1219,17 @@ class SupervisorApp {
         document.getElementById('image-preview').innerHTML = '';
         this.selectedImages = [];
         
-        // Restaurer le nom du superviseur
         this.loadSavedSupervisorName();
         this.setDefaultDate();
         this.resetPhaseDisplay();
+
+        const startDate = document.getElementById('phase-start-date');
+        const endDate = document.getElementById('phase-end-date');
+        if (startDate) startDate.value = '';
+        if (endDate) endDate.value = '';
+        this.toggleEndDateField();
+        const scoreRow = document.getElementById('phase-score-row');
+        if (scoreRow) scoreRow.style.display = 'none';
     }
     
     // ================== Load Reports ==================
