@@ -229,6 +229,13 @@ select {
     font-family: inherit;
     transition: all var(--transition-fast);
     background: var(--gray-50);
+    color: var(--gray-900);
+}
+
+input[type="text"]::placeholder,
+input[type="email"]::placeholder,
+textarea::placeholder {
+    color: var(--gray-400);
 }
 
 input[type="text"]:focus,
@@ -239,6 +246,7 @@ select:focus {
     outline: none;
     border-color: var(--primary);
     background: white;
+    color: var(--gray-900);
     box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.1);
 }
 
