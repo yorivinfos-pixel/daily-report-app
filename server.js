@@ -161,6 +161,8 @@ const siteSchema = new mongoose.Schema({
     assigned_supervisor: String,
     assigned_by_pm: String,
     assigned_at: Date,
+    b2s_vendor: { type: String, default: '' },
+    target_rfi: { type: String, default: '' },
     created_at: { type: Date, default: Date.now }
 });
 const Site = mongoose.model('Site', siteSchema);
@@ -1051,7 +1053,7 @@ app.get('/api/reports/:id/feedbacks', authMiddleware, async (req, res) => {
 // SITES API
 app.post('/api/sites', authMiddleware, requireRole('admin', 'group_pm', 'pm'), async (req, res) => {
     try {
-        const { id, name, location, region, assigned_supervisor, assigned_by_pm } = req.body;
+        const { id, name, location, region, assigned_supervisor, assigned_by_pm, b2s_vendor, target_rfi } = req.body;
         if (!id || !name || !region || !assigned_supervisor) {
             return res.status(400).json({
                 success: false,
@@ -1072,6 +1074,8 @@ app.post('/api/sites', authMiddleware, requireRole('admin', 'group_pm', 'pm'), a
             site.assigned_supervisor = assigned_supervisor;
             site.assigned_by_pm = assigned_by_pm || 'PM';
             site.assigned_at = now;
+            if (b2s_vendor !== undefined) site.b2s_vendor = b2s_vendor;
+            if (target_rfi !== undefined) site.target_rfi = target_rfi;
             await site.save();
         } else {
             site = new Site({
@@ -1082,7 +1086,9 @@ app.post('/api/sites', authMiddleware, requireRole('admin', 'group_pm', 'pm'), a
                 zone,
                 assigned_supervisor,
                 assigned_by_pm: assigned_by_pm || 'PM',
-                assigned_at: now
+                assigned_at: now,
+                b2s_vendor: b2s_vendor || '',
+                target_rfi: target_rfi || ''
             });
             await site.save();
         }
@@ -1210,6 +1216,106 @@ app.get('/api/export/excel', authMiddleware, requireRole('admin', 'group_pm', 'p
     } catch (error) {
         console.error('Erreur export Excel:', error);
         res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+app.get('/api/export/site-tracking', authMiddleware, requireRole('admin', 'group_pm', 'pm'), async (req, res) => {
+    try {
+        const { zone, region } = req.query;
+        const siteQuery = {};
+        if (zone) siteQuery.zone = zone;
+        if (region) siteQuery.region = region;
+
+        const sites = await Site.find(siteQuery).sort({ id: 1 });
+        const allReports = await Report.find({}).sort({ created_at: -1 });
+
+        const reportsBySite = {};
+        allReports.forEach(r => {
+            if (!r.site_id) return;
+            if (!reportsBySite[r.site_id]) reportsBySite[r.site_id] = [];
+            reportsBySite[r.site_id].push(r);
+        });
+
+        function deriveWorkStatus(siteReports) {
+            if (!siteReports || !siteReports.length) return 'Not started';
+            const phaseOrder = [
+                'Cleaning Site', 'Nivellement & Épandage', 'Fence', 'Guardhouse',
+                'Power Installation', 'Manholes', 'Casting Slabs', 'Tower Erection',
+                'Backfilling', 'Curing', 'Casting (Coulage)', 'RFC (Ready for Casting)',
+                'Rebars', 'Béton de propreté', 'Réseau de terre', 'Excavation', 'Implantation'
+            ];
+            const closedPhases = new Set();
+            let latestPhase = null;
+            let latestStatus = null;
+
+            siteReports.forEach(r => {
+                if (!r.phase_name || r.phase_name === 'Autres') return;
+                if (r.phase_status === 'closed') closedPhases.add(r.phase_name);
+            });
+
+            for (const phaseName of phaseOrder) {
+                const phaseReports = siteReports.filter(r => r.phase_name === phaseName);
+                if (phaseReports.length > 0) {
+                    latestPhase = phaseName;
+                    latestStatus = closedPhases.has(phaseName) ? 'closed' : (phaseReports[0].phase_status || 'on track');
+                    break;
+                }
+            }
+
+            if (!latestPhase) {
+                const first = siteReports.find(r => r.phase_name && r.phase_name !== 'Autres');
+                if (first) {
+                    latestPhase = first.phase_name;
+                    latestStatus = closedPhases.has(first.phase_name) ? 'closed' : (first.phase_status || 'on track');
+                }
+            }
+
+            if (!latestPhase) return 'Not started';
+
+            const shortNames = {
+                'Implantation': 'Implantation',
+                'Excavation': 'Excavation',
+                'Réseau de terre': 'Ground network',
+                'Béton de propreté': 'Lean concrete',
+                'Rebars': 'Rebars',
+                'RFC (Ready for Casting)': 'RFC',
+                'Casting (Coulage)': 'Foundation',
+                'Curing': 'Curing',
+                'Backfilling': 'Backfilling',
+                'Tower Erection': 'Tower erection',
+                'Casting Slabs': 'Slabs',
+                'Manholes': 'Manholes',
+                'Power Installation': 'Power installation',
+                'Guardhouse': 'Guardhouse',
+                'Fence': 'Fence',
+                'Nivellement & Épandage': 'Leveling',
+                'Cleaning Site': 'Cleaning'
+            };
+
+            const label = shortNames[latestPhase] || latestPhase;
+            if (latestStatus === 'closed') return `${label} completed`;
+            if (latestStatus === 'start') return `${label} started`;
+            if (latestStatus === 'pending') return `${label} pending`;
+            return `${label} WIP`;
+        }
+
+        const rows = sites.map(site => {
+            const siteReports = reportsBySite[site.id] || [];
+            return {
+                site_id: site.id,
+                anchor_site_name: site.name,
+                site_name_region: site.region || '',
+                supervisor: site.assigned_supervisor || '',
+                b2s_vendor: site.b2s_vendor || '',
+                target_rfi: site.target_rfi || '',
+                work_status: deriveWorkStatus(siteReports)
+            };
+        });
+
+        res.json({ success: true, rows });
+    } catch (err) {
+        console.error('Erreur export site-tracking:', err);
+        res.status(500).json({ success: false, error: err.message });
     }
 });
 
