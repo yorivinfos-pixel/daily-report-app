@@ -219,6 +219,8 @@ body {
 input[type="text"],
 input[type="email"],
 input[type="date"],
+input[type="number"],
+input[type="password"],
 textarea,
 select {
     width: 100%;
@@ -228,26 +230,38 @@ select {
     font-size: 1rem;
     font-family: inherit;
     transition: all var(--transition-fast);
-    background: var(--gray-50);
-    color: var(--gray-900);
+    background: var(--gray-50) !important;
+    color: #0f172a !important;
+    -webkit-text-fill-color: #0f172a !important;
+    color-scheme: light;
 }
 
 input[type="text"]::placeholder,
 input[type="email"]::placeholder,
-textarea::placeholder {
-    color: var(--gray-400);
+input[type="number"]::placeholder,
+textarea::placeholder,
+select::placeholder {
+    color: #94a3b8 !important;
+    -webkit-text-fill-color: #94a3b8 !important;
 }
 
 input[type="text"]:focus,
 input[type="email"]:focus,
 input[type="date"]:focus,
+input[type="number"]:focus,
 textarea:focus,
 select:focus {
     outline: none;
     border-color: var(--primary);
-    background: white;
-    color: var(--gray-900);
+    background: #ffffff !important;
+    color: #0f172a !important;
+    -webkit-text-fill-color: #0f172a !important;
     box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.1);
+}
+
+select option {
+    background: #ffffff;
+    color: #0f172a;
 }
 
 textarea {
@@ -953,10 +967,11 @@ textarea {
 .login-field input {
     width: 100%;
     padding: 0.75rem 1rem;
-    background: #0f172a;
+    background: #0f172a !important;
     border: 1px solid #475569;
     border-radius: var(--radius-md);
-    color: #ffffff;
+    color: #ffffff !important;
+    -webkit-text-fill-color: #ffffff !important;
     font-size: 1rem;
     transition: border-color 0.2s;
     box-sizing: border-box;
@@ -965,11 +980,15 @@ textarea {
 .login-field input:focus {
     outline: none;
     border-color: var(--primary);
+    background: #0f172a !important;
+    color: #ffffff !important;
+    -webkit-text-fill-color: #ffffff !important;
     box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
 }
 
 .login-field input::placeholder {
-    color: #64748b;
+    color: #64748b !important;
+    -webkit-text-fill-color: #64748b !important;
 }
 
 .login-error {
