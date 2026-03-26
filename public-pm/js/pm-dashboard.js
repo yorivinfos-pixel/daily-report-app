@@ -167,10 +167,16 @@ class PMDashboard {
         if (appDiv) appDiv.style.display = 'none';
     }
 
-    authFetch(url, options = {}) {
+    async authFetch(url, options = {}) {
         if (!options.headers) options.headers = {};
         if (this.authToken) options.headers['Authorization'] = `Bearer ${this.authToken}`;
-        return fetch(url, options);
+        const response = await fetch(url, options);
+        if (response.status === 401) {
+            this.showToast(this.t('Session expirée. Veuillez vous reconnecter.', 'Session expired. Please log in again.'), 'warning');
+            this.logout();
+            throw new Error('Session expirée');
+        }
+        return response;
     }
 
     persistUnreadState() {
