@@ -248,7 +248,7 @@ function generateToken(user) {
     return jwt.sign(
         { id: user._id, username: user.username, role: user.role, full_name: user.full_name, zone: user.zone },
         JWT_SECRET,
-        { expiresIn: '7d' }
+        { expiresIn: '30d' }
     );
 }
 

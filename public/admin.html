@@ -215,6 +215,46 @@
             document.getElementById('admin-app').style.display = 'none';
         }
 
+        /** Déconnexion si 401 sur les routes protégées (pas sur change-password = mauvais MDP actuel) */
+        function handleSession401(res, requestUrl) {
+            if (res.status !== 401) return false;
+            if (requestUrl && requestUrl.includes('/api/auth/change-password')) return false;
+            logout();
+            const errEl = document.getElementById('admin-login-error');
+            if (errEl) {
+                errEl.textContent = 'Session expirée ou token invalide. Reconnectez-vous.';
+                errEl.style.display = 'block';
+            }
+            showToast('Session expirée. Reconnectez-vous.', 'error');
+            return true;
+        }
+
+        async function tryRestoreSession() {
+            if (!token) return;
+            try {
+                const res = await fetch(`${SERVER}/api/auth/me`, { headers: authHeaders() });
+                if (res.status === 401) {
+                    logout();
+                    const errEl = document.getElementById('admin-login-error');
+                    if (errEl) {
+                        errEl.textContent = 'Session expirée. Entrez à nouveau identifiant et mot de passe.';
+                        errEl.style.display = 'block';
+                    }
+                    return;
+                }
+                const data = await res.json();
+                if (!data.success || !data.user || data.user.role !== 'admin') {
+                    logout();
+                    return;
+                }
+                localStorage.setItem('adminCurrentUser', JSON.stringify(data.user));
+                token = localStorage.getItem('adminAuthToken');
+                showApp();
+            } catch (e) {
+                logout();
+            }
+        }
+
         // Login
         document.getElementById('admin-login-form').addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -264,14 +304,16 @@
 
         // Load users
         async function loadUsers() {
+            const url = `${SERVER}/api/admin/users`;
             try {
-                const res = await fetch(`${SERVER}/api/admin/users`, { headers: authHeaders() });
+                const res = await fetch(url, { headers: authHeaders() });
+                if (handleSession401(res, url)) return;
                 const data = await res.json();
                 if (!data.success) throw new Error(data.error);
                 users = data.users || [];
                 renderUsers();
             } catch (err) {
-                showToast(err.message, 'error');
+                if (err.message !== 'Session expirée') showToast(err.message, 'error');
             }
         }
 
@@ -316,9 +358,11 @@
             const btn = document.getElementById('btn-create-user');
             btn.disabled = true;
             try {
-                const res = await fetch(`${SERVER}/api/admin/users`, {
+                const u = `${SERVER}/api/admin/users`;
+                const res = await fetch(u, {
                     method: 'POST', headers: authHeaders(), body: JSON.stringify(payload)
                 });
+                if (handleSession401(res, u)) return;
                 const data = await res.json();
                 if (!data.success) throw new Error(data.error);
                 showToast(`Compte "${payload.full_name}" créé avec succès`);
@@ -334,10 +378,12 @@
         // Toggle active
         window._adminToggle = async (id, newState) => {
             try {
-                const res = await fetch(`${SERVER}/api/admin/users/${id}`, {
+                const u = `${SERVER}/api/admin/users/${id}`;
+                const res = await fetch(u, {
                     method: 'PUT', headers: authHeaders(),
                     body: JSON.stringify({ is_active: newState })
                 });
+                if (handleSession401(res, u)) return;
                 const data = await res.json();
                 if (!data.success) throw new Error(data.error);
                 showToast(`Compte ${newState ? 'activé' : 'désactivé'}`);
@@ -352,10 +398,12 @@
             const newPw = prompt(`Nouveau mot de passe pour ${name} :`);
             if (!newPw) return;
             try {
-                const res = await fetch(`${SERVER}/api/admin/users/${id}`, {
+                const u = `${SERVER}/api/admin/users/${id}`;
+                const res = await fetch(u, {
                     method: 'PUT', headers: authHeaders(),
                     body: JSON.stringify({ password: newPw })
                 });
+                if (handleSession401(res, u)) return;
                 const data = await res.json();
                 if (!data.success) throw new Error(data.error);
                 showToast(`Mot de passe de ${name} réinitialisé`);
@@ -368,9 +416,11 @@
         window._adminDelete = async (id, name) => {
             if (!confirm(`Supprimer définitivement le compte de ${name} ?`)) return;
             try {
-                const res = await fetch(`${SERVER}/api/admin/users/${id}`, {
+                const u = `${SERVER}/api/admin/users/${id}`;
+                const res = await fetch(u, {
                     method: 'DELETE', headers: authHeaders()
                 });
+                if (handleSession401(res, u)) return;
                 const data = await res.json();
                 if (!data.success) throw new Error(data.error);
                 showToast(`Compte ${name} supprimé`);
@@ -380,8 +430,8 @@
             }
         };
 
-        // Auto-login if token present
-        if (token) showApp();
+        // Vérifier le token avant d'ouvrir l'admin (évite "token invalide" avec vieux jeton)
+        if (token) tryRestoreSession();
     })();
     </script>
 </body>
