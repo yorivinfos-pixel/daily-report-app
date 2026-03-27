@@ -912,9 +912,7 @@ class PMDashboard {
         const region = document.getElementById('region-filter').value || 'Toutes les provinces';
         const date = document.getElementById('date-filter').value || new Date().toISOString().split('T')[0];
         
-        const printWindow = window.open('', '_blank');
-        printWindow.document.write(`
-            <!DOCTYPE html>
+        const htmlContent = `<!DOCTYPE html>
             <html>
             <head>
                 <title>YoRivSiteTrack-YST1</title>
@@ -941,28 +939,28 @@ class PMDashboard {
                 <div class="header">
                     <h1>🏗️ YORIV</h1>
                     <p>Rapport Journalier des Sites</p>
-                    <p><strong>Région:</strong> ${region} | <strong>Date:</strong> ${date}</p>
+                    <p><strong>Région:</strong> ${this.escapeHtml(region)} | <strong>Date:</strong> ${this.escapeHtml(date)}</p>
                     <p><strong>Total:</strong> ${filtered.length} rapport(s)</p>
                 </div>
                 ${filtered.map(r => `
                     <div class="report">
                         <div class="report-header">
                             <div class="site-info">
-                                <h3>${r.site_name}</h3>
-                                <p><strong>ID:</strong> ${r.site_id} | <strong>Région:</strong> ${r.region || 'N/A'}</p>
-                                <p><strong>Superviseur:</strong> ${r.supervisor_name || 'N/A'}</p>
+                                <h3>${this.escapeHtml(r.site_name || '')}</h3>
+                                <p><strong>ID:</strong> ${this.escapeHtml(r.site_id || '')} | <strong>Région:</strong> ${this.escapeHtml(r.region || 'N/A')}</p>
+                                <p><strong>Superviseur:</strong> ${this.escapeHtml(r.supervisor_name || 'N/A')}</p>
                                 <p><strong>Date:</strong> ${new Date(r.created_at).toLocaleString('fr-FR')}</p>
                             </div>
                             <span class="status ${r.status}">${r.status === 'reviewed' ? '✅ Examiné' : '⏳ En attente'}</span>
                         </div>
                         <div class="section">
                             <div class="section-title">Activités</div>
-                            <div class="section-content">${r.activities}</div>
+                            <div class="section-content">${this.escapeHtml(r.activities || '')}</div>
                         </div>
                         ${r.comments ? `
                             <div class="section">
                                 <div class="section-title">Commentaires</div>
-                                <div class="section-content">${r.comments}</div>
+                                <div class="section-content">${this.escapeHtml(r.comments)}</div>
                             </div>
                         ` : ''}
                         <div class="section">
@@ -975,12 +973,17 @@ class PMDashboard {
                     <p>YoRivSiteTrack-YST1 - Document généré le ${new Date().toLocaleString('fr-FR')}</p>
                 </div>
             </body>
-            </html>
-        `);
+            </html>`;
+
+        const printWindow = window.open('', '_blank');
+        printWindow.document.write(htmlContent);
         printWindow.document.close();
-        printWindow.print();
+        // Auto-trigger print dialog which allows "Save as PDF"
+        printWindow.onload = () => printWindow.print();
+        printWindow.onafterprint = () => printWindow.close();
+        setTimeout(() => { if (!printWindow.closed) printWindow.print(); }, 500);
         
-        this.showToast('PDF généré - Utilisez Ctrl+P pour imprimer', 'success');
+        this.showToast('PDF prêt — sélectionnez "Enregistrer au format PDF" dans la boîte de dialogue', 'success');
     }
     
     getFilteredReports() {
@@ -1904,6 +1907,7 @@ class PMDashboard {
         </thead>
         <tbody>
             ${rows.map(r => {
+                const esc = (s) => this.escapeHtml(s || '');
                 let cls = '';
                 const ws = (r.work_status || '').toLowerCase();
                 if (ws.includes('completed')) cls = 'status-completed';
@@ -1911,13 +1915,13 @@ class PMDashboard {
                 else if (ws.includes('pending')) cls = 'status-pending';
                 else if (ws.includes('started')) cls = 'status-started';
                 return `<tr>
-                    <td>${r.site_id || ''}</td>
-                    <td>${r.anchor_site_name || ''}</td>
-                    <td><strong>${r.site_name_region || ''}</strong></td>
-                    <td>${r.supervisor || ''}</td>
-                    <td>${r.b2s_vendor || ''}</td>
-                    <td>${r.target_rfi || ''}</td>
-                    <td class="${cls}">${r.work_status || ''}</td>
+                    <td>${esc(r.site_id)}</td>
+                    <td>${esc(r.anchor_site_name)}</td>
+                    <td><strong>${esc(r.site_name_region)}</strong></td>
+                    <td>${esc(r.supervisor)}</td>
+                    <td>${esc(r.b2s_vendor)}</td>
+                    <td>${esc(r.target_rfi)}</td>
+                    <td class="${cls}">${esc(r.work_status)}</td>
                 </tr>`;
             }).join('')}
         </tbody>
@@ -1928,8 +1932,10 @@ class PMDashboard {
 </body>
 </html>`);
             printWindow.document.close();
-            setTimeout(() => printWindow.print(), 400);
-            this.showToast(this.t('PDF généré — Ctrl+P pour imprimer', 'PDF generated — Ctrl+P to print'), 'success');
+            printWindow.onload = () => printWindow.print();
+            printWindow.onafterprint = () => printWindow.close();
+            setTimeout(() => { if (!printWindow.closed) printWindow.print(); }, 500);
+            this.showToast(this.t('PDF prêt — sélectionnez "Enregistrer au format PDF"', 'PDF ready — select "Save as PDF"'), 'success');
         } catch (err) {
             console.error('Erreur export site tracking PDF:', err);
             this.showToast(`Erreur: ${err.message}`, 'error');
