@@ -81,12 +81,12 @@ l'accès technique à YORIV HOLDING pour la durée du support.
 -----------------------------------------
 Les 6 variables obligatoires à configurer :
 
-  MONGODB_URI=mongodb+srv://USER_REDACTED@cluster.mongodb.net/peers_yst1
+  MONGODB_URI=<URI fournie par MongoDB Atlas — ne JAMAIS la publier>
   JWT_SECRET=<générer un secret aléatoire de 64 caractères minimum>
-  CLOUDINARY_CLOUD_NAME=REPLACE_WITH_CLOUD_NAME
-  CLOUDINARY_API_KEY=REPLACE_WITH_API_KEY
-  CLOUDINARY_API_SECRET=REPLACE_WITH_API_SECRET
-  SEED_DEFAULT_PASSWORD=REPLACE_WITH_SECURE_PASSWORD
+  CLOUDINARY_CLOUD_NAME=<nom du cloud Cloudinary du client>
+  CLOUDINARY_API_KEY=<clé API Cloudinary>
+  CLOUDINARY_API_SECRET=<secret API Cloudinary>
+  SEED_DEFAULT_PASSWORD=<mot de passe initial des comptes — à changer>
 
 Optionnel :
   PORT=3000
