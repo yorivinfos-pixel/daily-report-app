@@ -111,13 +111,14 @@ async function runTests() {
             const { status, data } = await authApi('GET', '/api/export/site-tracking');
             assert(status === 200, `Status ${status}`);
             assert(data.success === true, 'success !== true');
-            assert(Array.isArray(data.sites), 'sites not array');
+            assert(Array.isArray(data.rows), 'rows not array');
         });
 
-        await test('GET /api/users → liste utilisateurs', async () => {
-            const { status, data } = await authApi('GET', '/api/users');
+        await test('GET /api/admin/users → liste utilisateurs', async () => {
+            const { status, data } = await authApi('GET', '/api/admin/users');
             assert(status === 200, `Status ${status}`);
             assert(data.success === true, 'success !== true');
+            assert(Array.isArray(data.users), 'users not array');
         });
     }
 

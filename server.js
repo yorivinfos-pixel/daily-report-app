@@ -173,11 +173,6 @@ function getZoneFromRegion(region) {
     return PROVINCE_TO_ZONE[normalizeProvince(region)] || 'Zone 4';
 }
 
-// Endpoint pour servir le mapping province→zone (source unique)
-app.get('/api/zone-mapping', (req, res) => {
-    res.json({ success: true, mapping: PROVINCE_TO_ZONE, defaultZone: 'Zone 4' });
-});
-
 const siteSchema = new mongoose.Schema({
     id: String,
     name: String,
@@ -219,9 +214,19 @@ const mongoSanitize = require('express-mongo-sanitize');
 
 const app = express();
 const server = http.createServer(app);
+
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean);
+
 const io = new Server(server, {
     cors: {
-        origin: "*",
+        origin: function (origin, callback) {
+            if (!origin) return callback(null, true);
+            if (ALLOWED_ORIGINS.length === 0) return callback(null, true);
+            if (ALLOWED_ORIGINS.includes(origin) || origin.startsWith('http://localhost') || origin.startsWith('http://127.0.0.1')) {
+                return callback(null, true);
+            }
+            callback(new Error('Non autorisé par CORS'));
+        },
         methods: ["GET", "POST"]
     }
 });
@@ -231,7 +236,6 @@ app.use(helmet({
     crossOriginEmbedderPolicy: false
 }));
 
-const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean);
 app.use(cors({
     origin: function (origin, callback) {
         // Autoriser requêtes sans origin (apps mobiles, curl, Capacitor)
@@ -255,6 +259,11 @@ app.use('/uploads', (req, res) => {
         success: false,
         error: 'Fichier introuvable. Ce fichier a été perdu car il était stocké en local sur un serveur éphémère. Configurez Cloudinary pour éviter ce problème.'
     });
+});
+
+// Endpoint pour servir le mapping province→zone (source unique)
+app.get('/api/zone-mapping', (req, res) => {
+    res.json({ success: true, mapping: PROVINCE_TO_ZONE, defaultZone: 'Zone 4' });
 });
 
 // ======= Middleware JWT =======
