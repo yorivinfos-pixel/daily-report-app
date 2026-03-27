@@ -30,7 +30,7 @@ class SupervisorApp {
         this.zoneChatMessages = [];
         this.unreadReportCounts = safeJsonParse(localStorage.getItem('supervisorUnreadReportCounts') || '{}', {});
         this.unreadZoneCount = parseInt(localStorage.getItem('supervisorUnreadZoneCount') || '0', 10);
-        this.serverUrl = 'https://daily-report-app-fanv.onrender.com';
+        this.serverUrl = window.location.origin || 'https://daily-report-app-fanv.onrender.com';
         this.language = localStorage.getItem('appLanguage') || 'fr';
         this.authToken = localStorage.getItem('authToken') || null;
         this.currentUser = safeJsonParse(localStorage.getItem('currentUser'), null);

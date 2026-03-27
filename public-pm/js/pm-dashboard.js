@@ -25,34 +25,24 @@ function normalizeProvince(str = '') {
         .toLowerCase();
 }
 
-// Zone mapping based on province (Zone 1-3 are explicit; Zone 4 is the rest)
-const PROVINCE_TO_ZONE = {
-    // Zone 1
-    [normalizeProvince('Kinshasa')]: 'Zone 1',
-    [normalizeProvince('Kongo-Central')]: 'Zone 1',
-    [normalizeProvince('Bandundu')]: 'Zone 1',
-    [normalizeProvince('Kwango')]: 'Zone 1',
-    [normalizeProvince('Kwilu')]: 'Zone 1',
-    [normalizeProvince('Equateur')]: 'Zone 1',
-    [normalizeProvince('Mai-Ndombe')]: 'Zone 1',
-    [normalizeProvince('Mongala')]: 'Zone 1',
-    [normalizeProvince('Tshuapa')]: 'Zone 1',
-    [normalizeProvince('Nord-Ubangi')]: 'Zone 1',
-    [normalizeProvince('Sud-Ubangi')]: 'Zone 1',
+// Zone mapping chargé dynamiquement depuis le serveur (source unique)
+let PROVINCE_TO_ZONE = {};
+let ZONE_DEFAULT = 'Zone 4';
 
-    // Zone 2
-    [normalizeProvince('Haut-Katanga')]: 'Zone 2',
-    [normalizeProvince('Lualaba')]: 'Zone 2',
-    [normalizeProvince('Lomami')]: 'Zone 2',
-    [normalizeProvince('Haut-Lomami')]: 'Zone 2',
-    [normalizeProvince('Tanganyika')]: 'Zone 2',
-
-    // Zone 3
-    [normalizeProvince('Kasai-Central')]: 'Zone 3',
-    [normalizeProvince('Kasai-Oriental')]: 'Zone 3',
-    [normalizeProvince('Kasai')]: 'Zone 3',
-    [normalizeProvince('Sankuru')]: 'Zone 3'
-};
+async function loadZoneMapping(serverUrl) {
+    try {
+        const resp = await fetch(`${serverUrl}/api/zone-mapping`);
+        if (resp.ok) {
+            const data = await resp.json();
+            if (data.success && data.mapping) {
+                PROVINCE_TO_ZONE = data.mapping;
+                ZONE_DEFAULT = data.defaultZone || 'Zone 4';
+            }
+        }
+    } catch (e) {
+        console.warn('Zone mapping non chargé, utilisation du cache local:', e.message);
+    }
+}
 
 class PMDashboard {
     constructor() {
@@ -263,7 +253,7 @@ class PMDashboard {
     }
     
     getServerUrl() {
-        return 'https://daily-report-app-fanv.onrender.com';
+        return window.location.origin || 'https://daily-report-app-fanv.onrender.com';
     }
     
     getApiUrl(endpoint) {
@@ -278,6 +268,9 @@ class PMDashboard {
             this.showServerConfig();
             return;
         }
+
+        // Charger le mapping zones depuis le serveur (source unique)
+        loadZoneMapping(this.serverUrl);
 
         const safe = (label, fn) => {
             try { fn(); } catch (e) { console.error(`[PM init] ${label}:`, e); }
@@ -1282,7 +1275,7 @@ class PMDashboard {
     getReportZone(report) {
         if (report?.zone) return report.zone;
         const region = report?.region || '';
-        return PROVINCE_TO_ZONE[normalizeProvince(region)] || 'Zone 4';
+        return PROVINCE_TO_ZONE[normalizeProvince(region)] || ZONE_DEFAULT;
     }
     
     createImagesPreview(images) {

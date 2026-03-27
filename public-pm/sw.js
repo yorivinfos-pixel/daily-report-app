@@ -2,7 +2,7 @@
 // YoRivSiteTrack-YST1 - Service Worker
 // ============================================
 
-const CACHE_NAME = 'daily-report-v1';
+const CACHE_NAME = 'daily-report-v26';
 const STATIC_ASSETS = [
     '/',
     '/pm',
@@ -97,26 +97,38 @@ self.addEventListener('fetch', event => {
         return;
     }
     
-    // Pour les assets statiques, cache first
+    // JS / CSS : toujours réseau d'abord (évite APK / PWA bloqués sur d'anciennes versions)
+    const path = url.pathname;
+    if (path.endsWith('.js') || path.endsWith('.css') || path.endsWith('.html')) {
+        event.respondWith(
+            fetch(request)
+                .then(response => {
+                    if (response.ok) {
+                        const clone = response.clone();
+                        caches.open(CACHE_NAME).then(cache => cache.put(request, clone));
+                    }
+                    return response;
+                })
+                .catch(() => caches.match(request))
+        );
+        return;
+    }
+
+    // Autres assets statiques : cache first
     event.respondWith(
         caches.match(request)
             .then(cachedResponse => {
                 if (cachedResponse) {
-                    // Mettre à jour le cache en arrière-plan
                     fetch(request).then(response => {
-                        caches.open(CACHE_NAME).then(cache => {
-                            cache.put(request, response);
-                        });
+                        if (response.ok) {
+                            caches.open(CACHE_NAME).then(cache => cache.put(request, response));
+                        }
                     }).catch(() => {});
-                    
                     return cachedResponse;
                 }
-                
                 return fetch(request).then(response => {
                     const responseClone = response.clone();
-                    caches.open(CACHE_NAME).then(cache => {
-                        cache.put(request, responseClone);
-                    });
+                    caches.open(CACHE_NAME).then(cache => cache.put(request, responseClone));
                     return response;
                 });
             })

@@ -173,6 +173,11 @@ function getZoneFromRegion(region) {
     return PROVINCE_TO_ZONE[normalizeProvince(region)] || 'Zone 4';
 }
 
+// Endpoint pour servir le mapping province→zone (source unique)
+app.get('/api/zone-mapping', (req, res) => {
+    res.json({ success: true, mapping: PROVINCE_TO_ZONE, defaultZone: 'Zone 4' });
+});
+
 const siteSchema = new mongoose.Schema({
     id: String,
     name: String,
@@ -226,8 +231,17 @@ app.use(helmet({
     crossOriginEmbedderPolicy: false
 }));
 
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean);
 app.use(cors({
-    origin: '*',
+    origin: function (origin, callback) {
+        // Autoriser requêtes sans origin (apps mobiles, curl, Capacitor)
+        if (!origin) return callback(null, true);
+        if (ALLOWED_ORIGINS.length === 0) return callback(null, true);
+        if (ALLOWED_ORIGINS.includes(origin) || origin.startsWith('http://localhost') || origin.startsWith('http://127.0.0.1')) {
+            return callback(null, true);
+        }
+        callback(new Error('Non autorisé par CORS'));
+    },
     allowedHeaders: ['Content-Type', 'Authorization'],
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
 }));
@@ -248,7 +262,7 @@ function generateToken(user) {
     return jwt.sign(
         { id: user._id, username: user.username, role: user.role, full_name: user.full_name, zone: user.zone },
         JWT_SECRET,
-        { expiresIn: '30d' }
+        { expiresIn: process.env.JWT_EXPIRY || '7d' }
     );
 }
 
@@ -499,7 +513,9 @@ app.post('/api/admin/setup-zones', authMiddleware, requireRole('admin'), async (
             const exists = await User.findOne({ username: pm.username });
             if (!exists) {
                 const bcrypt = require('bcryptjs');
-                const hash = await bcrypt.hash(process.env.SEED_DEFAULT_PASSWORD || 'PASSWORD_REDACTED', 10);
+                const seedPwdPm = process.env.SEED_DEFAULT_PASSWORD;
+                if (!seedPwdPm) { results.push(`⚠️ ${pm.full_name} non créé (SEED_DEFAULT_PASSWORD non définie)`); continue; }
+                const hash = await bcrypt.hash(seedPwdPm, 10);
                 await User.create({ ...pm, password_hash: hash });
                 results.push(`${pm.full_name} créé (program_manager)`);
             } else {
@@ -546,9 +562,12 @@ app.post('/api/admin/setup-zones', authMiddleware, requireRole('admin'), async (
         const bravo = await User.findOne({ full_name: /bravo/i });
         if (!bravo) {
             const bcrypt = require('bcryptjs');
-            const hash = await bcrypt.hash(process.env.SEED_DEFAULT_PASSWORD || 'PASSWORD_REDACTED', 10);
+            const seedPwdBravo = process.env.SEED_DEFAULT_PASSWORD;
+            if (!seedPwdBravo) { results.push('⚠️ Bravo non créé (SEED_DEFAULT_PASSWORD non définie)'); } else {
+            const hash = await bcrypt.hash(seedPwdBravo, 10);
             await User.create({ full_name: 'Bravo SUPERVISOR', username: 'bravo.supervisor', password_hash: hash, role: 'supervisor', zone: 'Zone 2' });
             results.push('Bravo créé (superviseur, Zone 2)');
+            }
         }
 
         res.json({ success: true, results });
@@ -562,7 +581,7 @@ app.post('/api/admin/setup-zones', authMiddleware, requireRole('admin'), async (
 app.post('/api/admin/sync-pm-names', authMiddleware, requireRole('admin'), async (req, res) => {
     try {
         const results = [];
-        const seedPwd = process.env.SEED_DEFAULT_PASSWORD || 'PASSWORD_REDACTED';
+        const seedPwd = process.env.SEED_DEFAULT_PASSWORD;
 
         let pm3 = await User.findOne({ username: 'pm3', role: 'pm' });
         if (!pm3) pm3 = await User.findOne({ role: 'pm', zone: 'Zone 3' });
@@ -603,7 +622,7 @@ app.post('/api/admin/sync-pm-names', authMiddleware, requireRole('admin'), async
             }
             await bravoUser.save();
             results.push('Superviseur Est → Bravo Béton (Zone 2)');
-        } else {
+        } else if (seedPwd) {
             const password_hash = await bcrypt.hash(seedPwd, 10);
             await User.create({
                 full_name: 'Bravo Béton',
@@ -613,6 +632,8 @@ app.post('/api/admin/sync-pm-names', authMiddleware, requireRole('admin'), async
                 zone: 'Zone 2'
             });
             results.push('Bravo Béton créé (superviseur, Zone 2 — Est)');
+        } else {
+            results.push('⚠️ Bravo non créé (SEED_DEFAULT_PASSWORD non définie)');
         }
 
         res.json({ success: true, results });
@@ -1556,7 +1577,8 @@ app.get('/api/export/site-tracking', authMiddleware, requireRole('admin', 'group
                 return sup && nameSet.has(sup);
             });
         }
-        const allReports = await Report.find({}).sort({ created_at: -1 });
+        const siteIds = sites.map(s => s.id).filter(Boolean);
+        const allReports = await Report.find({ site_id: { $in: siteIds } }).sort({ created_at: -1 });
 
         const reportsBySite = {};
         allReports.forEach(r => {
