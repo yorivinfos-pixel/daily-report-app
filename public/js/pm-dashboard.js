@@ -128,16 +128,59 @@ class PMDashboard {
         }
     }
 
+    // --- Modal helper to replace prompt() ---
+    _modalPrompt(title, fields) {
+        return new Promise((resolve) => {
+            const overlay = document.createElement('div');
+            overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:10000;display:flex;align-items:center;justify-content:center;';
+            const box = document.createElement('div');
+            box.style.cssText = 'background:#1e293b;border:1px solid #475569;border-radius:12px;padding:1.5rem;min-width:320px;max-width:90vw;';
+            box.innerHTML = `<h3 style="color:#fff;margin:0 0 1rem;font-size:1rem;">${this.escapeHtml(title)}</h3>`;
+            const inputs = [];
+            fields.forEach(f => {
+                const label = document.createElement('label');
+                label.style.cssText = 'color:#94a3b8;font-size:0.85rem;display:block;margin-bottom:0.25rem;';
+                label.textContent = f.label;
+                const input = document.createElement('input');
+                input.type = f.type || 'text';
+                input.placeholder = f.placeholder || '';
+                input.style.cssText = 'width:100%;padding:0.6rem 0.8rem;background:#0f172a;border:1px solid #475569;border-radius:8px;color:#e2e8f0;font-size:0.9rem;box-sizing:border-box;margin-bottom:0.75rem;';
+                box.appendChild(label);
+                box.appendChild(input);
+                inputs.push(input);
+            });
+            const btnRow = document.createElement('div');
+            btnRow.style.cssText = 'display:flex;gap:0.5rem;justify-content:flex-end;margin-top:0.5rem;';
+            const cancelBtn = document.createElement('button');
+            cancelBtn.textContent = this.t('Annuler', 'Cancel');
+            cancelBtn.style.cssText = 'padding:0.5rem 1rem;border-radius:8px;border:1px solid #475569;background:transparent;color:#94a3b8;cursor:pointer;';
+            const okBtn = document.createElement('button');
+            okBtn.textContent = this.t('Valider', 'Confirm');
+            okBtn.style.cssText = 'padding:0.5rem 1rem;border-radius:8px;border:none;background:linear-gradient(135deg,#2563eb,#1d4ed8);color:#fff;cursor:pointer;font-weight:600;';
+            btnRow.appendChild(cancelBtn);
+            btnRow.appendChild(okBtn);
+            box.appendChild(btnRow);
+            overlay.appendChild(box);
+            document.body.appendChild(overlay);
+            inputs[0]?.focus();
+            cancelBtn.addEventListener('click', () => { overlay.remove(); resolve(null); });
+            overlay.addEventListener('click', (e) => { if (e.target === overlay) { overlay.remove(); resolve(null); } });
+            okBtn.addEventListener('click', () => { const vals = inputs.map(i => i.value); overlay.remove(); resolve(vals.length === 1 ? vals[0] : vals); });
+            box.addEventListener('keydown', (e) => { if (e.key === 'Enter') okBtn.click(); if (e.key === 'Escape') cancelBtn.click(); });
+        });
+    }
+
     async changePassword() {
-        const cur = prompt(this.t('Mot de passe actuel :', 'Current password:'));
-        if (cur === null || cur === '') return;
-        const neu = prompt(this.t('Nouveau mot de passe (min. 6 caractères) :', 'New password (min 6 characters):'));
-        if (neu === null || neu === '') return;
+        const values = await this._modalPrompt(this.t('Changer le mot de passe', 'Change password'), [
+            { label: this.t('Mot de passe actuel', 'Current password'), type: 'password', placeholder: '••••••••' },
+            { label: this.t('Nouveau mot de passe (min. 6 caractères)', 'New password (min 6 characters)'), type: 'password', placeholder: '••••••••' }
+        ]);
+        if (!values || !values[0] || !values[1]) return;
         try {
             const r = await this.authFetch(this.getApiUrl('/api/auth/change-password'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ current_password: cur, new_password: neu })
+                body: JSON.stringify({ current_password: values[0], new_password: values[1] })
             });
             const d = await r.json();
             if (!r.ok || !d.success) throw new Error(d.error || 'Erreur');
@@ -253,7 +296,7 @@ class PMDashboard {
     }
     
     getServerUrl() {
-        return window.location.origin || 'https://daily-report-app-fanv.onrender.com';
+        return window.location.origin;
     }
     
     getApiUrl(endpoint) {

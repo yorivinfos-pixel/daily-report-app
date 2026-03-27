@@ -183,7 +183,55 @@
 
     <script>
     (function() {
-        const SERVER = 'https://daily-report-app-fanv.onrender.com';
+        // --- Modal helper to replace prompt() ---
+        function modalPrompt(title, fields) {
+            return new Promise((resolve) => {
+                const overlay = document.createElement('div');
+                overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:10000;display:flex;align-items:center;justify-content:center;';
+                const box = document.createElement('div');
+                box.style.cssText = 'background:#1e293b;border:1px solid #475569;border-radius:12px;padding:1.5rem;min-width:320px;max-width:90vw;';
+                box.innerHTML = `<h3 style="color:#fff;margin:0 0 1rem;">${title}</h3>`;
+                const inputs = [];
+                fields.forEach(f => {
+                    const label = document.createElement('label');
+                    label.style.cssText = 'color:#94a3b8;font-size:0.85rem;display:block;margin-bottom:0.25rem;';
+                    label.textContent = f.label;
+                    const input = document.createElement('input');
+                    input.type = f.type || 'text';
+                    input.placeholder = f.placeholder || '';
+                    input.style.cssText = 'width:100%;padding:0.6rem 0.8rem;background:#0f172a;border:1px solid #475569;border-radius:8px;color:#e2e8f0;font-size:0.9rem;box-sizing:border-box;margin-bottom:0.75rem;';
+                    box.appendChild(label);
+                    box.appendChild(input);
+                    inputs.push(input);
+                });
+                const btnRow = document.createElement('div');
+                btnRow.style.cssText = 'display:flex;gap:0.5rem;justify-content:flex-end;margin-top:0.5rem;';
+                const cancelBtn = document.createElement('button');
+                cancelBtn.textContent = 'Annuler';
+                cancelBtn.style.cssText = 'padding:0.5rem 1rem;border-radius:8px;border:1px solid #475569;background:transparent;color:#94a3b8;cursor:pointer;';
+                const okBtn = document.createElement('button');
+                okBtn.textContent = 'Valider';
+                okBtn.style.cssText = 'padding:0.5rem 1rem;border-radius:8px;border:none;background:linear-gradient(135deg,#7c3aed,#6d28d9);color:#fff;cursor:pointer;font-weight:600;';
+                btnRow.appendChild(cancelBtn);
+                btnRow.appendChild(okBtn);
+                box.appendChild(btnRow);
+                overlay.appendChild(box);
+                document.body.appendChild(overlay);
+                inputs[0]?.focus();
+                cancelBtn.addEventListener('click', () => { overlay.remove(); resolve(null); });
+                overlay.addEventListener('click', (e) => { if (e.target === overlay) { overlay.remove(); resolve(null); } });
+                okBtn.addEventListener('click', () => {
+                    const values = inputs.map(i => i.value);
+                    overlay.remove();
+                    resolve(values.length === 1 ? values[0] : values);
+                });
+                box.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') { okBtn.click(); }
+                    if (e.key === 'Escape') { cancelBtn.click(); }
+                });
+            });
+        }
+        const SERVER = window.location.origin;
         let token = localStorage.getItem('adminAuthToken') || null;
         let users = [];
 
@@ -284,15 +332,16 @@
         document.getElementById('admin-logout-btn').addEventListener('click', logout);
 
         document.getElementById('admin-change-password-btn').addEventListener('click', async () => {
-            const cur = prompt('Mot de passe actuel :');
-            if (cur === null || cur === '') return;
-            const neu = prompt('Nouveau mot de passe (min. 6 caractères) :');
-            if (neu === null || neu === '') return;
+            const values = await modalPrompt('Changer le mot de passe admin', [
+                { label: 'Mot de passe actuel', type: 'password', placeholder: '••••••••' },
+                { label: 'Nouveau mot de passe (min. 6 caractères)', type: 'password', placeholder: '••••••••' }
+            ]);
+            if (!values || !values[0] || !values[1]) return;
             try {
                 const res = await fetch(`${SERVER}/api/auth/change-password`, {
                     method: 'POST',
                     headers: authHeaders(),
-                    body: JSON.stringify({ current_password: cur, new_password: neu })
+                    body: JSON.stringify({ current_password: values[0], new_password: values[1] })
                 });
                 const data = await res.json();
                 if (!data.success) throw new Error(data.error);
@@ -317,25 +366,47 @@
             }
         }
 
+        function escapeHtml(str) {
+            const div = document.createElement('div');
+            div.textContent = str || '';
+            return div.innerHTML;
+        }
+
+        function escapeAttr(str) {
+            return (str || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        }
+
         function renderUsers() {
             const tbody = document.getElementById('users-table-body');
             document.getElementById('user-count').textContent = users.length;
             tbody.innerHTML = users.map(u => `
                 <tr>
-                    <td><strong>${u.full_name}</strong></td>
-                    <td>${u.username}</td>
-                    <td><span class="role-badge role-${u.role}">${formatRole(u.role)}</span></td>
-                    <td>${u.zone || '—'}</td>
+                    <td><strong>${escapeHtml(u.full_name)}</strong></td>
+                    <td>${escapeHtml(u.username)}</td>
+                    <td><span class="role-badge role-${escapeAttr(u.role)}">${escapeHtml(formatRole(u.role))}</span></td>
+                    <td>${escapeHtml(u.zone || '—')}</td>
                     <td class="${u.is_active ? 'status-active' : 'status-inactive'}">${u.is_active ? '✅ Actif' : '❌ Inactif'}</td>
                     <td>${u.last_login ? new Date(u.last_login).toLocaleDateString('fr-FR', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' }) : '—'}</td>
                     <td>
-                        <button class="btn-sm btn-toggle" onclick="window._adminToggle('${u._id}', ${!u.is_active})">${u.is_active ? 'Désactiver' : 'Activer'}</button>
-                        <button class="btn-sm btn-edit" onclick="window._adminResetPw('${u._id}', '${u.full_name}')">🔑</button>
-                        <button class="btn-sm btn-del" onclick="window._adminDelete('${u._id}', '${u.full_name}')">🗑</button>
+                        <button class="btn-sm btn-toggle" data-action="toggle" data-id="${escapeAttr(u._id)}" data-state="${!u.is_active}">${u.is_active ? 'Désactiver' : 'Activer'}</button>
+                        <button class="btn-sm btn-edit" data-action="reset-pw" data-id="${escapeAttr(u._id)}" data-name="${escapeAttr(u.full_name)}">🔑</button>
+                        <button class="btn-sm btn-del" data-action="delete" data-id="${escapeAttr(u._id)}" data-name="${escapeAttr(u.full_name)}">🗑</button>
                     </td>
                 </tr>
             `).join('');
         }
+
+        // Event delegation for user actions (instead of inline onclick)
+        document.getElementById('users-table-body')?.addEventListener('click', (e) => {
+            const btn = e.target.closest('[data-action]');
+            if (!btn) return;
+            const action = btn.dataset.action;
+            const id = btn.dataset.id;
+            const name = btn.dataset.name;
+            if (action === 'toggle') adminToggle(id, btn.dataset.state === 'true');
+            else if (action === 'reset-pw') adminResetPw(id, name);
+            else if (action === 'delete') adminDelete(id, name);
+        });
 
         function formatRole(r) {
             return { admin: 'Admin', group_pm: 'Group PM', program_manager: 'Program Manager', pm: 'PM', supervisor: 'Superviseur' }[r] || r;
@@ -376,7 +447,7 @@
         });
 
         // Toggle active
-        window._adminToggle = async (id, newState) => {
+        async function adminToggle(id, newState) {
             try {
                 const u = `${SERVER}/api/admin/users/${id}`;
                 const res = await fetch(u, {
@@ -394,8 +465,10 @@
         };
 
         // Reset password
-        window._adminResetPw = async (id, name) => {
-            const newPw = prompt(`Nouveau mot de passe pour ${name} :`);
+        async function adminResetPw(id, name) {
+            const newPw = await modalPrompt(`Nouveau mot de passe pour ${name}`, [
+                { label: 'Nouveau mot de passe', type: 'password', placeholder: 'Min 6 caractères' }
+            ]);
             if (!newPw) return;
             try {
                 const u = `${SERVER}/api/admin/users/${id}`;
@@ -413,7 +486,7 @@
         };
 
         // Delete
-        window._adminDelete = async (id, name) => {
+        async function adminDelete(id, name) {
             if (!confirm(`Supprimer définitivement le compte de ${name} ?`)) return;
             try {
                 const u = `${SERVER}/api/admin/users/${id}`;
