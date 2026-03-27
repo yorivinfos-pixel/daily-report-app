@@ -24,11 +24,11 @@
             <form id="login-form" class="login-form">
                 <div class="login-field">
                     <label for="login-username">Identifiant</label>
-                    <input type="text" id="login-username" placeholder="ex: evariste.famba" autocomplete="username" required>
+                    <input type="text" id="login-username" placeholder="ex: evariste.famba" autocomplete="username" required minlength="3" maxlength="50">
                 </div>
                 <div class="login-field">
                     <label for="login-password">Mot de passe</label>
-                    <input type="password" id="login-password" placeholder="••••••••" autocomplete="current-password" required>
+                    <input type="password" id="login-password" placeholder="••••••••" autocomplete="current-password" required minlength="6" maxlength="128">
                 </div>
                 <div id="login-error" class="login-error" style="display:none;"></div>
                 <button type="submit" class="login-btn" id="login-btn">Se connecter</button>
@@ -148,7 +148,7 @@
                                 Site ID
                             </label>
                             <input type="text" id="site-id" name="site_id" 
-                                   placeholder="Ex: CDKN-001" required>
+                                   placeholder="Ex: CDKN-001" required pattern="[A-Z]{2,5}-\d{1,4}" maxlength="10" title="Format: CDKN-001">
                             <small class="form-hint">Format: [Préfixe Province]-[Numéro]</small>
                         </div>
 
@@ -158,7 +158,7 @@
                                 Nom du Site
                             </label>
                             <input type="text" id="site-name" name="site_name" 
-                                   placeholder="Ex: Chantier Centre-Ville" required>
+                                   placeholder="Ex: Chantier Centre-Ville" required minlength="2" maxlength="100">
                         </div>
                     </div>
 
@@ -269,7 +269,7 @@
                             Activités sur le Site
                         </label>
                         <textarea id="activities" name="activities" rows="4"
-                                  placeholder="Décrivez les activités réalisées sur le site..." required></textarea>
+                                  placeholder="Décrivez les activités réalisées sur le site..." required minlength="10" maxlength="2000"></textarea>
                         <small class="form-hint" id="activities-hint">Détaillez les travaux en cours pour la phase sélectionnée ci-dessus</small>
                     </div>
 
@@ -279,7 +279,7 @@
                             Observations / Pending Issues
                         </label>
                         <textarea id="comments" name="comments" rows="3"
-                                  placeholder="Note any observations, pending issues or blockers..."></textarea>
+                                  placeholder="Note any observations, pending issues or blockers..." maxlength="2000"></textarea>
                     </div>
 
                     <div class="form-group">
@@ -371,7 +371,7 @@
                 <form id="supervisor-zone-chat-form" class="report-form" style="margin-top: 8px;">
                     <div class="form-row">
                         <div class="form-group">
-                            <textarea id="supervisor-zone-chat-input" placeholder="Écrire un message à votre zone..." rows="2" required style="resize:vertical;min-height:40px;"></textarea>
+                            <textarea id="supervisor-zone-chat-input" placeholder="Écrire un message à votre zone..." rows="2" required maxlength="1000" style="resize:vertical;min-height:40px;"></textarea>
                         </div>
                         <button type="submit" class="submit-btn" style="max-width: 200px;">Envoyer</button>
                     </div>

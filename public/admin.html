@@ -89,11 +89,11 @@
             <form id="admin-login-form" class="login-form">
                 <div class="login-field">
                     <label for="admin-login-username">Identifiant</label>
-                    <input type="text" id="admin-login-username" placeholder="admin" autocomplete="username" required>
+                    <input type="text" id="admin-login-username" placeholder="admin" autocomplete="username" required minlength="3" maxlength="50">
                 </div>
                 <div class="login-field">
                     <label for="admin-login-password">Mot de passe</label>
-                    <input type="password" id="admin-login-password" placeholder="••••••••" autocomplete="current-password" required>
+                    <input type="password" id="admin-login-password" placeholder="••••••••" autocomplete="current-password" required minlength="6" maxlength="128">
                 </div>
                 <div id="admin-login-error" class="login-error" style="display:none;"></div>
                 <button type="submit" class="login-btn" style="background:linear-gradient(135deg,#7c3aed,#6d28d9);">Se connecter</button>
@@ -123,15 +123,15 @@
                 <form id="create-user-form" class="form-grid">
                     <div>
                         <label for="new-full-name">Nom complet</label>
-                        <input type="text" id="new-full-name" placeholder="Ex: Grace NGOMBA" required>
+                        <input type="text" id="new-full-name" placeholder="Ex: Grace NGOMBA" required minlength="3" maxlength="80">
                     </div>
                     <div>
                         <label for="new-username">Identifiant (login)</label>
-                        <input type="text" id="new-username" placeholder="Ex: grace.ngomba" required>
+                        <input type="text" id="new-username" placeholder="Ex: grace.ngomba" required minlength="3" maxlength="50" pattern="[a-z0-9._-]+" title="Minuscules, chiffres, points, tirets uniquement">
                     </div>
                     <div>
                         <label for="new-password">Mot de passe</label>
-                        <input type="password" id="new-password" placeholder="Min 6 caractères" required>
+                        <input type="password" id="new-password" placeholder="Min 6 caractères" required minlength="6" maxlength="128">
                     </div>
                     <div>
                         <label for="new-role">Rôle</label>

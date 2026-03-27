@@ -2,7 +2,7 @@
 // YoRivSiteTrack-YST1 - Service Worker
 // ============================================
 
-const CACHE_NAME = 'daily-report-v26';
+const CACHE_NAME = 'daily-report-v27';
 const STATIC_ASSETS = [
     '/',
     '/pm',
@@ -59,26 +59,10 @@ self.addEventListener('fetch', event => {
     // Ignorer les requêtes socket.io
     if (url.pathname.includes('socket.io')) return;
     
-    // Pour les requêtes API, toujours essayer le réseau d'abord
+    // Les requêtes API ne doivent JAMAIS être mises en cache
+    // (données dynamiques : rapports, utilisateurs, sites, chat…)
     if (url.pathname.startsWith('/api/')) {
-        event.respondWith(
-            fetch(request)
-                .then(response => {
-                    // Cloner et mettre en cache les réponses réussies
-                    if (response.ok) {
-                        const responseClone = response.clone();
-                        caches.open(CACHE_NAME).then(cache => {
-                            cache.put(request, responseClone);
-                        });
-                    }
-                    return response;
-                })
-                .catch(() => {
-                    // Si hors ligne, essayer le cache
-                    return caches.match(request);
-                })
-        );
-        return;
+        return; // laisse le navigateur gérer normalement (réseau uniquement)
     }
     
     // Pour les images uploadées, network first

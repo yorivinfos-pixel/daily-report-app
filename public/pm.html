@@ -24,11 +24,11 @@
             <form id="login-form" class="login-form">
                 <div class="login-field">
                     <label for="login-username">Identifiant</label>
-                    <input type="text" id="login-username" placeholder="ex: pm1" autocomplete="username" required>
+                    <input type="text" id="login-username" placeholder="ex: pm1" autocomplete="username" required minlength="3" maxlength="50">
                 </div>
                 <div class="login-field">
                     <label for="login-password">Mot de passe</label>
-                    <input type="password" id="login-password" placeholder="••••••••" autocomplete="current-password" required>
+                    <input type="password" id="login-password" placeholder="••••••••" autocomplete="current-password" required minlength="6" maxlength="128">
                 </div>
                 <div id="login-error" class="login-error" style="display:none;"></div>
                 <button type="submit" class="login-btn" id="login-btn">Se connecter</button>
@@ -224,8 +224,8 @@
                     Attribution de site au superviseur
                 </h2>
                 <form id="site-assignment-form" class="site-assignment-form">
-                    <input type="text" id="assign-site-id" placeholder="Site ID (ex: CDKN-045)" required>
-                    <input type="text" id="assign-site-name" placeholder="Nom du site" required>
+                    <input type="text" id="assign-site-id" placeholder="Site ID (ex: CDKN-045)" required pattern="[A-Z]{2,5}-\d{1,4}" maxlength="10" title="Format: CDKN-045">
+                    <input type="text" id="assign-site-name" placeholder="Nom du site" required minlength="2" maxlength="100">
                     <select id="assign-site-region" required>
                         <option value="">Province du site</option>
                         <option value="Kinshasa">Kinshasa</option>
@@ -270,9 +270,9 @@
                         <option value="Baudoin TSHIMBUNDU">Baudoin TSHIMBUNDU</option>
                         <option value="Pacifique KABASODA">Pacifique KABASODA</option>
                     </select>
-                    <input type="text" id="assign-site-location" placeholder="Localisation (optionnel)">
-                    <input type="text" id="assign-b2s-vendor" placeholder="B2S Vendor (ex: STE TOM METAL)">
-                    <input type="text" id="assign-target-rfi" placeholder="Target RFI (ex: March)">
+                    <input type="text" id="assign-site-location" placeholder="Localisation (optionnel)" maxlength="100">
+                    <input type="text" id="assign-b2s-vendor" placeholder="B2S Vendor (ex: STE TOM METAL)" maxlength="100">
+                    <input type="text" id="assign-target-rfi" placeholder="Target RFI (ex: March)" maxlength="50">
                     <button type="submit" class="export-btn excel">Affecter</button>
                 </form>
             </section>
@@ -285,7 +285,7 @@
                 </h2>
                 <div id="pm-zone-chat-list" class="reports-list" style="max-height: 240px; overflow-y: auto;"></div>
                 <form id="pm-zone-chat-form" class="site-assignment-form" style="margin-top: 8px;">
-                    <textarea id="pm-zone-chat-input" placeholder="Écrire un message à la zone..." rows="2" required style="grid-column: span 5; resize:vertical; min-height:40px;"></textarea>
+                    <textarea id="pm-zone-chat-input" placeholder="Écrire un message à la zone..." rows="2" required maxlength="1000" style="grid-column: span 5; resize:vertical; min-height:40px;"></textarea>
                     <button type="submit" class="export-btn pdf">Envoyer</button>
                 </form>
             </section>
