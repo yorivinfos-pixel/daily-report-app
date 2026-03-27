@@ -1,0 +1,137 @@
+
+                                                    Kinshasa, March 27, 2026
+
+
+To the attention of Mr. Josian DOLA
+Program Manager — Zones 1 & 3
+
+
+Subject: Presentation of a Digital Solution for Field Reporting
+         — YoRivSiteTrack (YST1)
+
+
+Dear Josian,
+
+I hope this message finds you well.
+
+I am reaching out to you today to present a project I have been working on
+over the past few weeks — one that I genuinely believe could significantly
+improve the way we work on a daily basis.
+
+
+THE ORIGIN OF THE PROJECT
+--------------------------
+
+As you know, I recently took on the role of Project Manager for the Kasaï
+zone. Very quickly, as I settled into this new position, I was confronted
+with a number of operational realities that made field activity tracking
+particularly challenging:
+
+  • Reports arriving late — sometimes 2 or 3 days after the actual work,
+    when they arrive at all. I have had to follow up with supervisors
+    multiple times before receiving their updates.
+
+  • A lack of visibility on what is actually happening on the ground —
+    without dated and geolocated photos, we end up validating progress
+    based solely on written statements, with no way to verify the actual
+    state of the work.
+
+  • Reports scattered across WhatsApp, emails, and phone calls —
+    information is fragmented, attachments get lost in conversation
+    threads, and it becomes very difficult to trace the history of any
+    given site.
+
+  • No standardized format — each supervisor reports in their own way,
+    with widely varying levels of detail. Some send a paragraph, others
+    a blurry photo with no caption.
+
+  • No way to objectively measure performance — without structured data,
+    it is difficult to identify which sites are falling behind, which
+    supervisors are the most diligent, and where to focus our efforts.
+
+  • Manual data compilation for summary reports — every week, I would
+    spend hours gathering information received through different channels
+    to produce a consolidated tracking sheet.
+
+Faced with these observations, I decided to build a tool that would help
+me structure and automate this entire process.
+
+
+THE SOLUTION: YORIVSITETRACK (YST1)
+-------------------------------------
+
+I designed and developed a complete web and mobile application that enables:
+
+  ✓ Field supervisors to submit their daily reports from their phone,
+    with photos, following a structured form covering all 17 construction
+    phases.
+
+  ✓ Project Managers to receive these reports in real time on a dedicated
+    dashboard, with filters by site, province, date, and status — and
+    the ability to export to Excel or PDF with a single click.
+
+  ✓ Automatic tracking of each site's progress (work status) and delay
+    detection through an objective scoring system.
+
+  ✓ Direct communication with supervisors through a built-in zone chat,
+    without having to go through WhatsApp.
+
+  ✓ Centralized storage of all photos and documents in a secure cloud
+    space, accessible at any time.
+
+The application is already functional and deployed online. It runs on a
+secure server with role-based authentication, and it can be accessed from
+a web browser as well as through an Android application installed directly
+on the phone.
+
+
+WHY I AM WRITING TO YOU TODAY
+-------------------------------
+
+My initial idea was simply to make my own daily management in Kasaï easier.
+But as I progressed with the development, I realized that the problems I
+was facing were most likely not unique to my zone. Our fellow PMs in other
+regions deal with the same issues: the same late reports, the same scattered
+information, the same lack of field visibility.
+
+Rather than keeping this tool for my personal use, I chose to architect it
+in a way that could serve the entire team — across all zones. The
+application already handles all 4 zones and all 26 provinces, with
+automatic access rights assignment based on each user's role and zone.
+
+I am convinced that if this tool helps me in Kasaï, it can just as well
+help our colleagues in Kinshasa, Katanga, the East, and everywhere else.
+
+
+PROPOSED NEXT STEPS
+---------------------
+
+With your approval, here is what I suggest:
+
+  1. A demonstration session — I present the application to you in detail,
+     under real conditions, so that you can judge for yourself its
+     usefulness and relevance to our operations.
+
+  2. If you validate the concept, we could organize training sessions in
+     two stages:
+       — First with the Project Managers, so they can master the dashboard
+         and configure their zones.
+       — Then with the field supervisors, to train them on submitting
+         reports through the application.
+
+  3. All of this at your convenience and according to your schedule.
+
+I remain fully available for any questions, and I am open to your feedback
+and suggestions for improvement. This tool is designed to make all our
+work easier — your perspective and experience as Program Manager would be
+invaluable in adapting it to our real needs.
+
+
+Thank you in advance for the time you will devote to this proposal, and
+I sincerely hope it will be well received.
+
+Best regards,
+
+
+Jean-Baptiste MBUYI
+Project Manager — Zone 3 (Kasaï)

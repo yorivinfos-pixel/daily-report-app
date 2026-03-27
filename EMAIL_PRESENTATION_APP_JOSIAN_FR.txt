@@ -1,0 +1,23 @@
+Objet : Proposition — Application de suivi des rapports terrain (YoRivSiteTrack)
+
+
+Bonjour Josian,
+
+J'espère que tu te portes bien.
+
+Je profite de ce moment, avant ma prise de fonction effective en tant que PM, pour te présenter un projet personnel sur lequel j'ai travaillé et qui pourrait, je pense, nous être utile à tous.
+
+Après plusieurs années en tant que superviseur terrain, j'ai pu constater au quotidien certaines difficultés récurrentes dans notre processus de reporting : des rapports qui arrivent en retard ou pas du tout, des informations éparpillées entre WhatsApp, emails et appels, aucun format standardisé d'un superviseur à l'autre, un manque de visibilité réelle sur l'état des travaux faute de photos structurées, et des heures perdues chaque semaine à compiler manuellement les données pour produire un suivi consolidé.
+
+Ces constats, accumulés au fil des années sur le terrain, m'ont poussé à développer une application web et mobile — YoRivSiteTrack (YST1) — qui permet aux superviseurs de soumettre leurs rapports journaliers depuis leur téléphone (avec photos, formulaire structuré couvrant les 17 phases), et aux PM de les recevoir en temps réel sur un dashboard avec filtres, exports Excel/PDF, suivi d'avancement par site et chat de zone intégré.
+
+L'application est déjà fonctionnelle et déployée en ligne.
+
+Mon idée de départ était de me faciliter la gestion dans ma nouvelle zone, mais j'ai préféré l'étendre à l'ensemble des zones et provinces, en me disant que si ça peut m'aider, ça peut aussi aider nos collègues ailleurs.
+
+Si tu es ouvert à l'idée, je te propose une courte séance de démonstration à ta convenance. Et si le concept te convainc, nous pourrions envisager des sessions de formation — d'abord avec les PM, puis avec les superviseurs — selon ton planning.
+
+Je reste disponible pour en discuter.
+
+Cordialement,
+Jean-Baptiste MBUYI

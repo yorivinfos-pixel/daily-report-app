@@ -1,0 +1,1047 @@
+COURS : COMMENT NOUS AVONS CRÉÉ YORIVSITETRACK-YST1
+=====================================================
+De zéro à une application web/mobile complète en production
+
+Support pédagogique pour cours de développement web
+Auteur : Jean-Baptiste MBUYI
+Date : 27 mars 2026
+
+=====================================================
+TABLE DES MATIÈRES
+=====================================================
+
+PARTIE 1 — CONTEXTE ET ANALYSE DU BESOIN
+  1.1 Le problème à résoudre
+  1.2 Les acteurs du système
+  1.3 Les fonctionnalités attendues
+  1.4 Choix de l'architecture
+
+PARTIE 2 — LES OUTILS ET TECHNOLOGIES
+  2.1 Environnement de développement
+  2.2 Stack technique (pile technologique)
+  2.3 Services cloud utilisés
+  2.4 Pourquoi ces choix ?
+
+PARTIE 3 — CONSTRUCTION DU BACKEND (SERVEUR)
+  3.1 Initialisation du projet Node.js
+  3.2 Le serveur Express
+  3.3 La base de données MongoDB
+  3.4 Les modèles de données (Schémas Mongoose)
+  3.5 L'authentification (JWT + bcrypt)
+  3.6 Les endpoints API
+  3.7 La sécurité
+  3.8 Le temps réel (Socket.IO)
+  3.9 L'upload d'images (Multer + Cloudinary)
+
+PARTIE 4 — CONSTRUCTION DU FRONTEND
+  4.1 Architecture frontend (Vanilla JS)
+  4.2 L'application Superviseur
+  4.3 Le Dashboard PM
+  4.4 Le panneau Admin
+  4.5 La PWA (Progressive Web App)
+
+PARTIE 5 — APPLICATIONS MOBILES ET BUREAU
+  5.1 Application Android avec Capacitor
+  5.2 Application bureau avec Electron
+
+PARTIE 6 — DÉPLOIEMENT EN PRODUCTION
+  6.1 Hébergement sur Render
+  6.2 Base de données MongoDB Atlas
+  6.3 Stockage images Cloudinary
+  6.4 Le flux Git → GitHub → Render
+
+PARTIE 7 — FONCTIONNALITÉS AVANCÉES
+  7.1 Le système de zones et mapping provinces
+  7.2 Le scoring automatique des superviseurs
+  7.3 Le rebranding (marque blanche)
+  7.4 Les tests automatisés
+
+PARTIE 8 — LEÇONS APPRISES ET BONNES PRATIQUES
+
+
+=====================================================
+PARTIE 1 — CONTEXTE ET ANALYSE DU BESOIN
+=====================================================
+
+1.1 LE PROBLÈME À RÉSOUDRE
+
+Dans le secteur des télécommunications en RDC, des dizaines de sites (tours, 
+pylônes) sont construits simultanément à travers le pays. Chaque site passe 
+par 17 phases de construction (de l'implantation au nettoyage final).
+
+Problèmes avant l'application :
+- Les superviseurs terrain envoyaient des rapports par WhatsApp ou email
+- Pas de format standardisé → données incomplètes, incohérentes
+- Les PM passaient des heures à compiler les rapports manuellement
+- Impossible de suivre l'avancement en temps réel
+- Pas de photos organisées (perdues dans les fils WhatsApp)
+- Aucun système de scoring ou d'alerte de retard
+
+Solution : une application web accessible depuis le terrain (téléphone) qui 
+centralise, standardise et automatise tout le processus de reporting.
+
+1.2 LES ACTEURS DU SYSTÈME
+
+Nous avons identifié 5 rôles avec des besoins différents :
+
+Superviseur terrain
+  - Besoin : soumettre facilement des rapports journaliers avec photos
+  - Contrainte : réseau internet faible/intermittent, utilise un smartphone
+  - Interface : simple, formulaire rapide, adapté mobile
+
+Project Manager (PM)
+  - Besoin : voir tous les rapports de sa zone, donner des feedbacks
+  - Contrainte : analyse sur ordinateur, export Excel/PDF
+  - Interface : dashboard complet avec filtres et statistiques
+
+Program Manager
+  - Besoin : supervision de 2 zones, vue globale
+  - Interface : même dashboard PM avec accès multi-zones
+
+Group PM
+  - Besoin : vue globale toutes zones
+  - Interface : dashboard PM sans restriction de zone
+
+Administrateur
+  - Besoin : créer/gérer les comptes utilisateurs
+  - Interface : panneau d'administration simple
+
+1.3 LES FONCTIONNALITÉS ATTENDUES
+
+Fonctionnalités essentielles (MVP — Minimum Viable Product) :
+  ✓ Authentification sécurisée par rôle
+  ✓ Formulaire de rapport avec 17 phases
+  ✓ Upload de photos (jusqu'à 10 par rapport)
+  ✓ Dashboard PM avec filtres et vue d'ensemble
+  ✓ Attribution de sites aux superviseurs
+  ✓ Export Excel et PDF
+  ✓ Gestion des comptes utilisateurs (admin)
+
+Fonctionnalités avancées :
+  ✓ Notifications en temps réel (Socket.IO)
+  ✓ Chat de zone (superviseurs ↔ PM)
+  ✓ Calcul automatique du score superviseur
+  ✓ Suivi de tracking par site (work status)
+  ✓ Système RFI (Request for Inspection)
+  ✓ Document d'acceptation final
+  ✓ Application mobile Android (APK)
+  ✓ Application bureau (Electron)
+  ✓ Système de rebranding (marque blanche)
+  ✓ API de zone mapping dynamique
+
+1.4 CHOIX DE L'ARCHITECTURE
+
+Architecture choisie : Application Web Monolithique + API REST
+
+Pourquoi ce choix :
+  - Un seul serveur = simple à déployer et maintenir
+  - Node.js = même langage (JavaScript) partout (serveur + client)
+  - API REST = standard universel, facile à comprendre
+  - MongoDB = flexible, pas besoin de schéma fixe au début
+  - Pas de framework frontend complexe = plus rapide à développer
+
+Alternatives considérées et rejetées :
+  - React/Vue/Angular : trop complexe pour l'équipe, temps de développement
+  - Microservices : sur-ingénierie pour cette taille de projet
+  - PHP/Laravel : équipe plus à l'aise avec JavaScript
+  - Firebase : coûts imprévisibles à grande échelle
+
+
+=====================================================
+PARTIE 2 — LES OUTILS ET TECHNOLOGIES
+=====================================================
+
+2.1 ENVIRONNEMENT DE DÉVELOPPEMENT
+
+Outils utilisés pour développer :
+
+Visual Studio Code (VS Code)
+  - Éditeur de code principal
+  - Extensions : Copilot (aide IA), ESLint, Prettier
+  - Terminal intégré pour exécuter les commandes
+
+Git + GitHub
+  - Git : suivi des versions du code (historique des modifications)
+  - GitHub : hébergement du code en ligne + déploiement automatique
+  - Dépôt : https://github.com/yorivinfos-pixel/daily-report-app.git
+
+Node.js + npm
+  - Node.js : exécute JavaScript sur le serveur
+  - npm : installe les bibliothèques nécessaires
+
+Navigateur Chrome
+  - Tests et débogage de l'interface
+  - Chrome DevTools : inspection du réseau, console, responsive
+
+Android Studio
+  - Compilation des APK Android
+  - Java 21 (JDK) pour le build Gradle
+  - Émulateur Android pour tester
+
+2.2 STACK TECHNIQUE (PILE TECHNOLOGIQUE)
+
+Voici toute la pile technique avec les versions exactes :
+
+--- BACKEND (Serveur) ---
+
+| Technologie | Version | Rôle |
+|-------------|---------|------|
+| Node.js | 18+ | Runtime JavaScript serveur |
+| Express.js | 4.18.2 | Framework web (routes, middleware) |
+| MongoDB | 7.1.0 | Base de données NoSQL |
+| Mongoose | 9.3.1 | ODM (Object Document Mapper) pour MongoDB |
+| Socket.IO | 4.7.2 | Communication temps réel |
+| jsonwebtoken | 9.0.3 | Authentification JWT |
+| bcryptjs | 3.0.3 | Hachage des mots de passe |
+| helmet | 8.1.0 | En-têtes de sécurité HTTP |
+| express-rate-limit | 8.3.1 | Protection anti brute-force |
+| express-mongo-sanitize | 2.2.0 | Protection injection MongoDB |
+| multer | 1.4.5-lts.1 | Upload de fichiers |
+| cloudinary | 2.9.0 | Stockage cloud d'images |
+| multer-storage-cloudinary | 4.0.0 | Pont entre Multer et Cloudinary |
+| cors | 2.8.6 | Gestion des requêtes cross-origin |
+| dotenv | 17.3.1 | Chargement des variables d'environnement |
+| uuid | 9.0.0 | Génération d'identifiants uniques |
+
+--- FRONTEND (Client) ---
+
+| Technologie | Rôle |
+|-------------|------|
+| HTML5 | Structure des pages |
+| CSS3 | Mise en forme, responsive design |
+| JavaScript (Vanilla) | Logique applicative (pas de framework) |
+| Fetch API | Appels HTTP vers le serveur |
+| Socket.IO Client | Réception des événements temps réel |
+| Service Worker | Cache hors-ligne (PWA) |
+
+--- MOBILE ---
+
+| Technologie | Version | Rôle |
+|-------------|---------|------|
+| Capacitor | 8.2.0 | Wrapper web → Android/iOS |
+| Gradle | 8.x | Build Android |
+| Java JDK | 21 | Compilation Android |
+
+--- BUREAU ---
+
+| Technologie | Version | Rôle |
+|-------------|---------|------|
+| Electron | 33.0.0 | Application bureau (Windows/Mac/Linux) |
+
+--- OUTILS DE BUILD ---
+
+| Outil | Rôle |
+|-------|------|
+| sharp | 0.34.5 | Redimensionnement d'icônes |
+| nodemon | 3.0.2 | Rechargement auto en développement |
+
+2.3 SERVICES CLOUD UTILISÉS
+
+| Service | Rôle | Plan |
+|---------|------|------|
+| Render | Hébergement du serveur Node.js | Web Service (gratuit ou payant) |
+| MongoDB Atlas | Base de données cloud | M0 Free Tier (512 MB) |
+| Cloudinary | Stockage d'images/docs | Free Tier (25 crédits/mois) |
+| GitHub | Hébergement du code source | Gratuit |
+
+2.4 POURQUOI CES CHOIX ?
+
+Express.js plutôt que Fastify/Koa/Hapi :
+  → Le plus populaire, la plus grande communauté, documentation abondante
+  → Simple à apprendre et à enseigner
+
+MongoDB plutôt que PostgreSQL/MySQL :
+  → Schéma flexible (pas besoin de ALTER TABLE quand on ajoute un champ)
+  → Documents JSON = naturel pour JavaScript
+  → MongoDB Atlas offre un plan gratuit généreux
+  → Adapté aux données semi-structurées (rapports avec champs variables)
+
+Vanilla JS plutôt que React/Vue/Angular :
+  → Pas de build pipeline complexe (pas de webpack/vite)
+  → Déploiement instantané (modifier un fichier = c'est en ligne)
+  → Courbe d'apprentissage plus douce pour l'équipe
+  → Moins de dépendances = moins de vulnérabilités
+  → Inconvénient : code plus verbeux, pas de composants réutilisables
+
+Socket.IO plutôt que WebSocket natif :
+  → Reconnexion automatique si connexion perdue
+  → Système de "rooms" pour cibler les messages
+  → Fallback automatique si WebSocket non disponible
+
+Cloudinary plutôt que AWS S3/Google Cloud Storage :
+  → Plan gratuit suffisant pour démarrer
+  → Transformation d'images intégrée (redimensionnement, compression)
+  → SDK JavaScript simple à utiliser
+  → Pas besoin de configurer des buckets/permissions complexes
+
+Render plutôt que Heroku/Railway/DigitalOcean :
+  → Plan gratuit avec HTTPS automatique
+  → Déploiement automatique depuis GitHub
+  → Interface simple, pas de DevOps complexe
+  → ⚠️ Inconvénient : système de fichiers éphémère (d'où Cloudinary pour les images)
+
+
+=====================================================
+PARTIE 3 — CONSTRUCTION DU BACKEND (SERVEUR)
+=====================================================
+
+3.1 INITIALISATION DU PROJET NODE.JS
+
+Étape 1 : Créer le dossier et initialiser npm
+
+  mkdir daily-report-site-supervisor
+  cd daily-report-site-supervisor
+  npm init -y
+
+Cela crée le fichier package.json avec les métadonnées du projet.
+
+Étape 2 : Installer les dépendances
+
+  npm install express mongoose socket.io jsonwebtoken bcryptjs
+  npm install multer cloudinary multer-storage-cloudinary
+  npm install cors helmet express-rate-limit express-mongo-sanitize
+  npm install dotenv uuid
+  npm install --save-dev nodemon
+
+Étape 3 : Configurer les scripts dans package.json
+
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js"
+  }
+
+- "npm start" : lance le serveur en production (Render utilise cette commande)
+- "npm run dev" : lance avec nodemon (redémarrage auto à chaque modification)
+
+3.2 LE SERVEUR EXPRESS
+
+Le fichier server.js est le cœur de l'application (~1730 lignes).
+
+Structure générale de server.js :
+
+  1. Imports et configuration (lignes 1-25)
+     → require('express'), require('mongoose'), etc.
+     → Chargement des variables d'environnement
+
+  2. Connexion MongoDB (lignes 26-40)
+     → mongoose.connect(MONGODB_URI)
+
+  3. Définition des Schémas/Modèles (lignes 43-210)
+     → User, Report, Site, ChatMessage
+
+  4. Configuration Express et Middlewares (lignes 224-290)
+     → helmet, cors, express.json, mongoSanitize, static files
+
+  5. Fonctions utilitaires (lignes 130-290)
+     → normalizeProvince, getZoneFromRegion, generateToken, authMiddleware
+
+  6. Routes API (lignes 290-1700)
+     → Toutes les routes organisées par domaine
+
+  7. Socket.IO (lignes 1700-1750)
+     → Configuration des événements temps réel
+
+  8. Démarrage du serveur (lignes 1710-1730)
+     → server.listen(PORT)
+
+Exemple de route API simple :
+
+  // Récupérer tous les sites
+  app.get('/api/sites', authMiddleware, async (req, res) => {
+    try {
+      const sites = await Site.find({});
+      res.json({ success: true, sites });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+Décomposition :
+  - app.get('/api/sites', ...) : quand quelqu'un fait GET /api/sites
+  - authMiddleware : vérifie le token JWT (rejeté si pas connecté)
+  - async (req, res) : fonction asynchrone avec requête et réponse
+  - Site.find({}) : cherche tous les documents dans la collection "sites"
+  - res.json({...}) : renvoie la réponse en JSON
+
+3.3 LA BASE DE DONNÉES MONGODB
+
+MongoDB stocke les données dans des "collections" (équivalent des tables SQL).
+Chaque entrée est un "document" JSON.
+
+Nos 4 collections :
+
+  Collection "users" — Les comptes utilisateurs
+  Exemple de document :
+  {
+    "_id": "507f1f77bcf86cd799439011",
+    "full_name": "Evariste FAMBA",
+    "username": "evariste.famba",
+    "password_hash": "$2a$10$N9qo8uLOickgx2ZMRZoM...",
+    "role": "supervisor",
+    "zone": "Zone 2",
+    "is_active": true,
+    "created_at": "2026-01-15T10:30:00Z"
+  }
+
+  Collection "reports" — Les rapports journaliers
+  Exemple (simplifié) :
+  {
+    "_id": "507f1f77bcf86cd799439012",
+    "site_id": "CDKN-001",
+    "site_name": "Tour Gombe Centre",
+    "supervisor_name": "Evariste FAMBA",
+    "region": "Kinshasa",
+    "zone": "Zone 1",
+    "phase_name": "Excavation",
+    "phase_status": "on track",
+    "activities": "Excavation en cours, profondeur 2m atteinte...",
+    "images": [
+      { "url": "https://res.cloudinary.com/.../photo1.jpg" }
+    ],
+    "supervisor_score": 85,
+    "status": "pending",
+    "report_date": "2026-03-25",
+    "created_at": "2026-03-25T14:30:00Z"
+  }
+
+  Collection "sites" — Les sites de construction
+  Collection "chatmessages" — Les messages de chat
+
+Connexion à MongoDB Atlas :
+
+  mongoose.connect(process.env.MONGODB_URI)
+    .then(() => console.log('Connecté à MongoDB'))
+    .catch(err => console.error('Erreur MongoDB:', err));
+
+La variable MONGODB_URI contient l'URL de connexion fournie par MongoDB Atlas.
+Format : mongodb+srv://username:password@cluster.mongodb.net/database
+
+3.4 LES MODÈLES DE DONNÉES (SCHÉMAS MONGOOSE)
+
+Mongoose permet de définir la structure attendue des documents.
+
+Exemple — Le modèle User :
+
+  const userSchema = new mongoose.Schema({
+    full_name: { type: String, required: true },
+    username: { type: String, required: true, unique: true, lowercase: true },
+    password_hash: { type: String, required: true },
+    role: { 
+      type: String, 
+      enum: ['admin', 'group_pm', 'program_manager', 'pm', 'supervisor'],
+      required: true 
+    },
+    zone: { type: String, default: '' },
+    is_active: { type: Boolean, default: true },
+    created_at: { type: Date, default: Date.now }
+  });
+
+  const User = mongoose.model('User', userSchema);
+
+Explication :
+  - required: true → le champ est obligatoire
+  - unique: true → pas de doublon possible
+  - lowercase: true → converti automatiquement en minuscules
+  - enum: [...] → valeurs autorisées uniquement
+  - default: → valeur par défaut si non fournie
+
+3.5 L'AUTHENTIFICATION (JWT + BCRYPT)
+
+Processus de connexion en 7 étapes :
+
+  1. Client envoie : POST /api/auth/login { username, password }
+  
+  2. Serveur cherche l'utilisateur :
+     const user = await User.findOne({ username: 'evariste.famba' });
+  
+  3. Serveur vérifie le mot de passe :
+     const valid = await bcrypt.compare(password, user.password_hash);
+     // bcrypt compare le mot de passe saisi avec le hash stocké
+  
+  4. Si valide, serveur génère un JWT :
+     const token = jwt.sign(
+       { id: user._id, username: user.username, role: 'supervisor', zone: 'Zone 2' },
+       process.env.JWT_SECRET,
+       { expiresIn: '7d' }
+     );
+  
+  5. Serveur renvoie : { success: true, token: "eyJhbG...", user: {...} }
+  
+  6. Client stocke le token : localStorage.setItem('authToken', token)
+  
+  7. Pour chaque requête suivante, client envoie :
+     fetch('/api/reports', {
+       headers: { 'Authorization': 'Bearer eyJhbG...' }
+     })
+
+Côté serveur, le middleware vérifie le token :
+
+  function authMiddleware(req, res, next) {
+    const header = req.headers.authorization;
+    if (!header) return res.status(401).json({ error: 'Token manquant' });
+    
+    const token = header.split(' ')[1]; // Extraire après "Bearer "
+    const decoded = jwt.verify(token, JWT_SECRET); // Vérifier + décoder
+    req.user = decoded; // Attacher les infos utilisateur à la requête
+    next(); // Continuer vers la route
+  }
+
+3.6 LES ENDPOINTS API
+
+L'application expose 33+ endpoints regroupés par domaine :
+
+Authentification (publiques — pas besoin de token) :
+  POST /api/auth/login         → connexion
+  GET  /api/auth/me            → profil de l'utilisateur connecté
+  POST /api/auth/change-password → changer son mot de passe
+
+Rapports (protégées — token requis) :
+  GET  /api/reports            → lister les rapports
+  POST /api/reports            → créer un rapport
+  GET  /api/reports/:id        → détail d'un rapport
+  DELETE /api/reports/:id      → supprimer (admin/pm)
+  POST /api/reports/:id/images → ajouter des photos
+  POST /api/reports/:id/feedback → ajouter un feedback PM
+
+Sites :
+  GET  /api/sites              → lister les sites
+  POST /api/sites              → créer/modifier un site
+
+Export :
+  GET  /api/export/excel       → export CSV
+  GET  /api/export/site-tracking → suivi d'avancement
+
+Admin (admin uniquement) :
+  GET  /api/admin/users        → lister les utilisateurs
+  POST /api/admin/users        → créer un utilisateur
+  PUT  /api/admin/users/:id    → modifier un utilisateur
+  DELETE /api/admin/users/:id  → supprimer un utilisateur
+
+3.7 LA SÉCURITÉ
+
+Couches de sécurité implémentées :
+
+Couche 1 — HTTPS (Render fournit automatiquement un certificat SSL)
+  → Toutes les communications sont chiffrées
+
+Couche 2 — Helmet (en-têtes HTTP sécurisés)
+  app.use(helmet({ contentSecurityPolicy: false }));
+  → Protection contre XSS, clickjacking, MIME sniffing
+
+Couche 3 — CORS (restriction des origines)
+  → Seuls les domaines autorisés peuvent appeler l'API
+  → Les apps mobiles et localhost sont toujours autorisés
+
+Couche 4 — Rate Limiting (anti brute-force)
+  const loginLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,  // fenêtre de 15 minutes
+    max: 10                     // maximum 10 tentatives
+  });
+  → Bloque après 10 tentatives de connexion échouées
+
+Couche 5 — Mongo Sanitize (anti injection)
+  app.use(mongoSanitize());
+  → Nettoie les données reçues pour empêcher l'injection MongoDB
+  → Exemple bloqué : { "username": { "$gt": "" } }
+
+Couche 6 — bcrypt (mots de passe)
+  → Les mots de passe ne sont JAMAIS stockés en clair
+  → Même si la base de données est piratée, les mots de passe sont illisibles
+
+Couche 7 — JWT avec expiration
+  → Les tokens expirent après 7 jours
+  → Secret de signature stocké en variable d'environnement
+
+Couche 8 — Contrôle d'accès par rôle
+  function requireRole(...roles) {
+    return (req, res, next) => {
+      if (!roles.includes(req.user.role)) {
+        return res.status(403).json({ error: 'Accès interdit' });
+      }
+      next();
+    };
+  }
+
+3.8 LE TEMPS RÉEL (SOCKET.IO)
+
+Socket.IO maintient une connexion permanente entre le client et le serveur.
+Quand un événement se produit, le serveur "pousse" l'information vers tous 
+les clients concernés sans qu'ils aient besoin de rafraîchir.
+
+Configuration serveur :
+
+  const http = require('http');
+  const { Server } = require('socket.io');
+  const server = http.createServer(app);
+  const io = new Server(server, { cors: { origin: "*" } });
+
+  io.on('connection', (socket) => {
+    // Authentifier le client
+    const token = socket.handshake.auth.token;
+    const user = jwt.verify(token, JWT_SECRET);
+    socket.user = user;
+    
+    // Rejoindre les "rooms" appropriées
+    socket.on('join-zone', (zoneId) => {
+      socket.join(`zone-${zoneId}`);
+    });
+  });
+
+Quand un nouveau rapport est créé, le serveur notifie :
+
+  // Dans la route POST /api/reports
+  io.emit('new-report', { report: newReport });
+
+Quand un PM laisse un feedback :
+
+  // Notifier uniquement le superviseur concerné
+  io.to(`supervisor-${supervisorName}`).emit('new-feedback', { ... });
+
+Système de rooms (salles) :
+  - Chaque zone a une room : zone-Zone 1, zone-Zone 2...
+  - Chaque superviseur a sa room : supervisor-evariste famba
+  - Les messages chat sont envoyés à la room de zone correspondante
+
+3.9 L'UPLOAD D'IMAGES (MULTER + CLOUDINARY)
+
+Deux stratégies de stockage :
+
+Stratégie A — Cloudinary (production) :
+  Si les variables CLOUDINARY_* sont définies, les images vont sur le cloud.
+  
+  const cloudinary = require('cloudinary').v2;
+  cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET
+  });
+  
+  const storage = new CloudinaryStorage({
+    cloudinary: cloudinary,
+    params: { folder: 'daily-report-site-supervisor' }
+  });
+
+Stratégie B — Stockage local (développement) :
+  Si pas de Cloudinary, les images sont sauvées dans /uploads/
+  ⚠️ Perdues à chaque redéploiement sur Render (système éphémère)
+
+Configuration Multer :
+
+  const upload = multer({
+    storage: storage,           // Cloudinary ou local
+    limits: { fileSize: 10 * 1024 * 1024 },  // Max 10 MB
+    fileFilter: (req, file, cb) => {
+      const allowed = ['image/jpeg', 'image/png', 'image/heic'];
+      if (allowed.includes(file.mimetype)) cb(null, true);
+      else cb(new Error('Format non supporté'));
+    }
+  });
+
+
+=====================================================
+PARTIE 4 — CONSTRUCTION DU FRONTEND
+=====================================================
+
+4.1 ARCHITECTURE FRONTEND (VANILLA JS)
+
+Choix : pas de framework (React, Vue, Angular). JavaScript pur.
+
+Structure des fichiers :
+
+  public/
+  ├── index.html          ← Page d'accueil (app superviseur)
+  ├── pm.html             ← Page dashboard PM
+  ├── admin.html          ← Page panneau admin
+  ├── manifest.json       ← Configuration PWA
+  ├── sw.js               ← Service Worker (cache hors-ligne)
+  ├── css/
+  │   ├── styles.css      ← Styles app superviseur
+  │   └── pm-dashboard.css ← Styles dashboard PM
+  ├── js/
+  │   ├── supervisor.js   ← Logique superviseur (~2000 lignes)
+  │   └── pm-dashboard.js ← Logique PM (~1800 lignes)
+  └── icons/              ← Icônes de l'application
+
+Chaque fichier JS contient une classe principale :
+
+  supervisor.js → class DailyReportApp { ... }
+  pm-dashboard.js → class PMDashboard { ... }
+
+Pattern utilisé : Classe unique qui gère tout (state, UI, réseau).
+
+4.2 L'APPLICATION SUPERVISEUR
+
+Fichiers : index.html + js/supervisor.js + css/styles.css
+
+Classe DailyReportApp — Méthodes principales :
+
+  constructor()           → Initialise l'état, vérifie le token
+  setupLogin()            → Gère le formulaire de connexion
+  showApp()               → Affiche l'interface après connexion
+  init()                  → Configure tous les composants
+  setupSocket()           → Connexion Socket.IO temps réel
+  submitReport()          → Envoie le rapport au serveur
+  loadReports()           → Charge les rapports depuis l'API
+  handleImageUpload()     → Gère la sélection/capture de photos
+  setupZoneChat()         → Configure le chat de zone
+
+Flux de soumission d'un rapport :
+
+  1. Superviseur remplit le formulaire HTML
+  2. supervisor.js collecte les données des champs
+  3. Appel API : fetch('/api/reports', { method: 'POST', body: JSON.stringify(data) })
+  4. Si photos sélectionnées : fetch('/api/reports/:id/images', { body: formData })
+  5. Serveur stocke en MongoDB + émet Socket.IO 'new-report'
+  6. Tous les PM connectés reçoivent le rapport instantanément
+
+4.3 LE DASHBOARD PM
+
+Fichiers : pm.html + js/pm-dashboard.js + css/pm-dashboard.css
+
+Classe PMDashboard — Fonctionnalités clés :
+
+  Statistiques en temps réel :
+    - Total rapports, en attente, examinés, nombre de photos
+    - Mis à jour automatiquement via Socket.IO
+
+  Filtres multiples :
+    - Par province, zone, superviseur, date, période
+    - Recherche textuelle
+    - Combinables entre eux
+
+  Grille de rapports :
+    - Affichage en cartes (cards) avec badge de statut
+    - Clic → panneau de détail avec toutes les infos
+    - Feedback inline : écrire et envoyer directement
+
+  Export :
+    - Excel (CSV) : génère un fichier téléchargeable côté client
+    - PDF : génère un PDF avec les rapports filtrés
+    - Site Tracking : suivi d'avancement par site (work status)
+
+  Attribution de sites :
+    - Formulaire : Site ID + Nom + Province + Superviseur
+    - Le superviseur reçoit une notification temps réel
+
+4.4 LE PANNEAU ADMIN
+
+Fichier : admin.html (tout-en-un, HTML + CSS + JS intégrés)
+
+Fonctionnalités :
+  - Formulaire de création de compte (nom, identifiant, mot de passe, rôle, zone)
+  - Tableau de tous les comptes avec actions : désactiver, réinitialiser mdp, supprimer
+  - Protection : impossible de supprimer le dernier admin
+
+4.5 LA PWA (PROGRESSIVE WEB APP)
+
+Pour que l'application puisse être "installée" sur l'écran d'accueil :
+
+manifest.json :
+  {
+    "name": "YoRivSiteTrack-YST1",
+    "short_name": "YST1",
+    "start_url": "/",
+    "display": "standalone",
+    "background_color": "#1a1a2e",
+    "theme_color": "#e94560",
+    "icons": [
+      { "src": "/icons/icon-192.png", "sizes": "192x192" },
+      { "src": "/icons/icon-512.png", "sizes": "512x512" }
+    ]
+  }
+
+sw.js (Service Worker) :
+  - Met en cache les fichiers statiques (HTML, CSS, JS)
+  - Permet un fonctionnement partiel hors-ligne
+  - Stratégie : Network First (essaie le réseau d'abord, puis le cache)
+
+
+=====================================================
+PARTIE 5 — APPLICATIONS MOBILES ET BUREAU
+=====================================================
+
+5.1 APPLICATION ANDROID AVEC CAPACITOR
+
+Capacitor transforme l'app web en app Android native.
+
+Étape 1 — Installer Capacitor :
+  npm install @capacitor/core @capacitor/cli @capacitor/android
+
+Étape 2 — Initialiser :
+  npx cap init "YoRivSiteTrack" "com.yoriv.dailyreport"
+
+Étape 3 — Ajouter la plateforme Android :
+  npx cap add android
+
+Cela crée le dossier android/ avec un projet Android complet.
+
+Étape 4 — Synchroniser le code web :
+  npx cap sync android
+
+Copie les fichiers de public/ vers android/app/src/main/assets/public/
+
+Étape 5 — Compiler l'APK :
+  cd android
+  ./gradlew assembleDebug
+
+Produit : android/app/build/outputs/apk/debug/app-debug.apk
+
+Scripts automatisés :
+  - build-supervisor-apk.js : automatise tout le processus pour l'APK superviseur
+  - build-pm-apk.js : idem pour l'APK PM (avec échange d'icônes et app ID)
+
+5.2 APPLICATION BUREAU AVEC ELECTRON
+
+Electron crée une fenêtre native qui charge l'app web.
+
+Fichier electron-pm/main.js :
+
+  const { app, BrowserWindow } = require('electron');
+  
+  function createWindow() {
+    const win = new BrowserWindow({
+      width: 1400,
+      height: 900,
+      icon: 'build/icon.png',
+      webPreferences: {
+        contextIsolation: true,  // Sécurité
+        preload: 'preload.js'
+      }
+    });
+    
+    win.loadURL('https://daily-report-app-fanv.onrender.com/pm');
+  }
+  
+  app.whenReady().then(createWindow);
+
+Lancement : cd electron-pm && npm start
+
+
+=====================================================
+PARTIE 6 — DÉPLOIEMENT EN PRODUCTION
+=====================================================
+
+6.1 HÉBERGEMENT SUR RENDER
+
+Étapes pour déployer sur Render :
+
+  1. Créer un compte sur https://render.com
+  2. Nouveau → Web Service → Connecter à GitHub
+  3. Sélectionner le dépôt daily-report-app
+  4. Configuration :
+     - Build Command : npm install
+     - Start Command : npm start
+     - Instance Type : Free ou Starter
+  5. Ajouter les variables d'environnement :
+     MONGODB_URI, JWT_SECRET, JWT_EXPIRY, SEED_DEFAULT_PASSWORD,
+     ALLOWED_ORIGINS, CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY,
+     CLOUDINARY_API_SECRET
+  6. Cliquer sur "Deploy"
+
+Render fournit automatiquement :
+  - URL HTTPS : https://daily-report-app-fanv.onrender.com
+  - Certificat SSL
+  - Redéploiement auto à chaque push sur GitHub
+  - Logs en temps réel
+
+6.2 BASE DE DONNÉES MONGODB ATLAS
+
+  1. Créer un compte sur https://cloud.mongodb.com
+  2. Créer un cluster (M0 Free Tier = gratuit)
+  3. Créer un utilisateur de base de données
+  4. Autoriser les IP (0.0.0.0/0 pour Render)
+  5. Copier l'URI de connexion → MONGODB_URI sur Render
+
+6.3 STOCKAGE IMAGES CLOUDINARY
+
+  1. Créer un compte sur https://cloudinary.com
+  2. Dashboard → copier Cloud Name, API Key, API Secret
+  3. Ajouter comme variables d'environnement sur Render
+
+6.4 LE FLUX GIT → GITHUB → RENDER
+
+  Développeur modifie le code
+       ↓
+  git add . && git commit -m "description"
+       ↓
+  git push origin master
+       ↓
+  GitHub reçoit le code
+       ↓
+  Render détecte le push (webhook)
+       ↓
+  Render exécute : npm install
+       ↓
+  Render exécute : npm start
+       ↓
+  Application en ligne ! (2-3 minutes)
+
+
+=====================================================
+PARTIE 7 — FONCTIONNALITÉS AVANCÉES
+=====================================================
+
+7.1 LE SYSTÈME DE ZONES ET MAPPING PROVINCES
+
+Les 26 provinces de la RDC sont réparties en 4 zones.
+Le mapping est défini une seule fois dans server.js (objet PROVINCE_TO_ZONE)
+et servi aux frontends via l'API /api/zone-mapping.
+
+  function normalizeProvince(str) {
+    return String(str).trim().normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')  // Supprimer les accents
+      .toLowerCase();
+  }
+  
+  const PROVINCE_TO_ZONE = {
+    [normalizeProvince('Kinshasa')]: 'Zone 1',
+    [normalizeProvince('Haut-Katanga')]: 'Zone 4',
+    // ... 26 provinces mappées
+  };
+  
+  // Endpoint API (source unique de vérité)
+  app.get('/api/zone-mapping', (req, res) => {
+    res.json({ success: true, mapping: PROVINCE_TO_ZONE, defaultZone: 'Zone 4' });
+  });
+
+Le frontend charge ce mapping au démarrage au lieu d'avoir une copie locale.
+
+7.2 LE SCORING AUTOMATIQUE DES SUPERVISEURS
+
+Formule : Score = (Planning × 60%) + (Qualité × 40%)
+
+  Planning (60%) :
+    Si dans les délais → 100%
+    Si en retard → max(20, 100 - pourcentage_dépassement)
+  
+  Qualité (40%) :
+    Photos (40%) : 70 + min(30, nb_photos × 2)
+    Reporting (35%) : 60 + min(40, nb_rapports × 4)
+    Communication (25%) : 60 + min(40, nb_feedbacks × 8)
+
+Chaque phase a un poids (2 à 9) qui influence l'impact de son retard.
+
+7.3 LE REBRANDING (MARQUE BLANCHE)
+
+Le script rebrand.js permet de personnaliser l'application pour un client :
+
+  node rebrand.js --client="PEERS" --domain="peers-sitetrack.onrender.com"
+
+Il remplace automatiquement dans tous les fichiers :
+  - Les URLs du serveur
+  - Le nom du produit
+  - Les identifiants d'application
+  - Les mots de passe par défaut
+  - Les coordonnées de contact
+
+Cela permet de vendre la même application à plusieurs clients avec 
+chacun sa propre marque, son propre domaine, sa propre base de données.
+
+7.4 LES TESTS AUTOMATISÉS
+
+Le fichier tests/api-tests.js teste automatiquement les endpoints critiques :
+
+  node tests/api-tests.js http://localhost:3000
+
+Tests effectués :
+  - Connexion au serveur (GET /)
+  - Endpoint zone-mapping
+  - Login avec mauvais identifiants → 401
+  - Login sans données → 400
+  - Accès protégé sans token → 401
+  - Token invalide → 401
+  - Si login réussi : rapports, sites, tracking, utilisateurs
+
+
+=====================================================
+PARTIE 8 — LEÇONS APPRISES ET BONNES PRATIQUES
+=====================================================
+
+8.1 CE QUI A BIEN MARCHÉ
+
+  ✓ Choix du Vanilla JS : pas de complexité de build, déploiement rapide
+  ✓ Monolithique : un seul fichier serveur, facile à comprendre et débugger
+  ✓ MongoDB : flexibilité du schéma (ajout de champs sans migration)
+  ✓ Socket.IO : UX temps réel appréciée par les utilisateurs
+  ✓ Cloudinary : images persistantes sans gestion de stockage
+  ✓ Render + GitHub : déploiement en un git push
+
+8.2 LES DÉFIS RENCONTRÉS
+
+  ⚠️ Duplication public/ et public-pm/
+    Problème : deux dossiers avec des fichiers presque identiques
+    → Risque de désynchronisation
+    Solution : script sync-public-pm.js pour synchroniser
+
+  ⚠️ URL serveur en dur dans le frontend
+    Problème : getServerUrl() retournait une URL fixe → cassait en local
+    Solution : window.location.origin (auto-détection)
+
+  ⚠️ PROVINCE_TO_ZONE triplé
+    Problème : le mapping existait dans server.js, pm-dashboard.js, et public-pm
+    Solution : API /api/zone-mapping (source unique)
+
+  ⚠️ Mots de passe en dur dans le code
+    Problème : 'PASSWORD_REDACTED' écrit dans server.js → visible sur GitHub
+    Solution : variable d'environnement SEED_DEFAULT_PASSWORD obligatoire
+
+  ⚠️ Report.find({}) sans filtre
+    Problème : l'endpoint site-tracking chargeait TOUS les rapports de la base
+    Solution : Report.find({ site_id: { $in: siteIds } }) → filtre par site
+
+  ⚠️ CORS origin: '*'
+    Problème : n'importe quel site web pouvait appeler notre API
+    Solution : ALLOWED_ORIGINS configurable
+
+8.3 BONNES PRATIQUES APPLIQUÉES
+
+  1. Variables d'environnement pour tous les secrets
+  2. Hachage bcrypt pour les mots de passe (jamais en clair)
+  3. JWT avec expiration pour l'authentification
+  4. Rate limiting contre le brute-force
+  5. Validation des données côté serveur
+  6. Contrôle d'accès par rôle (RBAC)
+  7. mongoSanitize contre l'injection
+  8. Git pour le versioning du code
+  9. Scripts automatisés (build APK, sync, tests)
+  10. Documentation complète (guide utilisateur, glossaire)
+
+8.4 AMÉLIORATIONS FUTURES POSSIBLES
+
+  - Ajouter React/Vue pour le frontend (composants réutilisables)
+  - Séparer le serveur en microservices si l'app grandit
+  - Ajouter des tests unitaires avec Jest
+  - Implémenter le changement de mot de passe côté utilisateur
+  - Ajouter des notifications push (via Service Worker)
+  - Support iOS (Capacitor le permet déjà)
+  - Mode hors-ligne complet (IndexedDB + sync)
+  - Tableau de bord analytics avec graphiques Charts.js
+
+
+=====================================================
+RÉSUMÉ PÉDAGOGIQUE
+=====================================================
+
+Ce que les étudiants auront appris en étudiant ce projet :
+
+  1. Développement fullstack JavaScript (Node.js + Express + Frontend)
+  2. Base de données NoSQL (MongoDB avec Mongoose)
+  3. Authentification sécurisée (JWT + bcrypt)
+  4. Communication temps réel (Socket.IO / WebSocket)
+  5. Upload et gestion de fichiers (Multer + Cloudinary)
+  6. Sécurité web (CORS, Helmet, Rate Limiting, Sanitization)
+  7. Progressive Web App (manifest.json, Service Worker)
+  8. Application mobile hybride (Capacitor → Android APK)
+  9. Application bureau (Electron)
+  10. Déploiement cloud (Render, MongoDB Atlas, Cloudinary)
+  11. Versioning avec Git et GitHub
+  12. Architecture REST API
+  13. Gestion multi-rôles (RBAC)
+  14. Système de scoring/KPI automatisé
+  15. White-labeling / Rebranding
+
+=====================================================
+
+Fin du document.
+Créé le 27 mars 2026.
+YoRivSiteTrack-YST1 — Support de cours

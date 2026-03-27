@@ -1,0 +1,656 @@
+GLOSSAIRE DES TERMES TECHNIQUES — YoRivSiteTrack-YST1
+=====================================================
+
+Ce document explique en détail tous les termes techniques utilisés dans l'application
+et sa documentation. Classement alphabétique.
+
+Dernière mise à jour : 27 mars 2026
+
+=============================================================================
+A
+=============================================================================
+
+API (Application Programming Interface)
+    Interface de Programmation d'Application. C'est un ensemble de "portes d'entrée"
+    que le serveur met à disposition pour que les applications (web, mobile) puissent
+    communiquer avec lui. Par exemple, quand le superviseur envoie un rapport, 
+    l'application appelle l'API "POST /api/reports" du serveur.
+    
+    Dans notre projet : server.js expose 33+ endpoints API que les interfaces
+    (superviseur, PM, admin) utilisent pour lire et écrire des données.
+
+APK (Android Package Kit)
+    Fichier d'installation pour les applications Android. C'est l'équivalent d'un 
+    fichier .exe sous Windows. Notre projet génère 2 APK :
+    - yoriv-supervisor.apk : l'application superviseur
+    - pm-dashboard.apk : l'application PM
+    
+    Les APK sont créés à partir du code web (HTML/CSS/JS) grâce à Capacitor 
+    qui les "emballe" dans une application Android native.
+
+Auth / Authentication (Authentification)
+    Processus de vérification de l'identité d'un utilisateur. Dans notre app :
+    1. L'utilisateur envoie son identifiant + mot de passe
+    2. Le serveur vérifie avec bcrypt (voir ce terme)
+    3. Si correct, le serveur renvoie un token JWT (voir ce terme)
+    4. Ce token est envoyé avec chaque requête suivante
+
+ALLOWED_ORIGINS
+    Variable d'environnement qui liste les domaines web autorisés à appeler 
+    notre API. C'est une mesure de sécurité CORS (voir ce terme).
+    Exemple : "https://daily-report-app-fanv.onrender.com"
+    Si vide : tous les domaines sont autorisés.
+
+=============================================================================
+B
+=============================================================================
+
+Backend
+    La partie "serveur" de l'application, invisible pour l'utilisateur. 
+    C'est le code qui tourne sur le serveur (server.js) et qui :
+    - Stocke les données dans la base MongoDB
+    - Vérifie les mots de passe
+    - Gère les uploads de photos
+    - Envoie les notifications en temps réel
+    
+    Opposé au Frontend (voir ce terme).
+
+Backfilling (Remblayage)
+    Phase de construction n°9. Consiste à remblayer (remplir avec de la terre)
+    les excavations autour des fondations après le coulage du béton.
+    Durée estimée : 2 à 3 jours.
+
+bcrypt / bcryptjs
+    Algorithme de hachage de mots de passe. Au lieu de stocker le mot de passe 
+    en clair dans la base de données (dangereux), bcrypt crée un "hash" 
+    (empreinte unique) irréversible. Quand un utilisateur se connecte, bcrypt 
+    compare le mot de passe saisi avec le hash stocké.
+    
+    Exemple : "MonMotDePasse123" → "$2a$10$N9qo8uLOickgx2ZMRZoM..."
+    On ne peut pas retrouver le mot de passe original à partir du hash.
+
+Bearer Token
+    Format d'envoi du token JWT dans les requêtes HTTP.
+    Le client envoie un en-tête : "Authorization: Bearer eyJhbGciOiJI..."
+    Le serveur extrait le token après "Bearer " et le vérifie.
+
+Build (Compilation)
+    Processus de transformation du code source en application utilisable.
+    - Build Android : transforme le code HTML/JS en APK via Gradle
+    - Build Electron : transforme le code en application bureau (.exe)
+
+=============================================================================
+C
+=============================================================================
+
+Capacitor
+    Framework open-source (par Ionic) qui permet de transformer une application 
+    web (HTML/CSS/JS) en application mobile native (Android/iOS).
+    
+    Comment ça marche :
+    1. On écrit le code en HTML/CSS/JS (notre app web)
+    2. Capacitor crée un projet Android avec une WebView
+    3. L'app web tourne dans cette WebView comme une app native
+    4. On peut accéder aux fonctions du téléphone (caméra, stockage...)
+    
+    Version utilisée : 8.2.0
+
+Casting (Coulage)
+    Phase de construction n°7. Consiste à couler le béton dans les coffrages
+    préparés avec les armatures (rebars). Phase critique — fait partie des 
+    phases RFI Required.
+    Durée estimée : 1 jour.
+
+Casting Slabs (Dalles)
+    Phase de construction n°11. Coulage des dalles de béton au sol.
+    Durée estimée : 1 à 2 jours. Phase RFI Required.
+
+Chat de Zone
+    Système de messagerie intégré à l'application. Permet aux superviseurs 
+    et PM d'une même zone de communiquer en temps réel.
+    Les messages sont stockés dans la collection ChatMessage de MongoDB.
+    Transmis instantanément via Socket.IO.
+
+Cleaning Site (Nettoyage du site)
+    Phase de construction n°17 (dernière). Nettoyage final du chantier après 
+    toutes les installations. Durée estimée : 1 jour.
+
+Cloudinary
+    Service cloud de stockage et gestion d'images/vidéos. Utilisé en production
+    pour stocker les photos des rapports et documents d'acceptation.
+    
+    Avantage : les images restent disponibles même après redéploiement du serveur
+    (contrairement au stockage local qui est perdu sur Render).
+    
+    URL type : https://res.cloudinary.com/votre-cloud/image/upload/...
+    
+    3 variables nécessaires : CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, 
+    CLOUDINARY_API_SECRET
+
+CORS (Cross-Origin Resource Sharing)
+    Mécanisme de sécurité des navigateurs web. Par défaut, une page web sur 
+    le domaine A ne peut pas appeler une API sur le domaine B.
+    
+    CORS autorise explicitement certains domaines à appeler notre API.
+    Configuré dans server.js via la variable ALLOWED_ORIGINS.
+    
+    Les applications mobiles (APK/Capacitor) ne sont pas concernées par CORS
+    car elles n'ont pas d'"origin" web.
+
+CSS (Cascading Style Sheets)
+    Langage de mise en forme qui définit l'apparence visuelle de l'application :
+    couleurs, polices, tailles, positions des éléments.
+    
+    Fichiers CSS du projet :
+    - public/css/styles.css : styles de l'app superviseur
+    - public/css/pm-dashboard.css : styles du dashboard PM
+
+CSV (Comma-Separated Values)
+    Format de fichier texte où les données sont séparées par des virgules.
+    Ouvrable dans Excel, Google Sheets, etc.
+    L'export Excel du PM génère un fichier CSV.
+
+Curing (Séchage/Cure)
+    Phase de construction n°8. Période de séchage et durcissement du béton 
+    après le coulage. Le béton doit être maintenu humide.
+    Durée estimée : 5 à 7 jours (la plus longue phase).
+
+=============================================================================
+D
+=============================================================================
+
+Dashboard (Tableau de bord)
+    Interface graphique qui affiche un résumé visuel des données.
+    Le Dashboard PM affiche : nombre de rapports, statuts, filtres, cartes 
+    statistiques, grille de rapports, etc.
+
+Dépendance (Phase)
+    Relation entre phases de construction. Une phase ne peut normalement 
+    commencer que si ses dépendances sont terminées.
+    Exemple : "Rebars" dépend de "Béton de propreté" — il faut couler le 
+    béton de propreté avant de poser les armatures.
+
+Deploy / Déploiement
+    Action de mettre en ligne une nouvelle version de l'application.
+    Sur Render : chaque push sur GitHub déclenche un redéploiement automatique.
+    Le serveur est arrêté, le nouveau code est installé, puis le serveur redémarre.
+
+dotenv
+    Module Node.js qui charge les variables d'environnement depuis un fichier 
+    .env local. Utilisé en développement pour ne pas mettre les secrets 
+    (mots de passe, clés API) dans le code source.
+
+=============================================================================
+E
+=============================================================================
+
+Electron
+    Framework qui permet de créer des applications bureau (Windows, Mac, Linux) 
+    à partir de code web (HTML/CSS/JS). Utilisé pour le Dashboard PM desktop.
+    
+    L'application Electron charge la page https://...onrender.com/pm dans une 
+    fenêtre native avec menu, raccourcis clavier et icône de barre des tâches.
+
+Endpoint
+    Point d'accès API. C'est une URL spécifique du serveur qui effectue une 
+    action précise. 
+    Exemples :
+    - POST /api/auth/login → connecter un utilisateur
+    - GET /api/reports → récupérer la liste des rapports
+    - POST /api/reports → créer un nouveau rapport
+
+Environment Variable (Variable d'environnement)
+    Valeur de configuration stockée sur le serveur (pas dans le code).
+    Permet de garder les secrets (mots de passe, clés) en sécurité et de 
+    changer la configuration sans modifier le code.
+    
+    Sur Render : Dashboard → Environment → ajouter les clés/valeurs.
+    En local : fichier .env à la racine du projet.
+
+Excavation
+    Phase de construction n°2. Creusement des fondations du site.
+    Durée estimée : 2 à 5 jours.
+
+Express.js
+    Framework web pour Node.js. C'est la brique principale de notre serveur.
+    Express gère les routes (URL), les requêtes HTTP, les middlewares, et 
+    sert les fichiers statiques (HTML, CSS, JS).
+    Version utilisée : 4.18.2
+
+=============================================================================
+F
+=============================================================================
+
+Feedback (Avis/Retour)
+    Commentaire laissé par un PM sur le rapport d'un superviseur.
+    Quand un PM envoie un feedback, le rapport passe en statut "reviewed" 
+    et le superviseur reçoit une notification en temps réel.
+
+Fence (Clôture)
+    Phase de construction n°15. Installation de la clôture autour du site.
+    Durée estimée : 5 à 10 jours. Poids élevé : 9.
+
+Frontend
+    La partie "client" de l'application, visible par l'utilisateur.
+    C'est le code qui tourne dans le navigateur web ou l'application mobile :
+    HTML (structure), CSS (apparence), JavaScript (comportement).
+    
+    Opposé au Backend (voir ce terme).
+
+=============================================================================
+G
+=============================================================================
+
+Git
+    Système de contrôle de version. Permet de suivre l'historique des 
+    modifications du code, de travailler en équipe, et de revenir en arrière 
+    si nécessaire. Chaque modification est enregistrée dans un "commit".
+
+GitHub
+    Plateforme en ligne qui héberge les dépôts Git. Notre code est sur :
+    https://github.com/yorivinfos-pixel/daily-report-app.git
+    Render se connecte à GitHub pour déployer automatiquement.
+
+Gradle / Gradlew
+    Outil de compilation pour les projets Android/Java. C'est Gradle qui 
+    transforme le code source Android en fichier APK installable.
+    gradlew = "Gradle Wrapper", version portable de Gradle incluse dans le projet.
+
+Group PM
+    Rôle dans le système. Le Group PM (ex: Sunil) a une vue globale sur 
+    toutes les zones. Il peut voir les rapports de tous les superviseurs.
+
+Guardhouse (Guérite)
+    Phase de construction n°14. Construction du local de garde/sécurité.
+    Durée estimée : 5 à 10 jours. Poids élevé : 9.
+
+=============================================================================
+H
+=============================================================================
+
+Hash / Hachage
+    Fonction mathématique qui transforme une donnée en une empreinte unique 
+    de taille fixe. Utilisé pour les mots de passe : on stocke le hash au 
+    lieu du mot de passe en clair. Le hash est irréversible.
+    Voir aussi : bcrypt.
+
+Helmet
+    Module de sécurité pour Express.js. Ajoute automatiquement des en-têtes 
+    HTTP de sécurité pour protéger contre les attaques courantes :
+    XSS, clickjacking, MIME sniffing, etc.
+
+HTML (HyperText Markup Language)
+    Langage de balisage qui définit la structure des pages web.
+    Fichiers HTML du projet :
+    - public/index.html : page d'accueil superviseur
+    - public/pm.html : page du dashboard PM
+    - public/admin.html : panneau d'administration
+
+HTTP / HTTPS
+    Protocole de communication web. HTTP = non chiffré, HTTPS = chiffré (sécurisé).
+    Notre application en production utilise HTTPS (via Render).
+    Les requêtes API utilisent les méthodes HTTP : GET (lire), POST (créer), 
+    PUT (modifier), DELETE (supprimer).
+
+=============================================================================
+I
+=============================================================================
+
+Implantation
+    Phase de construction n°1 (première). Traçage et marquage de l'emplacement 
+    exact du site sur le terrain. Durée estimée : 1 jour.
+
+=============================================================================
+J
+=============================================================================
+
+JavaScript (JS)
+    Langage de programmation principal de l'application. Utilisé :
+    - Côté serveur : Node.js avec Express (server.js)
+    - Côté client : logique de l'interface (supervisor.js, pm-dashboard.js)
+    
+    JavaScript est le seul langage qui fonctionne à la fois dans le navigateur 
+    et sur le serveur.
+
+JSON (JavaScript Object Notation)
+    Format d'échange de données léger et lisible. Utilisé pour :
+    - Les requêtes et réponses API (le serveur envoie du JSON)
+    - Les fichiers de configuration (package.json, manifest.json)
+    - Le stockage local (localStorage)
+    
+    Exemple : { "success": true, "reports": [...] }
+
+JWT (JSON Web Token)
+    Token d'authentification. Après connexion réussie, le serveur génère un 
+    JWT qui contient : l'ID utilisateur, son rôle, son nom, sa zone.
+    
+    Ce token est signé avec JWT_SECRET (seul le serveur peut le créer/vérifier).
+    Durée de validité : 7 jours par défaut (configurable via JWT_EXPIRY).
+    
+    Le client envoie ce token à chaque requête dans l'en-tête Authorization.
+    Si le token expire ou est invalide → erreur 401 → reconnexion nécessaire.
+
+=============================================================================
+L
+=============================================================================
+
+localStorage
+    Stockage local du navigateur web. Permet de sauvegarder des données 
+    côté client (sans serveur). Utilisé pour :
+    - Le token d'authentification (authToken)
+    - Les préférences utilisateur (langue, thème)
+    - Le cache du nom utilisateur (currentUser)
+    
+    Les données persistent même après fermeture du navigateur.
+
+=============================================================================
+M
+=============================================================================
+
+Manholes (Regards)
+    Phase de construction n°12. Installation des regards (puits d'accès) 
+    pour l'inspection et la maintenance des câbles souterrains.
+    Durée estimée : 2 à 3 jours. Phase RFI Required.
+
+Middleware
+    Fonction intermédiaire qui s'exécute entre la réception d'une requête et 
+    l'envoi de la réponse. Dans notre app :
+    - authMiddleware : vérifie le token JWT
+    - requireRole('admin') : vérifie que l'utilisateur a le bon rôle
+    - loginLimiter : limite les tentatives de connexion
+    - helmet : ajoute les en-têtes de sécurité
+    - mongoSanitize : nettoie les données contre l'injection
+
+MongoDB / MongoDB Atlas
+    Base de données NoSQL (non relationnelle). Stocke les données sous forme 
+    de documents JSON (appelés "documents" dans des "collections").
+    
+    Collections de notre app :
+    - users : comptes utilisateurs
+    - reports : rapports journaliers
+    - sites : sites de construction
+    - chatmessages : messages du chat
+    
+    MongoDB Atlas = version cloud hébergée (pas besoin de serveur propre).
+    Connexion via la variable MONGODB_URI.
+
+Mongoose
+    Bibliothèque Node.js qui facilite l'interaction avec MongoDB.
+    Permet de définir des "schémas" (structure des données) et de faire 
+    des requêtes de manière simple.
+    Version utilisée : 9.3.1
+
+Multer
+    Module Node.js pour gérer l'upload de fichiers (photos, documents).
+    Gère la réception des fichiers envoyés par le client et leur stockage 
+    (local ou Cloudinary via multer-storage-cloudinary).
+
+=============================================================================
+N
+=============================================================================
+
+Nivellement & Épandage
+    Phase de construction n°16. Mise à niveau du terrain et épandage de 
+    gravier/latérite autour des installations.
+    Durée estimée : 1 à 2 jours.
+
+Node.js
+    Environnement d'exécution JavaScript côté serveur. Permet d'écrire le 
+    serveur web en JavaScript (au lieu de PHP, Python, Java...).
+    
+    Notre serveur (server.js) tourne sur Node.js. C'est le "moteur" qui 
+    exécute tout le code backend.
+
+npm (Node Package Manager)
+    Gestionnaire de paquets pour Node.js. Permet d'installer des bibliothèques 
+    externes (dépendances). Les dépendances sont listées dans package.json 
+    et installées dans le dossier node_modules/.
+    
+    Commandes courantes :
+    - npm install : installer toutes les dépendances
+    - npm start : démarrer le serveur
+    - npm run dev : démarrer en mode développement (avec nodemon)
+
+=============================================================================
+O
+=============================================================================
+
+On Track
+    Statut de phase indiquant que le travail avance normalement, dans les délais.
+
+=============================================================================
+P
+=============================================================================
+
+Pending
+    Statut de phase indiquant que le travail est en pause/attente 
+    (matériaux manquants, météo, autorisation...).
+
+Phase
+    Étape de construction d'un site télécom. Le projet définit 17 phases 
+    dans un ordre précis (Implantation → Cleaning Site) + "Autres" pour 
+    les activités hors phases.
+
+PM (Project Manager)
+    Chef de projet responsable d'une zone géographique. Il supervise les 
+    superviseurs terrain, examine leurs rapports, donne des feedbacks, 
+    et attribue les sites.
+
+Power Installation
+    Phase de construction n°13. Installation de l'alimentation électrique 
+    du site. Durée estimée : 1 à 2 jours. Phase RFI Required.
+
+Program Manager
+    Responsable de 2 zones. Supervise les PM et a une vue consolidée.
+    Ex: Josian DOLA (Zones 1+3), Prince BEDESIRE (Zones 2+4).
+
+Province
+    Division administrative de la RDC. Chaque province est mappée à une zone 
+    dans le système PROVINCE_TO_ZONE.
+
+PWA (Progressive Web App)
+    Application web qui peut être installée sur l'écran d'accueil d'un 
+    téléphone comme une app native. Notre app superviseur fonctionne comme 
+    PWA grâce au fichier manifest.json et au Service Worker (sw.js).
+
+=============================================================================
+R
+=============================================================================
+
+Rate Limiting (Limitation de débit)
+    Protection contre les attaques par force brute. Notre serveur limite à 
+    10 tentatives de connexion par 15 minutes par adresse IP.
+    Au-delà, le message "Trop de tentatives" est renvoyé.
+
+Rebars (Armatures)
+    Phase de construction n°5. Installation des armatures métalliques 
+    (barres d'acier) dans les fondations avant le coulage du béton.
+    Durée estimée : 2 à 5 jours.
+
+Rebranding (Rebrandage)
+    Processus de personnalisation de l'application pour un nouveau client.
+    Le script rebrand.js remplace automatiquement les noms, logos, URLs, 
+    couleurs pour créer une version "marque blanche" (white-label).
+
+Render
+    Service d'hébergement cloud. Notre serveur tourne sur Render sous forme 
+    de "Web Service". Render :
+    - Se connecte à GitHub et déploie automatiquement à chaque push
+    - Fournit une URL HTTPS (daily-report-app-fanv.onrender.com)
+    - Gère les variables d'environnement
+    - ⚠️ Système de fichiers éphémère (les fichiers locaux sont perdus au redéploiement)
+
+Report (Rapport)
+    Document électronique soumis par un superviseur décrivant les activités 
+    du jour sur un site. Contient : site, phase, statut, activités, photos, 
+    score calculé automatiquement.
+
+Réseau de terre (Ground Network)
+    Phase de construction n°3. Installation du réseau de mise à la terre 
+    pour la protection contre la foudre et les surtensions.
+    Durée estimée : 1 jour.
+
+RFC (Ready for Casting)
+    Phase de construction n°6. Vérification que tout est prêt pour le 
+    coulage du béton (coffrages, armatures, propreté).
+    Durée estimée : 1 jour.
+
+RFI (Request for Inspection)
+    Demande d'inspection officielle. Un site est "RFI Ready" quand les 
+    5 phases critiques sont toutes clôturées :
+    1. Casting (Coulage)
+    2. Tower Erection
+    3. Casting Slabs
+    4. Power Installation
+    5. Manholes
+
+=============================================================================
+S
+=============================================================================
+
+Schema (Schéma)
+    Structure de données définie avec Mongoose. Détermine les champs, leurs 
+    types, et les contraintes de chaque document dans MongoDB.
+    
+    Schémas du projet :
+    - userSchema : utilisateurs (nom, identifiant, rôle, zone...)
+    - reportSchema : rapports (site, phase, photos, score...)
+    - siteSchema : sites (nom, localisation, superviseur assigné...)
+    - chatMessageSchema : messages de chat
+
+Score (Superviseur)
+    Note de performance calculée automatiquement (0-100).
+    Voir section 8 du Guide Utilisateur pour les détails du calcul.
+
+SEED_DEFAULT_PASSWORD
+    Variable d'environnement contenant le mot de passe par défaut pour les 
+    comptes créés automatiquement par le système (setup-zones, sync-pm-names).
+
+Service Worker (sw.js)
+    Script JavaScript qui tourne en arrière-plan dans le navigateur.
+    Permet le fonctionnement hors-ligne (cache des pages) et les 
+    notifications push. Fichier : public/sw.js
+
+Site ID
+    Identifiant unique d'un site de construction. Format : PRÉFIXE-NUMÉRO
+    où le préfixe correspond à la province.
+    Exemples : CDKN-001 (Kinshasa), MLBK-003 (Mbuji-Mayi)
+
+Socket.IO
+    Bibliothèque de communication en temps réel. Permet au serveur d'envoyer 
+    des notifications instantanées aux clients connectés sans que ceux-ci 
+    aient besoin de rafraîchir la page.
+    
+    Utilisé pour : nouveaux rapports, feedbacks, messages chat, alertes.
+    Fonctionne via WebSocket (connexion permanente entre client et serveur).
+    Version utilisée : 4.7.2
+
+=============================================================================
+T
+=============================================================================
+
+Token
+    Jeton d'authentification. Voir JWT.
+
+Tower Erection (Montage de la tour)
+    Phase de construction n°10. Montage de la tour/pylône de télécommunication.
+    Durée estimée : 3 à 5 jours. Phase RFI Required. Poids : 8.
+
+=============================================================================
+U
+=============================================================================
+
+Upload
+    Action d'envoyer un fichier du client vers le serveur. Dans notre app :
+    les superviseurs uploadent des photos et des documents d'acceptation.
+    Géré par Multer côté serveur.
+
+UUID (Universally Unique Identifier)
+    Identifiant unique universel. Chaîne de caractères aléatoire garantie 
+    unique (ex: "11b00b0d-1b56-48e0-90d5-62a2dd2fef57").
+    Utilisé pour les noms de dossiers d'upload.
+
+=============================================================================
+W
+=============================================================================
+
+WebSocket
+    Protocole de communication bidirectionnelle en temps réel entre un 
+    navigateur et un serveur. Contrairement à HTTP (requête → réponse), 
+    WebSocket maintient une connexion permanente.
+    Socket.IO utilise WebSocket en interne.
+
+White-Label (Marque blanche)
+    Version de l'application rebrandée aux couleurs d'un client.
+    Le client achète la licence et reçoit une version personnalisée :
+    son nom, son logo, son domaine, ses couleurs.
+    Géré par le script rebrand.js.
+
+=============================================================================
+Z
+=============================================================================
+
+Zone
+    Division géographique du territoire pour l'organisation du travail.
+    4 zones dans le système actuel :
+    - Zone 1 : Ouest (Kinshasa, Kongo-Central, Équateur...)
+    - Zone 2 : Est (Kivu, Maniema, Ituri...)
+    - Zone 3 : Grand Kasaï (Kasaï-Central, Kasaï-Oriental...)
+    - Zone 4 : Copper Belt (Haut-Katanga, Lualaba)
+    
+    Chaque superviseur est assigné à une zone. Chaque PM gère une zone.
+    Le mapping Province → Zone est défini dans server.js et servi via 
+    l'endpoint /api/zone-mapping.
+
+Zone Mapping
+    Correspondance entre les 26 provinces de la RDC et les 4 zones du système.
+    Stocké côté serveur (source unique) et chargé dynamiquement par les 
+    interfaces frontend via l'API /api/zone-mapping.
+
+=============================================================================
+CODES HTTP COURANTS
+=============================================================================
+
+| Code | Signification | Dans notre app |
+|------|---------------|----------------|
+| 200 | OK | Requête réussie |
+| 201 | Created | Ressource créée (rapport, site, utilisateur) |
+| 400 | Bad Request | Données manquantes ou invalides |
+| 401 | Unauthorized | Token manquant ou expiré → reconnexion nécessaire |
+| 403 | Forbidden | Accès interdit (rôle insuffisant ou compte désactivé) |
+| 404 | Not Found | Ressource introuvable |
+| 429 | Too Many Requests | Trop de tentatives (rate limiting) |
+| 500 | Internal Server Error | Erreur serveur (bug ou problème technique) |
+
+=============================================================================
+ABRÉVIATIONS COURANTES
+=============================================================================
+
+| Abréviation | Signification |
+|-------------|---------------|
+| API | Application Programming Interface |
+| APK | Android Package Kit |
+| CORS | Cross-Origin Resource Sharing |
+| CRUD | Create, Read, Update, Delete |
+| CSS | Cascading Style Sheets |
+| CSV | Comma-Separated Values |
+| DB | Database (Base de données) |
+| HTML | HyperText Markup Language |
+| HTTP | HyperText Transfer Protocol |
+| HTTPS | HTTP Secure |
+| JS | JavaScript |
+| JSON | JavaScript Object Notation |
+| JWT | JSON Web Token |
+| PM | Project Manager |
+| PWA | Progressive Web App |
+| RFC | Ready for Casting (dans le contexte construction) |
+| RFI | Request for Inspection |
+| UI | User Interface (Interface utilisateur) |
+| URL | Uniform Resource Locator |
+| UUID | Universally Unique Identifier |
+
+=============================================================================
+
+Fin du glossaire.
+Document créé le 27 mars 2026.
+YoRivSiteTrack-YST1

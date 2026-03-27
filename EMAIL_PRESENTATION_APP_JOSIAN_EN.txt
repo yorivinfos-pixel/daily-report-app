@@ -1,0 +1,23 @@
+Subject: Proposal — Field Reporting Application (YoRivSiteTrack)
+
+
+Hi Josian,
+
+I hope you're doing well.
+
+I'm taking this moment, before I officially start in my new role as PM, to share with you a personal project I've been working on that I believe could benefit us all.
+
+After several years as a field supervisor, I've witnessed firsthand a number of recurring challenges in our reporting process: reports arriving late or not at all, information scattered across WhatsApp, emails and phone calls, no standardized format from one supervisor to another, a lack of real visibility on site conditions due to unstructured photos, and hours spent every week manually compiling data to produce consolidated tracking sheets.
+
+These observations, accumulated over years in the field, led me to develop a web and mobile application — YoRivSiteTrack (YST1) — that allows supervisors to submit daily reports from their phone (with photos, structured form covering all 17 construction phases), and PMs to receive them in real time on a dashboard with filters, Excel/PDF exports, site progress tracking and a built-in zone chat.
+
+The application is already functional and deployed online.
+
+My initial idea was to make management easier in my new zone, but I chose to extend it to all zones and provinces, thinking that if it can help me, it can help our colleagues elsewhere too.
+
+If you're open to it, I'd like to propose a short demonstration session at your convenience. And if the concept convinces you, we could plan training sessions — first with the PMs, then with the supervisors — according to your schedule.
+
+I'm available to discuss whenever suits you.
+
+Best regards,
+Jean-Baptiste MBUYI
