@@ -60,8 +60,20 @@ class PMDashboard {
         this.currentUser = safeJsonParse(localStorage.getItem('pmCurrentUser'), null);
         
         this.setupLogin();
+        // Session timeout: si le login date de plus de 8h, forcer la reconnexion
+        const loginTimestamp = parseInt(localStorage.getItem('pmLoginTimestamp') || '0', 10);
+        const SESSION_MAX_MS = 8 * 60 * 60 * 1000; // 8 heures
         if (this.authToken && this.currentUser) {
-            this.showApp();
+            if (Date.now() - loginTimestamp > SESSION_MAX_MS) {
+                // Session expirée : forcer la reconnexion
+                this.authToken = null;
+                this.currentUser = null;
+                localStorage.removeItem('pmAuthToken');
+                localStorage.removeItem('pmCurrentUser');
+                localStorage.removeItem('pmLoginTimestamp');
+            } else {
+                this.showApp();
+            }
         }
     }
 
@@ -108,6 +120,7 @@ class PMDashboard {
                 this.currentUser = data.user;
                 localStorage.setItem('pmAuthToken', data.token);
                 localStorage.setItem('pmCurrentUser', JSON.stringify(data.user));
+                localStorage.setItem('pmLoginTimestamp', String(Date.now()));
                 this.showApp();
             } catch (err) {
                 errorDiv.textContent = err.message;
@@ -128,16 +141,59 @@ class PMDashboard {
         }
     }
 
+    // --- Modal helper to replace prompt() ---
+    _modalPrompt(title, fields) {
+        return new Promise((resolve) => {
+            const overlay = document.createElement('div');
+            overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:10000;display:flex;align-items:center;justify-content:center;';
+            const box = document.createElement('div');
+            box.style.cssText = 'background:#1e293b;border:1px solid #475569;border-radius:12px;padding:1.5rem;min-width:320px;max-width:90vw;';
+            box.innerHTML = `<h3 style="color:#fff;margin:0 0 1rem;font-size:1rem;">${this.escapeHtml(title)}</h3>`;
+            const inputs = [];
+            fields.forEach(f => {
+                const label = document.createElement('label');
+                label.style.cssText = 'color:#94a3b8;font-size:0.85rem;display:block;margin-bottom:0.25rem;';
+                label.textContent = f.label;
+                const input = document.createElement('input');
+                input.type = f.type || 'text';
+                input.placeholder = f.placeholder || '';
+                input.style.cssText = 'width:100%;padding:0.6rem 0.8rem;background:#0f172a;border:1px solid #475569;border-radius:8px;color:#e2e8f0;font-size:0.9rem;box-sizing:border-box;margin-bottom:0.75rem;';
+                box.appendChild(label);
+                box.appendChild(input);
+                inputs.push(input);
+            });
+            const btnRow = document.createElement('div');
+            btnRow.style.cssText = 'display:flex;gap:0.5rem;justify-content:flex-end;margin-top:0.5rem;';
+            const cancelBtn = document.createElement('button');
+            cancelBtn.textContent = this.t('Annuler', 'Cancel');
+            cancelBtn.style.cssText = 'padding:0.5rem 1rem;border-radius:8px;border:1px solid #475569;background:transparent;color:#94a3b8;cursor:pointer;';
+            const okBtn = document.createElement('button');
+            okBtn.textContent = this.t('Valider', 'Confirm');
+            okBtn.style.cssText = 'padding:0.5rem 1rem;border-radius:8px;border:none;background:linear-gradient(135deg,#2563eb,#1d4ed8);color:#fff;cursor:pointer;font-weight:600;';
+            btnRow.appendChild(cancelBtn);
+            btnRow.appendChild(okBtn);
+            box.appendChild(btnRow);
+            overlay.appendChild(box);
+            document.body.appendChild(overlay);
+            inputs[0]?.focus();
+            cancelBtn.addEventListener('click', () => { overlay.remove(); resolve(null); });
+            overlay.addEventListener('click', (e) => { if (e.target === overlay) { overlay.remove(); resolve(null); } });
+            okBtn.addEventListener('click', () => { const vals = inputs.map(i => i.value); overlay.remove(); resolve(vals.length === 1 ? vals[0] : vals); });
+            box.addEventListener('keydown', (e) => { if (e.key === 'Enter') okBtn.click(); if (e.key === 'Escape') cancelBtn.click(); });
+        });
+    }
+
     async changePassword() {
-        const cur = prompt(this.t('Mot de passe actuel :', 'Current password:'));
-        if (cur === null || cur === '') return;
-        const neu = prompt(this.t('Nouveau mot de passe (min. 6 caractères) :', 'New password (min 6 characters):'));
-        if (neu === null || neu === '') return;
+        const values = await this._modalPrompt(this.t('Changer le mot de passe', 'Change password'), [
+            { label: this.t('Mot de passe actuel', 'Current password'), type: 'password', placeholder: '••••••••' },
+            { label: this.t('Nouveau mot de passe (min. 6 caractères)', 'New password (min 6 characters)'), type: 'password', placeholder: '••••••••' }
+        ]);
+        if (!values || !values[0] || !values[1]) return;
         try {
             const r = await this.authFetch(this.getApiUrl('/api/auth/change-password'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ current_password: cur, new_password: neu })
+                body: JSON.stringify({ current_password: values[0], new_password: values[1] })
             });
             const d = await r.json();
             if (!r.ok || !d.success) throw new Error(d.error || 'Erreur');
@@ -222,10 +278,17 @@ class PMDashboard {
         this.currentUser = null;
         localStorage.removeItem('pmAuthToken');
         localStorage.removeItem('pmCurrentUser');
+        localStorage.removeItem('pmLoginTimestamp');
+        if (this.socket) { this.socket.disconnect(); this.socket = null; }
         const loginScreen = document.getElementById('login-screen');
         const appDiv = document.getElementById('app');
         if (loginScreen) loginScreen.style.display = '';
         if (appDiv) appDiv.style.display = 'none';
+        // Reset status indicator
+        const statusDot = document.getElementById('connection-status');
+        const statusText = document.getElementById('connection-text');
+        if (statusDot) { statusDot.classList.remove('online'); statusDot.classList.add('offline'); }
+        if (statusText) statusText.textContent = 'Déconnecté';
     }
 
     async authFetch(url, options = {}) {
@@ -253,7 +316,7 @@ class PMDashboard {
     }
     
     getServerUrl() {
-        return window.location.origin || 'https://daily-report-app-fanv.onrender.com';
+        return window.location.origin;
     }
     
     getApiUrl(endpoint) {
@@ -455,23 +518,30 @@ class PMDashboard {
             return;
         }
         try {
-            const token = localStorage.getItem('pmAuthToken') || '';
-            this.socket = this.serverUrl ? io(this.serverUrl, { auth: { token } }) : io({ auth: { token } });
+            const token = this.authToken || localStorage.getItem('pmAuthToken') || '';
+            this.socket = this.serverUrl ? io(this.serverUrl, { auth: { token }, reconnection: true, reconnectionDelay: 2000, reconnectionAttempts: 10 }) : io({ auth: { token }, reconnection: true, reconnectionDelay: 2000, reconnectionAttempts: 10 });
         
         this.socket.on('connect', () => {
             console.log('PM Dashboard connecté');
-            document.getElementById('connection-status').classList.add('online');
-            document.getElementById('connection-status').classList.remove('offline');
-            document.getElementById('connection-text').textContent = this.t('Connecté', 'Connected');
+            const statusDot = document.getElementById('connection-status');
+            const statusText = document.getElementById('connection-text');
+            if (statusDot) { statusDot.classList.add('online'); statusDot.classList.remove('offline'); }
+            if (statusText) statusText.textContent = this.t('Connecté', 'Connected');
             this.socket.emit('join-role', 'pm');
             this.joinZoneRoom();
         });
         
         this.socket.on('disconnect', () => {
             console.log('PM Dashboard déconnecté');
-            document.getElementById('connection-status').classList.remove('online');
-            document.getElementById('connection-status').classList.add('offline');
-            document.getElementById('connection-text').textContent = this.t('Déconnecté', 'Disconnected');
+            const statusDot = document.getElementById('connection-status');
+            const statusText = document.getElementById('connection-text');
+            if (statusDot) { statusDot.classList.remove('online'); statusDot.classList.add('offline'); }
+            if (statusText) statusText.textContent = this.t('Déconnecté', 'Disconnected');
+        });
+        
+        this.socket.on('reconnect', () => {
+            console.log('PM Dashboard reconnecté');
+            this.loadReports();
         });
         
         // Nouveau rapport reçu
@@ -500,7 +570,8 @@ class PMDashboard {
         // Erreur de connexion
         this.socket.on('connect_error', (error) => {
             console.error('Erreur de connexion:', error);
-            document.getElementById('connection-text').textContent = 'Erreur connexion';
+            const statusText = document.getElementById('connection-text');
+            if (statusText) statusText.textContent = this.t('Reconnexion...', 'Reconnecting...');
         });
         } catch (error) {
             console.error('Erreur setup socket:', error);
@@ -546,6 +617,15 @@ class PMDashboard {
         const regionFilter = document.getElementById('region-filter');
         const pmZoneFilter = document.getElementById('pm-zone-filter');
         const showOtherZones = document.getElementById('show-other-zones');
+
+        // Auto-remplir la date du jour
+        if (dateFilter && !dateFilter.value) {
+            const today = new Date();
+            const yyyy = today.getFullYear();
+            const mm = String(today.getMonth() + 1).padStart(2, '0');
+            const dd = String(today.getDate()).padStart(2, '0');
+            dateFilter.value = `${yyyy}-${mm}-${dd}`;
+        }
         
         searchInput.addEventListener('input', () => {
             this.renderReports();
@@ -912,9 +992,7 @@ class PMDashboard {
         const region = document.getElementById('region-filter').value || 'Toutes les provinces';
         const date = document.getElementById('date-filter').value || new Date().toISOString().split('T')[0];
         
-        const printWindow = window.open('', '_blank');
-        printWindow.document.write(`
-            <!DOCTYPE html>
+        const htmlContent = `<!DOCTYPE html>
             <html>
             <head>
                 <title>YoRivSiteTrack-YST1</title>
@@ -941,28 +1019,28 @@ class PMDashboard {
                 <div class="header">
                     <h1>🏗️ YORIV</h1>
                     <p>Rapport Journalier des Sites</p>
-                    <p><strong>Région:</strong> ${region} | <strong>Date:</strong> ${date}</p>
+                    <p><strong>Région:</strong> ${this.escapeHtml(region)} | <strong>Date:</strong> ${this.escapeHtml(date)}</p>
                     <p><strong>Total:</strong> ${filtered.length} rapport(s)</p>
                 </div>
                 ${filtered.map(r => `
                     <div class="report">
                         <div class="report-header">
                             <div class="site-info">
-                                <h3>${r.site_name}</h3>
-                                <p><strong>ID:</strong> ${r.site_id} | <strong>Région:</strong> ${r.region || 'N/A'}</p>
-                                <p><strong>Superviseur:</strong> ${r.supervisor_name || 'N/A'}</p>
+                                <h3>${this.escapeHtml(r.site_name || '')}</h3>
+                                <p><strong>ID:</strong> ${this.escapeHtml(r.site_id || '')} | <strong>Région:</strong> ${this.escapeHtml(r.region || 'N/A')}</p>
+                                <p><strong>Superviseur:</strong> ${this.escapeHtml(r.supervisor_name || 'N/A')}</p>
                                 <p><strong>Date:</strong> ${new Date(r.created_at).toLocaleString('fr-FR')}</p>
                             </div>
                             <span class="status ${r.status}">${r.status === 'reviewed' ? '✅ Examiné' : '⏳ En attente'}</span>
                         </div>
                         <div class="section">
                             <div class="section-title">Activités</div>
-                            <div class="section-content">${r.activities}</div>
+                            <div class="section-content">${this.escapeHtml(r.activities || '')}</div>
                         </div>
                         ${r.comments ? `
                             <div class="section">
                                 <div class="section-title">Commentaires</div>
-                                <div class="section-content">${r.comments}</div>
+                                <div class="section-content">${this.escapeHtml(r.comments)}</div>
                             </div>
                         ` : ''}
                         <div class="section">
@@ -975,12 +1053,17 @@ class PMDashboard {
                     <p>YoRivSiteTrack-YST1 - Document généré le ${new Date().toLocaleString('fr-FR')}</p>
                 </div>
             </body>
-            </html>
-        `);
+            </html>`;
+
+        const printWindow = window.open('', '_blank');
+        printWindow.document.write(htmlContent);
         printWindow.document.close();
-        printWindow.print();
+        // Auto-trigger print dialog which allows "Save as PDF"
+        printWindow.onload = () => printWindow.print();
+        printWindow.onafterprint = () => printWindow.close();
+        setTimeout(() => { if (!printWindow.closed) printWindow.print(); }, 500);
         
-        this.showToast('PDF généré - Utilisez Ctrl+P pour imprimer', 'success');
+        this.showToast('PDF prêt — sélectionnez "Enregistrer au format PDF" dans la boîte de dialogue', 'success');
     }
     
     getFilteredReports() {
@@ -1328,8 +1411,12 @@ class PMDashboard {
     loadPMZone() {
         const select = document.getElementById('pm-zone-filter');
         if (!select) return;
-        const savedZone = localStorage.getItem('pmZone') || select.value || 'Zone 1';
-        select.value = savedZone;
+        // Priorité : zone du profil utilisateur > zone sauvegardée > défaut
+        const userZone = this.currentUser?.zone || '';
+        const savedZone = localStorage.getItem('pmZone');
+        const zone = userZone || savedZone || select.value || 'Zone 1';
+        select.value = zone;
+        if (userZone) localStorage.setItem('pmZone', userZone);
     }
     
     async selectReport(reportId) {
@@ -1904,6 +1991,7 @@ class PMDashboard {
         </thead>
         <tbody>
             ${rows.map(r => {
+                const esc = (s) => this.escapeHtml(s || '');
                 let cls = '';
                 const ws = (r.work_status || '').toLowerCase();
                 if (ws.includes('completed')) cls = 'status-completed';
@@ -1911,13 +1999,13 @@ class PMDashboard {
                 else if (ws.includes('pending')) cls = 'status-pending';
                 else if (ws.includes('started')) cls = 'status-started';
                 return `<tr>
-                    <td>${r.site_id || ''}</td>
-                    <td>${r.anchor_site_name || ''}</td>
-                    <td><strong>${r.site_name_region || ''}</strong></td>
-                    <td>${r.supervisor || ''}</td>
-                    <td>${r.b2s_vendor || ''}</td>
-                    <td>${r.target_rfi || ''}</td>
-                    <td class="${cls}">${r.work_status || ''}</td>
+                    <td>${esc(r.site_id)}</td>
+                    <td>${esc(r.anchor_site_name)}</td>
+                    <td><strong>${esc(r.site_name_region)}</strong></td>
+                    <td>${esc(r.supervisor)}</td>
+                    <td>${esc(r.b2s_vendor)}</td>
+                    <td>${esc(r.target_rfi)}</td>
+                    <td class="${cls}">${esc(r.work_status)}</td>
                 </tr>`;
             }).join('')}
         </tbody>
@@ -1928,8 +2016,10 @@ class PMDashboard {
 </body>
 </html>`);
             printWindow.document.close();
-            setTimeout(() => printWindow.print(), 400);
-            this.showToast(this.t('PDF généré — Ctrl+P pour imprimer', 'PDF generated — Ctrl+P to print'), 'success');
+            printWindow.onload = () => printWindow.print();
+            printWindow.onafterprint = () => printWindow.close();
+            setTimeout(() => { if (!printWindow.closed) printWindow.print(); }, 500);
+            this.showToast(this.t('PDF prêt — sélectionnez "Enregistrer au format PDF"', 'PDF ready — select "Save as PDF"'), 'success');
         } catch (err) {
             console.error('Erreur export site tracking PDF:', err);
             this.showToast(`Erreur: ${err.message}`, 'error');

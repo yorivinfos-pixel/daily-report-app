@@ -35,6 +35,19 @@ class SupervisorApp {
         this.authToken = localStorage.getItem('authToken') || null;
         this.currentUser = safeJsonParse(localStorage.getItem('currentUser'), null);
         
+        // Session timeout : forcer re-login après 8 heures
+        const loginTimestamp = parseInt(localStorage.getItem('loginTimestamp') || '0', 10);
+        const SESSION_MAX_MS = 8 * 60 * 60 * 1000; // 8 heures
+        if (this.authToken && this.currentUser) {
+            if (Date.now() - loginTimestamp > SESSION_MAX_MS) {
+                localStorage.removeItem('authToken');
+                localStorage.removeItem('currentUser');
+                localStorage.removeItem('loginTimestamp');
+                this.authToken = null;
+                this.currentUser = null;
+            }
+        }
+
         this.setupLogin();
         if (this.authToken && this.currentUser) {
             this.showApp();
@@ -95,6 +108,7 @@ class SupervisorApp {
                 this.currentUser = data.user;
                 localStorage.setItem('authToken', data.token);
                 localStorage.setItem('currentUser', JSON.stringify(data.user));
+                localStorage.setItem('loginTimestamp', String(Date.now()));
                 this.showApp();
             } catch (err) {
                 errorDiv.textContent = err.message;
@@ -190,10 +204,14 @@ class SupervisorApp {
         this.currentUser = null;
         localStorage.removeItem('authToken');
         localStorage.removeItem('currentUser');
+        localStorage.removeItem('loginTimestamp');
+        if (this.socket) { this.socket.disconnect(); this.socket = null; }
         const loginScreen = document.getElementById('login-screen');
         const appDiv = document.getElementById('app');
         if (loginScreen) loginScreen.style.display = '';
         if (appDiv) appDiv.style.display = 'none';
+        const cs = document.getElementById('connection-status');
+        if (cs) { cs.classList.remove('online'); cs.classList.add('offline'); }
     }
 
     persistUnreadState() {
@@ -414,15 +432,20 @@ class SupervisorApp {
             return;
         }
 
-        const token = localStorage.getItem('authToken') || '';
+        const token = this.authToken || localStorage.getItem('authToken') || '';
         this.socket = io(this.serverUrl, {
-            auth: { token }
+            auth: { token },
+            reconnection: true,
+            reconnectionDelay: 2000,
+            reconnectionAttempts: 10
         });
         
         this.socket.on('connect', () => {
             console.log('Connecté au serveur');
             const cs = document.getElementById('connection-status');
             if (cs) { cs.classList.add('online'); cs.classList.remove('offline'); }
+            const ct = document.getElementById('connection-text');
+            if (ct) ct.textContent = 'Connecté';
             this.socket.emit('join-role', 'supervisor');
             this.joinSupervisorRoom();
             this.joinZoneRoom();
@@ -432,6 +455,21 @@ class SupervisorApp {
             console.log('Déconnecté du serveur');
             const cs = document.getElementById('connection-status');
             if (cs) { cs.classList.remove('online'); cs.classList.add('offline'); }
+            const ct = document.getElementById('connection-text');
+            if (ct) ct.textContent = 'Déconnecté';
+        });
+
+        this.socket.on('connect_error', (err) => {
+            console.warn('Socket connect_error:', err.message);
+            const cs = document.getElementById('connection-status');
+            if (cs) { cs.classList.remove('online'); cs.classList.add('offline'); }
+            const ct = document.getElementById('connection-text');
+            if (ct) ct.textContent = 'Reconnexion...';
+        });
+
+        this.socket.on('reconnect', () => {
+            console.log('Socket reconnecté');
+            this.loadMyReports();
         });
         
         this.socket.on('new-feedback', (data) => {

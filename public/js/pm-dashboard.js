@@ -60,8 +60,20 @@ class PMDashboard {
         this.currentUser = safeJsonParse(localStorage.getItem('pmCurrentUser'), null);
         
         this.setupLogin();
+        // Session timeout: si le login date de plus de 8h, forcer la reconnexion
+        const loginTimestamp = parseInt(localStorage.getItem('pmLoginTimestamp') || '0', 10);
+        const SESSION_MAX_MS = 8 * 60 * 60 * 1000; // 8 heures
         if (this.authToken && this.currentUser) {
-            this.showApp();
+            if (Date.now() - loginTimestamp > SESSION_MAX_MS) {
+                // Session expirée : forcer la reconnexion
+                this.authToken = null;
+                this.currentUser = null;
+                localStorage.removeItem('pmAuthToken');
+                localStorage.removeItem('pmCurrentUser');
+                localStorage.removeItem('pmLoginTimestamp');
+            } else {
+                this.showApp();
+            }
         }
     }
 
@@ -108,6 +120,7 @@ class PMDashboard {
                 this.currentUser = data.user;
                 localStorage.setItem('pmAuthToken', data.token);
                 localStorage.setItem('pmCurrentUser', JSON.stringify(data.user));
+                localStorage.setItem('pmLoginTimestamp', String(Date.now()));
                 this.showApp();
             } catch (err) {
                 errorDiv.textContent = err.message;
@@ -265,10 +278,17 @@ class PMDashboard {
         this.currentUser = null;
         localStorage.removeItem('pmAuthToken');
         localStorage.removeItem('pmCurrentUser');
+        localStorage.removeItem('pmLoginTimestamp');
+        if (this.socket) { this.socket.disconnect(); this.socket = null; }
         const loginScreen = document.getElementById('login-screen');
         const appDiv = document.getElementById('app');
         if (loginScreen) loginScreen.style.display = '';
         if (appDiv) appDiv.style.display = 'none';
+        // Reset status indicator
+        const statusDot = document.getElementById('connection-status');
+        const statusText = document.getElementById('connection-text');
+        if (statusDot) { statusDot.classList.remove('online'); statusDot.classList.add('offline'); }
+        if (statusText) statusText.textContent = 'Déconnecté';
     }
 
     async authFetch(url, options = {}) {
@@ -498,23 +518,30 @@ class PMDashboard {
             return;
         }
         try {
-            const token = localStorage.getItem('pmAuthToken') || '';
-            this.socket = this.serverUrl ? io(this.serverUrl, { auth: { token } }) : io({ auth: { token } });
+            const token = this.authToken || localStorage.getItem('pmAuthToken') || '';
+            this.socket = this.serverUrl ? io(this.serverUrl, { auth: { token }, reconnection: true, reconnectionDelay: 2000, reconnectionAttempts: 10 }) : io({ auth: { token }, reconnection: true, reconnectionDelay: 2000, reconnectionAttempts: 10 });
         
         this.socket.on('connect', () => {
             console.log('PM Dashboard connecté');
-            document.getElementById('connection-status').classList.add('online');
-            document.getElementById('connection-status').classList.remove('offline');
-            document.getElementById('connection-text').textContent = this.t('Connecté', 'Connected');
+            const statusDot = document.getElementById('connection-status');
+            const statusText = document.getElementById('connection-text');
+            if (statusDot) { statusDot.classList.add('online'); statusDot.classList.remove('offline'); }
+            if (statusText) statusText.textContent = this.t('Connecté', 'Connected');
             this.socket.emit('join-role', 'pm');
             this.joinZoneRoom();
         });
         
         this.socket.on('disconnect', () => {
             console.log('PM Dashboard déconnecté');
-            document.getElementById('connection-status').classList.remove('online');
-            document.getElementById('connection-status').classList.add('offline');
-            document.getElementById('connection-text').textContent = this.t('Déconnecté', 'Disconnected');
+            const statusDot = document.getElementById('connection-status');
+            const statusText = document.getElementById('connection-text');
+            if (statusDot) { statusDot.classList.remove('online'); statusDot.classList.add('offline'); }
+            if (statusText) statusText.textContent = this.t('Déconnecté', 'Disconnected');
+        });
+        
+        this.socket.on('reconnect', () => {
+            console.log('PM Dashboard reconnecté');
+            this.loadReports();
         });
         
         // Nouveau rapport reçu
@@ -543,7 +570,8 @@ class PMDashboard {
         // Erreur de connexion
         this.socket.on('connect_error', (error) => {
             console.error('Erreur de connexion:', error);
-            document.getElementById('connection-text').textContent = 'Erreur connexion';
+            const statusText = document.getElementById('connection-text');
+            if (statusText) statusText.textContent = this.t('Reconnexion...', 'Reconnecting...');
         });
         } catch (error) {
             console.error('Erreur setup socket:', error);
@@ -589,6 +617,15 @@ class PMDashboard {
         const regionFilter = document.getElementById('region-filter');
         const pmZoneFilter = document.getElementById('pm-zone-filter');
         const showOtherZones = document.getElementById('show-other-zones');
+
+        // Auto-remplir la date du jour
+        if (dateFilter && !dateFilter.value) {
+            const today = new Date();
+            const yyyy = today.getFullYear();
+            const mm = String(today.getMonth() + 1).padStart(2, '0');
+            const dd = String(today.getDate()).padStart(2, '0');
+            dateFilter.value = `${yyyy}-${mm}-${dd}`;
+        }
         
         searchInput.addEventListener('input', () => {
             this.renderReports();
@@ -1374,8 +1411,12 @@ class PMDashboard {
     loadPMZone() {
         const select = document.getElementById('pm-zone-filter');
         if (!select) return;
-        const savedZone = localStorage.getItem('pmZone') || select.value || 'Zone 1';
-        select.value = savedZone;
+        // Priorité : zone du profil utilisateur > zone sauvegardée > défaut
+        const userZone = this.currentUser?.zone || '';
+        const savedZone = localStorage.getItem('pmZone');
+        const zone = userZone || savedZone || select.value || 'Zone 1';
+        select.value = zone;
+        if (userZone) localStorage.setItem('pmZone', userZone);
     }
     
     async selectReport(reportId) {
