@@ -492,8 +492,8 @@ app.post('/api/admin/setup-zones', authMiddleware, requireRole('admin'), async (
 
         // 2. Créer les Program Managers s'ils n'existent pas
         const programManagers = [
-            { full_name: 'Prince BEDESIRE', username: 'prince.bedesire', role: 'program_manager', zone: '' },
-            { full_name: 'Josian DOLA', username: 'josian.dola', role: 'program_manager', zone: '' }
+            { full_name: 'Josian DOLA', username: 'josian.dola', role: 'program_manager', zone: 'Zone 1' },
+            { full_name: 'Prince BEDESIRE', username: 'prince.bedesire', role: 'program_manager', zone: 'Zone 2' }
         ];
         for (const pm of programManagers) {
             const exists = await User.findOne({ username: pm.username });
@@ -509,9 +509,11 @@ app.post('/api/admin/setup-zones', authMiddleware, requireRole('admin'), async (
             }
         }
 
-        // 3. Affecter PM Jean-Baptiste à Zone Kasaï
+        // 3. Affecter PM Jean-Baptiste à Zone 3 (Kasaï) et Jean-Claude à Zone 4 (Haut-Katanga)
         const pmJB = await User.findOne({ full_name: /jean.baptiste/i });
         if (pmJB) { pmJB.zone = 'Zone 3'; await pmJB.save(); results.push(`PM ${pmJB.full_name} → Zone 3 (Kasaï)`); }
+        const pmJC = await User.findOne({ full_name: /jean.claude/i });
+        if (pmJC) { pmJC.zone = 'Zone 4'; await pmJC.save(); results.push(`PM ${pmJC.full_name} → Zone 4 (Haut-Katanga)`); }
 
         // 4. Affecter les superviseurs aux zones
         const zoneAssignments = [
@@ -1540,7 +1542,8 @@ app.get('/api/export/site-tracking', authMiddleware, requireRole('admin', 'group
 
         let effectiveZone = (zoneQuery && String(zoneQuery).trim()) || '';
 
-        if (req.user.role === 'pm' && req.user.zone && effectiveZone !== '') {
+        // Si le PM n'a pas envoyé de zone mais a une zone assignée, utiliser celle-ci
+        if (req.user.role === 'pm' && req.user.zone && !effectiveZone) {
             effectiveZone = req.user.zone;
         }
 
@@ -1564,11 +1567,12 @@ app.get('/api/export/site-tracking', authMiddleware, requireRole('admin', 'group
 
         function deriveWorkStatus(siteReports) {
             if (!siteReports || !siteReports.length) return 'Not started';
+            // Ordre chronologique: Implantation (début) → Cleaning Site (fin)
             const phaseOrder = [
-                'Cleaning Site', 'Nivellement & Épandage', 'Fence', 'Guardhouse',
-                'Power Installation', 'Manholes', 'Casting Slabs', 'Tower Erection',
-                'Backfilling', 'Curing', 'Casting (Coulage)', 'RFC (Ready for Casting)',
-                'Rebars', 'Béton de propreté', 'Réseau de terre', 'Excavation', 'Implantation'
+                'Implantation', 'Excavation', 'Réseau de terre', 'Béton de propreté',
+                'Rebars', 'RFC (Ready for Casting)', 'Casting (Coulage)', 'Curing',
+                'Backfilling', 'Tower Erection', 'Casting Slabs', 'Manholes',
+                'Power Installation', 'Guardhouse', 'Fence', 'Nivellement & Épandage', 'Cleaning Site'
             ];
             const closedPhases = new Set();
             let latestPhase = null;
@@ -1579,12 +1583,12 @@ app.get('/api/export/site-tracking', authMiddleware, requireRole('admin', 'group
                 if (r.phase_status === 'closed') closedPhases.add(r.phase_name);
             });
 
+            // Parcourir du début à la fin, retenir la phase la plus avancée trouvée
             for (const phaseName of phaseOrder) {
                 const phaseReports = siteReports.filter(r => r.phase_name === phaseName);
                 if (phaseReports.length > 0) {
                     latestPhase = phaseName;
                     latestStatus = closedPhases.has(phaseName) ? 'closed' : (phaseReports[0].phase_status || 'on track');
-                    break;
                 }
             }
 

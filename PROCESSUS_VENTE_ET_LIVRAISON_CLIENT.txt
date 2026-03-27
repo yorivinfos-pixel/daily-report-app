@@ -1,0 +1,494 @@
+================================================================================
+    PROCESSUS COMPLET DE VENTE ET LIVRAISON — YoRivSiteTrack-YST1
+    De A à Z — Exemple appliqué au client : PEERS
+================================================================================
+    Document interne YORIV HOLDING
+    Auteur : Jean-Baptiste MBUYI
+    Date   : Mars 2026
+================================================================================
+
+
+========================================
+PHASE 1 — AVANT-VENTE (Jour J-15 à J-1)
+========================================
+
+1.1  IDENTIFICATION DU PROFIL CLIENT
+-------------------------------------
+Déterminer le profil de PEERS :
+  - PME / startup / pilot       → Offre PME Agressive (M1-M3)
+  - ETI / équipe structurée     → Offre Standard (Pack A-C)
+  - Grand compte / DSI stricte  → Offre Premium Entreprise (P1-P3)
+
+1.2  DOCUMENTS À ENVOYER AU CLIENT
+------------------------------------
+Par ordre de présentation :
+
+  1. FICHE_COMMERCIALE_ONE_PAGE     → Résumé exécutif 1 page
+  2. OFFRE_FINALE_COMPARATIVE       → Tableau comparatif des 3 tiers
+  3. L'offre du pack choisi :
+     - PME     : OFFRE_COMMERCIALE_PME_AGRESSIVE
+     - Standard: OFFRE_COMMERCIALE_PACKS
+     - Premium : OFFRE_COMMERCIALE_PREMIUM_ENTREPRISE
+  4. OFFRE_FINALE_CLIENT_BRANDEE    → Personnaliser les champs :
+     - [NOM DU CLIENT]  = PEERS
+     - [MONTANT]        = selon pack choisi
+     - [DEVISE]         = EUR / USD
+     - [VALIDITE]       = 30 jours
+  5. FICHE_TECHNIQUE_CTO            → Si le CTO PEERS veut valider la stack
+  6. ANNEXE_EXPLOITATION_MSA_SLA    → Conditions de support et SLA
+
+1.3  GRILLE TARIFAIRE
+----------------------
++---------------------+-----------+-----------+---------------+
+| Tier                | Entry     | Mid       | Support       |
++---------------------+-----------+-----------+---------------+
+| PME Agressive       | 3 900 €   | 5 900 €   | 8 900 €/6mois |
+| Standard            | 6 500 €   | 9 500 €   | 14 900 €/an   |
+| Premium Entreprise  | 18 000 €  | 29 000 €  | 39 000 €/an   |
++---------------------+-----------+-----------+---------------+
+
+Options supplémentaires :
+  - APK mobile natif (Supervisor + PM)    : +1 500 €
+  - Dashboard KPI avancé                  : +2 500 €
+  - Multi-tenant                          : +3 800 €
+  - SSO / MFA                             : +1 900 €
+  - Audit sécurité + hardening            : +2 200 €
+
+1.4  CONDITIONS DE PAIEMENT
+-----------------------------
+  - 50% à la signature du contrat
+  - 30% à la livraison (mise en production)
+  - 20% à la recette (PV d'acceptance signé)
+
+
+========================================
+PHASE 2 — INFRASTRUCTURE CLOUD (Jour J+1 à J+2)
+========================================
+
+2.1  CRÉER LES COMPTES CLOUD DÉDIÉS PEERS
+-------------------------------------------
+
+Compte              Action                              Résultat attendu
+---------           ------                              ----------------
+MongoDB Atlas       Créer cluster dédié "peers-yst1"    → MONGODB_URI
+Cloudinary          Créer compte "peers-cloud"          → CLOUD_NAME + API_KEY + API_SECRET
+Render              Créer Web Service "peers-sitetrack" → URL publique
+
+OU : Créer les comptes au nom du client PEERS (selon contrat) et déléguer
+l'accès technique à YORIV HOLDING pour la durée du support.
+
+2.2  VARIABLES D'ENVIRONNEMENT (RENDER)
+-----------------------------------------
+Les 6 variables obligatoires à configurer :
+
+  MONGODB_URI=mongodb+srv://USER_REDACTED@cluster.mongodb.net/peers_yst1
+  JWT_SECRET=<générer un secret aléatoire de 64 caractères minimum>
+  CLOUDINARY_CLOUD_NAME=REPLACE_WITH_CLOUD_NAME
+  CLOUDINARY_API_KEY=REPLACE_WITH_API_KEY
+  CLOUDINARY_API_SECRET=REPLACE_WITH_API_SECRET
+  SEED_DEFAULT_PASSWORD=REPLACE_WITH_SECURE_PASSWORD
+
+Optionnel :
+  PORT=3000
+
+
+========================================
+PHASE 3 — REBRANDING DU CODE (Jour J+2 à J+3)
+========================================
+
+3.0  PRINCIPE
+--------------
+Dupliquer le repo YST1 dans un nouveau dépôt dédié à PEERS.
+NE JAMAIS modifier le repo source original.
+
+3.1  TABLEAU DE REMPLACEMENT DES CHAÎNES
+------------------------------------------
+445+ occurrences à remplacer dans tout le codebase :
+
++--------------------------------------+--------------------------------------+
+| Chaîne originale                     | Remplacement PEERS                   |
++--------------------------------------+--------------------------------------+
+| YoRivSiteTrack-YST1                 | PEERS SiteTrack                      |
+| YST1                                 | PEERS (quand utilisé comme nom court)|
+| com.yoriv.dailyreport                | com.peers.sitetrack                  |
+| com.yoriv.pm                         | com.peers.pm                         |
+| com.yoriv.pm-dashboard               | com.peers.pm-dashboard               |
+| YoRiv Dashboard PM                   | PEERS Dashboard PM                   |
+| YoRiv                                | PEERS (dans les textes de branding)  |
+| yoriv                                | peers (dans les noms de fichiers)    |
+| YORIV HOLDING                        | PEERS (ou raison sociale complète)   |
+| Jean-Baptiste MBUYI                  | [Nom contact PEERS ou retirer]       |
+| 0850145419                           | [Numéro PEERS ou retirer]            |
+| daily-report-app-fanv.onrender.com   | peers-sitetrack.onrender.com         |
+| PASSWORD_REDACTED                           | PASSWORD_REDACTED                           |
+| PASSWORD_REDACTED                           | PASSWORD_REDACTED                           |
+| yoriv-supervisor.apk                 | peers-supervisor.apk                 |
+| YoRiv-Dashboard-PM.exe              | PEERS-Dashboard-PM.exe               |
++--------------------------------------+--------------------------------------+
+
+3.2  FICHIERS DE CODE À MODIFIER (CRITIQUES)
+----------------------------------------------
+
+  FICHIER                          CE QUI CHANGE
+  -------                          --------------
+  server.js                        - company: 'YoRiv' → 'PEERS'
+                                   - Noms de fichiers CSV (yoriv-rapports-*)
+                                   - Seed users (noms, mots de passe)
+                                   - Password par défaut
+
+  capacitor.config.json            - appId → com.peers.sitetrack
+                                   - appName → PEERS SiteTrack
+
+  package.json                     - name, description
+
+  public/manifest.json             - name → PEERS SiteTrack
+                                   - short_name → PEERS
+
+  public/pm-manifest.json          - name → PEERS SiteTrack PM
+                                   - short_name → PEERS PM
+
+  public/index.html                - <title>, logo text, footer
+  public/pm.html                   - <title>, sidebar, footer
+  public/admin.html                - <title>, branding
+
+  public/css/styles.css            - Couleurs --primary si charte PEERS
+  public/css/pm-dashboard.css      - Idem
+
+  public/js/supervisor.js          - getServerUrl() → URL Render PEERS
+  public/js/pm-dashboard.js        - getServerUrl() → URL Render PEERS
+                                   - Noms de fichiers CSV export
+
+  public/sw.js                     - Nom du cache
+
+  build-supervisor-apk.js          - appId, appName, nom APK
+  build-pm-apk.js                  - appId, appName
+
+  electron-pm/main.js              - PM_URL, titre fenêtre
+  electron-pm/package.json         - appId, productName, artifactName
+
+  android/app/build.gradle         - namespace, applicationId
+
+3.3  FICHIERS MIROIR (public-pm/)
+----------------------------------
+Le dossier public-pm/ est une copie de public/.
+TOUS les changements faits dans public/ doivent être reproduits dans public-pm/ :
+  - public-pm/index.html
+  - public-pm/pm.html
+  - public-pm/manifest.json
+  - public-pm/css/styles.css
+  - public-pm/js/supervisor.js
+  - public-pm/js/pm-dashboard.js
+  - public-pm/sw.js
+
+3.4  FICHIERS DOCUMENTATION (OPTIONNELS)
+------------------------------------------
+Ces fichiers ne sont livrés que si le pack inclut la documentation :
+  - GUIDE_UTILISATEUR.md / .txt
+  - FICHE_TECHNIQUE_CTO.md / .txt
+  - ANNEXE_EXPLOITATION_MSA_SLA.md / .txt
+  - PROTOCOLE_DE_REMISE_CLIENT.md / .txt
+  - FICHE_COMMERCIALE_ONE_PAGE.md / .txt
+  - Toutes les OFFRE_COMMERCIALE_*.md / .txt
+
+Remplacer toutes les références YORIV HOLDING → PEERS dans ces documents.
+
+3.5  ICÔNES ET LOGO
+---------------------
+  - Demander au client PEERS leur logo (PNG 1024x1024 minimum)
+  - Exécuter les scripts de génération d'icônes :
+      node generate-icons.js          (icônes supervisor)
+      node generate-supervisor-icons.js
+      node generate-pm-icons.js
+  - Fournir icon.png + icon.ico pour Electron
+  - Remplacer l'emoji 🏗️ par le logo dans les HTML
+
+3.6  ZONES ET RÉGIONS
+-----------------------
+Si PEERS opère dans des pays/régions différents de la RDC :
+  - Modifier PROVINCE_TO_ZONE dans server.js (lignes ~106-170)
+  - Modifier PROVINCE_TO_ZONE dans public/js/pm-dashboard.js (lignes ~30-70)
+  - Modifier le même mapping dans public-pm/js/pm-dashboard.js
+  - Adapter les noms de zones (Zone 1, Zone 2...) si besoin
+
+3.7  COULEURS (SI CHARTE GRAPHIQUE PEERS)
+-------------------------------------------
+Dans public/css/styles.css, modifier :
+  --primary:       #2563eb  →  [couleur primaire PEERS]
+  --primary-dark:  #1d4ed8  →  [variante foncée]
+  --primary-light: #3b82f6  →  [variante claire]
+
+Dans public/css/pm-dashboard.css :
+  Adapter les couleurs du thème PM si besoin.
+
+
+========================================
+PHASE 4 — CONFIGURATION UTILISATEURS (Jour J+4)
+========================================
+
+4.1  OPTION A : MODIFIER LES SEEDS (server.js)
+------------------------------------------------
+Remplacer les utilisateurs YoRiv par ceux de PEERS dans le code seed :
+
+  // Admin PEERS
+  { username: 'admin', full_name: 'Admin PEERS', password: 'PASSWORD_REDACTED', role: 'admin' }
+
+  // Group PM
+  { username: 'pm_group', full_name: '[Nom Group PM PEERS]', role: 'group_pm' }
+
+  // PMs par zone
+  { username: 'pm1', full_name: '[PM Zone 1 PEERS]', role: 'pm', zone: 'Zone 1' }
+  { username: 'pm2', full_name: '[PM Zone 2 PEERS]', role: 'pm', zone: 'Zone 2' }
+
+  // Superviseurs
+  { username: 'sup1', full_name: '[Superviseur 1 PEERS]', role: 'supervisor', zone: 'Zone 1' }
+  ...
+
+4.2  OPTION B : VIA LE PANNEAU ADMIN (POST-DÉPLOIEMENT)
+----------------------------------------------------------
+  1. Se connecter à https://peers-sitetrack.onrender.com/admin
+  2. Login : admin / PASSWORD_REDACTED
+  3. Créer chaque utilisateur manuellement via l'interface
+  4. Avantage : pas de modification de code nécessaire
+
+4.3  LISTE UTILISATEURS À DEMANDER AU CLIENT
+----------------------------------------------
+Demander à PEERS de fournir :
+  - Nombre de zones d'opération
+  - Nom + username de chaque PM (1 par zone)
+  - Nom + username de chaque superviseur
+  - Nom du Group PM / Program Manager
+  - Adresses email (si future intégration email)
+
+
+========================================
+PHASE 5 — DÉPLOIEMENT (Jour J+4)
+========================================
+
+5.1  DÉPLOYER SUR RENDER
+--------------------------
+  1. Créer un repo Git privé dédié à PEERS (GitHub/GitLab)
+  2. Pousser le code rebrandé
+  3. Sur Render.com :
+     - New → Web Service
+     - Connecter le repo PEERS
+     - Environment : Node
+     - Build Command : npm install
+     - Start Command : node server.js
+     - Region : choisir la plus proche du client
+  4. Ajouter les 6 variables d'environnement (cf. Phase 2.2)
+  5. Déployer
+  6. Vérifier l'URL : https://peers-sitetrack.onrender.com
+
+5.2  GÉNÉRER LES APK MOBILE (si commandé, +1 500 €)
+------------------------------------------------------
+  Prérequis : Android SDK + Java JDK installés
+
+  # APK Superviseur
+  node build-supervisor-apk.js
+  # → Résultat : peers-supervisor.apk
+
+  # APK PM
+  node build-pm-apk.js
+  # → Résultat : peers-pm.apk
+
+5.3  GÉNÉRER L'EXE DESKTOP PM (si commandé)
+---------------------------------------------
+  cd electron-pm
+  npm install
+  npm run build
+  # → Résultat : PEERS-Dashboard-PM.exe
+
+
+========================================
+PHASE 6 — TESTS DE RECETTE (Jour J+5)
+========================================
+
+6.1  CHECKLIST DE VALIDATION (11 POINTS)
+------------------------------------------
+Suivre le PROTOCOLE_DE_REMISE_CLIENT :
+
+  [  ] 1.  URL production accessible (https://peers-sitetrack.onrender.com)
+  [  ] 2.  Login Admin fonctionne (/admin)
+  [  ] 3.  Login Superviseur fonctionne (/)
+  [  ] 4.  Login PM fonctionne (/pm)
+  [  ] 5.  Création d'un rapport complet (sélection phase, statut, commentaires)
+  [  ] 6.  Upload de photos (vérifier stockage Cloudinary)
+  [  ] 7.  Feedback PM → visible par le Superviseur
+  [  ] 8.  Export CSV site tracking (bouton Tracking)
+  [  ] 9.  Export PDF site tracking (bouton Tracking PDF)
+  [  ] 10. Chat zone en temps réel (Socket.IO)
+  [  ] 11. PWA installable sur mobile (Chrome → Ajouter à l'écran d'accueil)
+
+6.2  TESTS SUPPLÉMENTAIRES
+-----------------------------
+  [  ] Les 18 phases de construction s'affichent correctement
+  [  ] Le scoring superviseur se calcule (60% schedule + 40% quality)
+  [  ] Attribution de site (PM → Superviseur) fonctionne
+  [  ] Filtrage par zone fonctionne dans le tracking
+  [  ] Le mot de passe par défaut fonctionne pour tous les comptes
+  [  ] APK s'installe et se connecte (si commandé)
+  [  ] EXE Desktop fonctionne (si commandé)
+
+
+========================================
+PHASE 7 — REMISE AU CLIENT (Jour J+6 à J+7)
+========================================
+
+7.1  LIVRABLES À TRANSMETTRE
+-------------------------------
+
+  +----------------------------+-------------------------------------------+
+  | Livrable                   | Contenu                                   |
+  +----------------------------+-------------------------------------------+
+  | Code source                | Repo Git (accès lecture) ou archive ZIP    |
+  | Guide utilisateur          | GUIDE_UTILISATEUR.md/.txt rebrandé PEERS  |
+  | Fiche technique            | FICHE_TECHNIQUE_CTO.md/.txt               |
+  | Guide déploiement          | Guide_Deploiement_Gratuit_Render.txt      |
+  | Guide installation PM      | Guide_Installation_DashboardPM.md/.txt    |
+  | Accès cloud                | MongoDB Atlas, Cloudinary, Render          |
+  | Variables d'environnement  | Liste complète documentée                 |
+  | URL de production          | https://peers-sitetrack.onrender.com      |
+  | Comptes utilisateurs       | Liste username/mot de passe initial       |
+  | APK Supervisor             | peers-supervisor.apk (si commandé)        |
+  | APK PM                     | peers-pm.apk (si commandé)                |
+  | EXE Desktop PM             | PEERS-Dashboard-PM.exe (si commandé)      |
+  | PV de recette              | Document signé par les 2 parties          |
+  +----------------------------+-------------------------------------------+
+
+7.2  SESSIONS DE FORMATION
+-----------------------------
+
+  Session 1 (1h) — SUPERVISEURS
+    - Connexion à l'app (PWA ou APK)
+    - Créer un rapport journalier
+    - Sélectionner la phase de construction
+    - Ajouter des photos du chantier
+    - Lire les feedbacks du PM
+
+  Session 2 (1h) — PROJECT MANAGERS
+    - Connexion au dashboard PM (/pm)
+    - Vue d'ensemble des rapports
+    - Donner un feedback sur un rapport
+    - Utiliser le tracking (export Excel/PDF)
+    - Chat zone avec les superviseurs
+    - Attribution de sites
+
+  Session 3 (30min) — ADMINISTRATEUR
+    - Connexion au panneau admin (/admin)
+    - Créer / modifier / désactiver des utilisateurs
+    - Gérer les zones et régions
+
+7.3  PROCÈS-VERBAL DE RECETTE
+-------------------------------
+Document à faire signer par :
+  - Le responsable technique PEERS
+  - Le représentant YORIV HOLDING
+
+Contenu :
+  - Date de livraison
+  - Liste des livrables remis
+  - Résultat de chaque test de la checklist
+  - Réserves éventuelles
+  - Date de début de la période de support
+
+
+========================================
+PHASE 8 — SUPPORT & EXPLOITATION
+========================================
+
+8.1  NIVEAUX DE SERVICE (SLA)
+-------------------------------
+
+  +----------+----------------------------+-----------------------+
+  | Priorité | Description                | Temps de réponse      |
+  +----------+----------------------------+-----------------------+
+  | P1       | Service indisponible       | < 1 heure             |
+  | P2       | Fonction clé dégradée      | < 4 heures            |
+  | P3       | Anomalie mineure           | < 1 jour ouvré        |
+  | P4       | Demande / question         | < 2 jours ouvrés      |
+  +----------+----------------------------+-----------------------+
+
+  Disponibilité cible : 99.5% mensuel
+  (hors maintenance planifiée et force majeure)
+
+8.2  CANAUX DE SUPPORT
+------------------------
+  Selon le pack :
+  - Email  : support@yorivholding.com
+  - WhatsApp Pro : [numéro dédié]
+  - Visio  : sur rendez-vous (packs Premium)
+
+8.3  MAINTENANCE
+------------------
+  - Sauvegardes quotidiennes automatiques (MongoDB Atlas)
+  - Rétention : 7-15-30 jours (configurable)
+  - Mises à jour de sécurité : dans un délai raisonnable
+  - Rotation des secrets : à chaque incident ou migration
+  - Monitoring : uptime via Render dashboard
+
+8.4  PROPRIÉTÉ INTELLECTUELLE
+-------------------------------
+  - Le CLIENT (PEERS) est propriétaire de ses DONNÉES
+  - YORIV HOLDING reste propriétaire du CODE/ARCHITECTURE
+  - Sauf cession explicite dans le contrat
+  - Les comptes cloud peuvent être :
+    a) Maintenus par YORIV pour le compte de PEERS
+    b) Créés au nom de PEERS avec délégation YORIV
+    c) Transférés à PEERS en fin de contrat
+
+
+========================================
+RÉSUMÉ CHRONOLOGIQUE
+========================================
+
+  +-------+---------------------------------------------+-------------------+
+  | Jour  | Étape                                       | Responsable       |
+  +-------+---------------------------------------------+-------------------+
+  | J0    | Signature du contrat + 50% paiement         | Commercial        |
+  | J+1   | Création comptes cloud (MongoDB, Cloudinary, | DevOps           |
+  |       | Render)                                     |                   |
+  | J+2   | Duplication repo + rebranding code PEERS     | Développeur       |
+  | J+3   | Rebranding suite (docs, icônes, couleurs)   | Développeur       |
+  | J+4   | Config utilisateurs + déploiement Render     | DevOps + Dev      |
+  | J+5   | Tests de recette (checklist 11 points)      | QA + PEERS        |
+  | J+6   | Formation (3 sessions)                      | Formateur         |
+  | J+7   | Remise livrables + PV de recette signé      | Chef de projet    |
+  |       | → 30% paiement                              |                   |
+  | J+14  | Fin période d'acceptance → 20% paiement     | Commercial        |
+  +-------+---------------------------------------------+-------------------+
+
+  DÉLAI TOTAL : ~7 jours ouvrés de la signature au go-live
+
+
+========================================
+SCRIPT DE REBRANDING AUTOMATISÉ
+========================================
+
+Pour accélérer la Phase 3, exécuter le script rebrand.js (à créer) :
+
+  node rebrand.js --client="PEERS" \
+                  --domain="peers-sitetrack.onrender.com" \
+                  --appId="com.peers.sitetrack" \
+                  --color="#[couleur PEERS]" \
+                  --contact="[Nom contact PEERS]" \
+                  --phone="[Tel PEERS]"
+
+Ce script effectue automatiquement les 445+ remplacements dans tous les
+fichiers du codebase (code + config + documentation).
+
+
+========================================
+RAPPELS IMPORTANTS
+========================================
+
+  ✓ TOUJOURS dupliquer le repo avant de rebrander — ne jamais modifier l'original
+  ✓ Tester TOUS les logins après déploiement (admin, pm, supervisor)
+  ✓ Vérifier que Cloudinary est bien configuré (sinon photos perdues au restart Render)
+  ✓ Générer un JWT_SECRET unique par client (ne jamais réutiliser)
+  ✓ Faire signer le PV de recette AVANT de livrer les accès cloud
+  ✓ Documenter les credentials dans un document sécurisé (pas en clair par email)
+  ✓ Planifier le changement de mots de passe par défaut dès le go-live
+
+================================================================================
+    Fin du document — YORIV HOLDING — Confidentiel
+================================================================================
