@@ -982,7 +982,7 @@ PARTIE 8 — LEÇONS APPRISES ET BONNES PRATIQUES
     Solution : API /api/zone-mapping (source unique)
 
   ⚠️ Mots de passe en dur dans le code
-    Problème : 'PASSWORD_REDACTED' écrit dans server.js → visible sur GitHub
+    Problème : mot de passe par défaut écrit dans server.js → visible sur GitHub
     Solution : variable d'environnement SEED_DEFAULT_PASSWORD obligatoire
 
   ⚠️ Report.find({}) sans filtre

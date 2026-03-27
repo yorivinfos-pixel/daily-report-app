@@ -67,8 +67,8 @@ function buildReplacements() {
         ['YORIV HOLDING',              CLIENT_COMPANY],
 
         // === Mots de passe par défaut ===
-        ['PASSWORD_REDACTED',                 `${CLIENT_PASSWORD}!`],
-        ['PASSWORD_REDACTED',                 CLIENT_PASSWORD],
+        ['SEED_DEFAULT_PASSWORD_PLACEHOLDER', `${CLIENT_PASSWORD}!`],
+        ['PASSWORD_PLACEHOLDER',       CLIENT_PASSWORD],
 
         // === Company dans le code serveur ===
         ["company: 'YoRiv'",           `company: '${CLIENT_NAME}'`],

@@ -87,32 +87,32 @@ Chaque utilisateur dispose d'un **identifiant** et d'un **mot de passe** fournis
 
 | Nom complet | Identifiant | Mot de passe |
 |-------------|-------------|--------------|
-| Evariste FAMBA | `evariste.famba` | `PASSWORD_REDACTED` |
-| Gaston MUTSHIPULE | `gaston.mutshipule` | `PASSWORD_REDACTED` |
-| Patou KIESELO | `patou.kieselo` | `PASSWORD_REDACTED` |
-| Denis ILUNGA | `denis.ilunga` | `PASSWORD_REDACTED` |
-| Grace NGOMBA | `grace.ngomba` | `PASSWORD_REDACTED` |
-| Don MAFINGE | `don.mafinge` | `PASSWORD_REDACTED` |
-| Vincent KAPAJIKA | `vincent.kapajika` | `PASSWORD_REDACTED` |
-| Patient KYAVIRO | `patient.kyaviro` | `PASSWORD_REDACTED` |
-| Baudoin TSHIMBUNDU | `baudoin.tshimbundu` | `PASSWORD_REDACTED` |
-| Pacifique KABASODA | `pacifique.kabasoda` | `PASSWORD_REDACTED` |
+| Evariste FAMBA | `evariste.famba` | *(mot de passe initial)* |
+| Gaston MUTSHIPULE | `gaston.mutshipule` | *(mot de passe initial)* |
+| Patou KIESELO | `patou.kieselo` | *(mot de passe initial)* |
+| Denis ILUNGA | `denis.ilunga` | *(mot de passe initial)* |
+| Grace NGOMBA | `grace.ngomba` | *(mot de passe initial)* |
+| Don MAFINGE | `don.mafinge` | *(mot de passe initial)* |
+| Vincent KAPAJIKA | `vincent.kapajika` | *(mot de passe initial)* |
+| Patient KYAVIRO | `patient.kyaviro` | *(mot de passe initial)* |
+| Baudoin TSHIMBUNDU | `baudoin.tshimbundu` | *(mot de passe initial)* |
+| Pacifique KABASODA | `pacifique.kabasoda` | *(mot de passe initial)* |
 
 **Identifiants par défaut pour les PM :**
 
 | Rôle | Identifiant | Mot de passe |
 |------|-------------|--------------|
-| Group PM (Sunil) | `sunil` | `PASSWORD_REDACTED` |
-| PM Zone 1 | `pm1` | `PASSWORD_REDACTED` |
-| PM Zone 2 | `pm2` | `PASSWORD_REDACTED` |
-| PM Zone 3 | `pm3` | `PASSWORD_REDACTED` |
-| PM Zone 4 | `pm4` | `PASSWORD_REDACTED` |
+| Group PM (Sunil) | `sunil` | *(mot de passe initial)* |
+| PM Zone 1 | `pm1` | *(mot de passe initial)* |
+| PM Zone 2 | `pm2` | *(mot de passe initial)* |
+| PM Zone 3 | `pm3` | *(mot de passe initial)* |
+| PM Zone 4 | `pm4` | *(mot de passe initial)* |
 
 **Identifiant Admin :**
 
 | Rôle | Identifiant | Mot de passe |
 |------|-------------|--------------|
-| Administrateur | `admin` | `PASSWORD_REDACTED` |
+| Administrateur | `admin` | *(mot de passe initial)* |
 
 > **IMPORTANT** : Changez votre mot de passe après la première connexion en contactant l'administrateur.
 
@@ -265,7 +265,7 @@ Quand toutes les phases d'un site sont terminées :
 ### 4.1 Accéder au Dashboard PM
 
 1. Ouvrir `https://daily-report-app-fanv.onrender.com/pm`
-2. Entrer votre identifiant (ex: `pm1`) et mot de passe (ex: `PASSWORD_REDACTED`)
+2. Entrer votre identifiant (ex: `pm1`) et mot de passe (fourni par l'administrateur)
 3. Vous accédez au tableau de bord
 
 ### 4.2 Vue d'ensemble du Dashboard
@@ -353,7 +353,7 @@ Les filtres actifs (province, date, superviseur, période) s'appliquent à l'exp
 ### 5.1 Accéder au panneau Admin
 
 1. Ouvrir `https://daily-report-app-fanv.onrender.com/admin`
-2. Se connecter avec l'identifiant `admin` et le mot de passe `PASSWORD_REDACTED`
+2. Se connecter avec l'identifiant `admin` et le mot de passe fourni par l'administrateur système
 
 ### 5.2 Créer un nouveau compte
 

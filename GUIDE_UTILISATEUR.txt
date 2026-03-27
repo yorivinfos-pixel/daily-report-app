@@ -261,7 +261,7 @@ Quand toutes les phases d'un site sont terminées :
 4.1 Accéder au Dashboard PM
 
 1. Ouvrir https://daily-report-app-fanv.onrender.com/pm
-2. Entrer votre identifiant (ex: pm1) et mot de passe (ex: PASSWORD_REDACTED)
+2. Entrer votre identifiant (ex: pm1) et mot de passe (fourni par l'administrateur)
 3. Vous accédez au tableau de bord
 
 4.2 Vue d'ensemble du Dashboard

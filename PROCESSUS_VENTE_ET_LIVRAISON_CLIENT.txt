@@ -120,8 +120,8 @@ NE JAMAIS modifier le repo source original.
 | Jean-Baptiste MBUYI                  | [Nom contact PEERS ou retirer]       |
 | 0850145419                           | [Numéro PEERS ou retirer]            |
 | daily-report-app-fanv.onrender.com   | peers-sitetrack.onrender.com         |
-| PASSWORD_REDACTED                           | PASSWORD_REDACTED                           |
-| PASSWORD_REDACTED                           | PASSWORD_REDACTED                           |
+| [SEED_DEFAULT_PASSWORD]              | [Mot de passe initial client]        |
+| [SEED_DEFAULT_PASSWORD]              | [Mot de passe initial client]        |
 | yoriv-supervisor.apk                 | peers-supervisor.apk                 |
 | YoRiv-Dashboard-PM.exe              | PEERS-Dashboard-PM.exe               |
 +--------------------------------------+--------------------------------------+
@@ -230,7 +230,7 @@ PHASE 4 — CONFIGURATION UTILISATEURS (Jour J+4)
 Remplacer les utilisateurs YoRiv par ceux de PEERS dans le code seed :
 
   // Admin PEERS
-  { username: 'admin', full_name: 'Admin PEERS', password: 'PASSWORD_REDACTED', role: 'admin' }
+  { username: 'admin', full_name: 'Admin PEERS', password: '[SEED_DEFAULT_PASSWORD]', role: 'admin' }
 
   // Group PM
   { username: 'pm_group', full_name: '[Nom Group PM PEERS]', role: 'group_pm' }
@@ -246,7 +246,7 @@ Remplacer les utilisateurs YoRiv par ceux de PEERS dans le code seed :
 4.2  OPTION B : VIA LE PANNEAU ADMIN (POST-DÉPLOIEMENT)
 ----------------------------------------------------------
   1. Se connecter à https://peers-sitetrack.onrender.com/admin
-  2. Login : admin / PASSWORD_REDACTED
+  2. Login : admin / [mot de passe défini dans SEED_DEFAULT_PASSWORD]
   3. Créer chaque utilisateur manuellement via l'interface
   4. Avantage : pas de modification de code nécessaire
 
