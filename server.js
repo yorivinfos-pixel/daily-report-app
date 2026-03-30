@@ -1,5 +1,9 @@
 try { require('dotenv').config(); } catch (e) { console.log('Mode production: dotenv ignoré'); }
 
+// ======= Forcer DNS Google pour résoudre les problèmes SRV =======
+const dns = require('dns');
+dns.setServers(['8.8.8.8', '8.8.4.4', '1.1.1.1']);
+
 // ======= MongoDB Atlas (Mongoose) =======
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
@@ -17,7 +21,11 @@ if (!JWT_SECRET) {
     process.exit(1);
 }
 
-mongoose.connect(mongoUri)
+mongoose.connect(mongoUri, {
+    serverSelectionTimeoutMS: 30000,  // 30 secondes pour sélectionner un serveur
+    socketTimeoutMS: 45000,           // 45 secondes timeout socket
+    family: 4                         // Forcer IPv4
+})
     .then(() => console.log("✅ Connecté à MongoDB avec succès sur Cluster0 !"))
     .catch(err => {
         console.error("❌ Erreur critique connexion MongoDB:", err.message);
@@ -266,6 +274,17 @@ app.get('/api/zone-mapping', (req, res) => {
     res.json({ success: true, mapping: PROVINCE_TO_ZONE, defaultZone: 'Zone 4' });
 });
 
+// Diagnostic : même processus Node que /api/auth/login (pas Compass ni un autre PC)
+const MONGO_READY_LABEL = { 0: 'disconnected', 1: 'connected', 2: 'connecting', 3: 'disconnecting' };
+app.get('/api/health', (req, res) => {
+    const st = mongoose.connection.readyState;
+    res.json({
+        success: true,
+        mongodb: MONGO_READY_LABEL[st] || String(st),
+        mongodb_ok: st === 1
+    });
+});
+
 // ======= Middleware JWT =======
 function generateToken(user) {
     return jwt.sign(
@@ -307,6 +326,22 @@ const loginLimiter = rateLimit({
     legacyHeaders: false
 });
 
+function isDatabaseUnavailableError(err) {
+    if (!err) return false;
+    const msg = String(err.message || '');
+    const name = String(err.name || '');
+    return (
+        name === 'MongooseError' ||
+        msg.includes('buffering timed out') ||
+        msg.includes('ECONNREFUSED') ||
+        msg.includes('ENOTFOUND') ||
+        msg.includes('ETIMEOUT') ||
+        msg.includes('querySrv') ||
+        msg.includes('MongoNetworkError') ||
+        msg.includes('Server selection timed out')
+    );
+}
+
 app.post('/api/auth/login', loginLimiter, async (req, res) => {
     try {
         const { username, password } = req.body;
@@ -341,6 +376,13 @@ app.post('/api/auth/login', loginLimiter, async (req, res) => {
         });
     } catch (err) {
         console.error('Erreur login:', err);
+        if (isDatabaseUnavailableError(err)) {
+            return res.status(503).json({
+                success: false,
+                error:
+                    'Base de données inaccessible. Vérifiez Internet, le pare-feu, et sur MongoDB Atlas : Network Access → ajoutez votre adresse IP (ou 0.0.0.0/0 pour test). Une erreur DNS (ETIMEOUT) indique souvent un blocage réseau ou une IP non autorisée.'
+            });
+        }
         res.status(500).json({ success: false, error: 'Erreur serveur' });
     }
 });

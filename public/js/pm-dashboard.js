@@ -109,7 +109,18 @@ class PMDashboard {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ username: username.toLowerCase(), password })
                 });
-                const data = await res.json();
+                const text = await res.text();
+                let data;
+                try {
+                    data = JSON.parse(text);
+                } catch (_) {
+                    const isHtml = text.trimStart().startsWith('<');
+                    throw new Error(
+                        isHtml
+                            ? 'Le serveur a renvoyé une page HTML au lieu de JSON. Démarrez le backend (node server.js), ouvrez le dashboard via l’URL du serveur (ex. http://localhost:3000/pm), pas en double-cliquant sur un fichier (file://). Si vous êtes en ligne, vérifiez que l’hébergement (ex. Render) est actif et que l’URL correspond bien à l’application complète.'
+                            : 'Réponse du serveur illisible (pas du JSON).'
+                    );
+                }
                 if (!data.success) {
                     throw new Error(data.error || 'Erreur de connexion');
                 }
